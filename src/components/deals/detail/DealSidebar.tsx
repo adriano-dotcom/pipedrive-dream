@@ -1,6 +1,11 @@
-import { Building2, User, Phone, Mail, Briefcase, Calendar, Percent, DollarSign, Shield, FileText, ChevronDown } from 'lucide-react';
+import { Building2, User, Phone, Mail, Briefcase, Calendar, Percent, DollarSign, Shield, FileText, ChevronDown, Pencil } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { PersonFormSheet } from '@/components/people/PersonFormSheet';
+import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -85,27 +90,92 @@ function InfoRow({ label, value, icon: Icon }: { label: string; value: React.Rea
 }
 
 export function DealSidebar({ deal }: DealSidebarProps) {
+  const [editingPerson, setEditingPerson] = useState(false);
+  const [editingOrganization, setEditingOrganization] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Fetch full person data for editing
+  const { data: fullPerson } = useQuery({
+    queryKey: ['person-full', deal.person?.id],
+    queryFn: async () => {
+      if (!deal.person?.id) return null;
+      const { data } = await supabase
+        .from('people')
+        .select('*')
+        .eq('id', deal.person.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!deal.person?.id && editingPerson,
+  });
+
+  // Fetch full organization data for editing
+  const { data: fullOrganization } = useQuery({
+    queryKey: ['organization-full', deal.organization?.id],
+    queryFn: async () => {
+      if (!deal.organization?.id) return null;
+      const { data } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', deal.organization.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!deal.organization?.id && editingOrganization,
+  });
+
+  const handlePersonSuccess = () => {
+    setEditingPerson(false);
+    queryClient.invalidateQueries({ queryKey: ['deal', deal.id] });
+    queryClient.invalidateQueries({ queryKey: ['person-full', deal.person?.id] });
+  };
+
+  const handleOrganizationSuccess = () => {
+    setEditingOrganization(false);
+    queryClient.invalidateQueries({ queryKey: ['deal', deal.id] });
+    queryClient.invalidateQueries({ queryKey: ['organization-full', deal.organization?.id] });
+  };
+
   return (
     <div className="space-y-2 bg-card/50 rounded-xl border border-border/50 overflow-hidden">
       {/* Person Section */}
       {deal.person && (
         <SidebarSection title="Pessoa" icon={User}>
           <div className="space-y-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link 
-                    to={`/people/${deal.person.id}`}
-                    className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
-                  >
-                    {deal.person.name}
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Clique para ver detalhes</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center justify-between">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link 
+                      to={`/people/${deal.person.id}`}
+                      className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                    >
+                      {deal.person.name}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Clique para ver detalhes</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setEditingPerson(true)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Editar pessoa</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             {deal.person.job_title && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Briefcase className="h-3.5 w-3.5" />
@@ -132,21 +202,40 @@ export function DealSidebar({ deal }: DealSidebarProps) {
       {deal.organization && (
         <SidebarSection title="Organização" icon={Building2}>
           <div className="space-y-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link 
-                    to={`/organizations/${deal.organization.id}`}
-                    className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
-                  >
-                    {deal.organization.name}
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Clique para ver detalhes</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center justify-between">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link 
+                      to={`/organizations/${deal.organization.id}`}
+                      className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                    >
+                      {deal.organization.name}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Clique para ver detalhes</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setEditingOrganization(true)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Editar organização</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             {deal.organization.phone && (
               <a href={`tel:${deal.organization.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
                 <Phone className="h-3.5 w-3.5" />
@@ -208,6 +297,26 @@ export function DealSidebar({ deal }: DealSidebarProps) {
         <SidebarSection title="Observações" icon={FileText} defaultOpen={false}>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">{deal.notes}</p>
         </SidebarSection>
+      )}
+
+      {/* Person Edit Sheet */}
+      {deal.person && (
+        <PersonFormSheet
+          open={editingPerson}
+          onOpenChange={setEditingPerson}
+          person={fullPerson || null}
+          onSuccess={handlePersonSuccess}
+        />
+      )}
+
+      {/* Organization Edit Sheet */}
+      {deal.organization && (
+        <OrganizationFormSheet
+          open={editingOrganization}
+          onOpenChange={setEditingOrganization}
+          organization={fullOrganization || null}
+          onSuccess={handleOrganizationSuccess}
+        />
       )}
     </div>
   );
