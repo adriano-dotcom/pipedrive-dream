@@ -29,7 +29,14 @@ type Person = Tables<'people'>;
 type Organization = Tables<'organizations'>;
 
 interface PersonWithOrg extends Person {
-  organizations?: Organization | null;
+  organizations?: {
+    id: string;
+    name: string;
+    cnpj: string | null;
+    address_city: string | null;
+    address_state: string | null;
+    automotores: number | null;
+  } | null;
 }
 
 export default function People() {
@@ -44,7 +51,7 @@ export default function People() {
     queryFn: async () => {
       let query = supabase
         .from('people')
-        .select('*, organizations(id, name)')
+        .select('*, organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores)')
         .order('created_at', { ascending: false });
 
       if (search) {
@@ -167,7 +174,10 @@ export default function People() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Contato</TableHead>
-                <TableHead>Organização</TableHead>
+                <TableHead>Empresa</TableHead>
+                <TableHead>CNPJ</TableHead>
+                <TableHead>Cidade</TableHead>
+                <TableHead className="text-center">Automotores</TableHead>
                 <TableHead>Cargo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[100px]">Ações</TableHead>
@@ -194,12 +204,23 @@ export default function People() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {person.organizations && (
+                    {person.organizations ? (
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Building2 className="h-3 w-3" />
                         {person.organizations.name}
                       </span>
-                    )}
+                    ) : '-'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground font-mono text-xs">
+                    {person.organizations?.cnpj || '-'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {person.organizations?.address_city 
+                      ? `${person.organizations.address_city}/${person.organizations.address_state || ''}`
+                      : '-'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-center">
+                    {person.organizations?.automotores ?? '-'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {person.job_title || '-'}
