@@ -234,6 +234,8 @@ export default function OrganizationDetails() {
                 onDeleteNote={deleteNote}
                 onEditNote={updateNote}
                 isAdding={isAddingNote}
+                organizationId={id || ''}
+                organizationName={organization.name}
               />
             </TabsContent>
 

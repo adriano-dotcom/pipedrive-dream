@@ -232,6 +232,8 @@ export default function PersonDetails() {
                 onDeleteNote={deleteNote}
                 onEditNote={updateNote}
                 isAdding={isAddingNote}
+                personId={id || ''}
+                personName={person?.name || ''}
               />
             </TabsContent>
 
