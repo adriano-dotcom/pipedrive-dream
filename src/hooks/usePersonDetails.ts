@@ -244,6 +244,25 @@ export function usePersonDetails(personId: string) {
     },
   });
 
+  // Update note mutation
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({ noteId, content }: { noteId: string; content: string }) => {
+      const { error } = await supabase
+        .from('people_notes')
+        .update({ content, updated_at: new Date().toISOString() })
+        .eq('id', noteId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person-notes', personId] });
+      toast.success('Nota atualizada!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar nota: ' + error.message);
+    },
+  });
+
   return {
     person,
     history,
@@ -255,5 +274,7 @@ export function usePersonDetails(personId: string) {
     isAddingNote: addNoteMutation.isPending,
     togglePin: (noteId: string, isPinned: boolean) => togglePinMutation.mutate({ noteId, isPinned }),
     deleteNote: deleteNoteMutation.mutate,
+    updateNote: (noteId: string, content: string) => updateNoteMutation.mutate({ noteId, content }),
+    isUpdatingNote: updateNoteMutation.isPending,
   };
 }

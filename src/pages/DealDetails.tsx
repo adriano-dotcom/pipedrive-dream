@@ -30,6 +30,7 @@ export default function DealDetails() {
     isAddingNote,
     togglePin,
     deleteNote,
+    updateNote,
     updateStage,
     updateDealStatus,
     isUpdatingStatus,
@@ -160,6 +161,7 @@ export default function DealDetails() {
                 onAddNote={addNote}
                 onTogglePin={togglePin}
                 onDeleteNote={deleteNote}
+                onEditNote={(noteId, content) => updateNote({ noteId, content })}
                 isAdding={isAddingNote}
               />
             </TabsContent>

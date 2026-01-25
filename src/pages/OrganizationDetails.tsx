@@ -51,6 +51,7 @@ export default function OrganizationDetails() {
     isAddingNote,
     togglePin,
     deleteNote,
+    updateNote,
   } = useOrganizationDetails(id || '');
 
   const {
@@ -231,6 +232,7 @@ export default function OrganizationDetails() {
                 onAddNote={addNote}
                 onTogglePin={togglePin}
                 onDeleteNote={deleteNote}
+                onEditNote={updateNote}
                 isAdding={isAddingNote}
               />
             </TabsContent>
