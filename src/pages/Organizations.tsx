@@ -4,15 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -20,26 +11,42 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Building2, Phone, Mail, MapPin, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OrganizationForm } from '@/components/organizations/OrganizationForm';
+import { OrganizationsTable } from '@/components/organizations/OrganizationsTable';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
 
+type OrganizationWithContact = Organization & {
+  primary_contact: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+  } | null;
+};
+
 export default function Organizations() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
+  const [editingOrg, setEditingOrg] = useState<OrganizationWithContact | null>(null);
 
   const { data: organizations, isLoading } = useQuery({
     queryKey: ['organizations', search],
     queryFn: async () => {
       let query = supabase
         .from('organizations')
-        .select('*')
+        .select(`
+          *,
+          primary_contact:people!primary_contact_id(
+            name,
+            phone,
+            email
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (search) {
@@ -48,7 +55,7 @@ export default function Organizations() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Organization[];
+      return data as OrganizationWithContact[];
     },
   });
 
@@ -67,12 +74,12 @@ export default function Organizations() {
     },
   });
 
-  const handleEdit = (org: Organization) => {
+  const handleEdit = (org: OrganizationWithContact) => {
     setEditingOrg(org);
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (org: Organization) => {
+  const handleDelete = (org: OrganizationWithContact) => {
     if (confirm(`Tem certeza que deseja excluir "${org.name}"?`)) {
       deleteMutation.mutate(org.id);
     }
@@ -81,19 +88,6 @@ export default function Organizations() {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingOrg(null);
-  };
-
-  const getLabelColor = (label: string | null) => {
-    switch (label) {
-      case 'Quente':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'Morno':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'Frio':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      default:
-        return '';
-    }
   };
 
   return (
@@ -156,80 +150,12 @@ export default function Organizations() {
           </p>
         </div>
       ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>CNPJ</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Cidade</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {organizations?.map((org) => (
-                <TableRow key={org.id}>
-                  <TableCell className="font-medium">{org.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{org.cnpj || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      {org.phone && (
-                        <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          {org.phone}
-                        </span>
-                      )}
-                      {org.email && (
-                        <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {org.email}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {org.address_city && (
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {org.address_city}/{org.address_state}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {org.label && (
-                      <Badge variant="secondary" className={getLabelColor(org.label)}>
-                        {org.label}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(org)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(org)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <OrganizationsTable
+          organizations={organizations || []}
+          isAdmin={isAdmin}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
       )}
     </div>
   );
