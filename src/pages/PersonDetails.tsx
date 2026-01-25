@@ -50,6 +50,7 @@ export default function PersonDetails() {
     isAddingNote,
     togglePin,
     deleteNote,
+    updateNote,
   } = usePersonDetails(id || '');
 
   const {
@@ -229,6 +230,7 @@ export default function PersonDetails() {
                 onAddNote={addNote}
                 onTogglePin={togglePin}
                 onDeleteNote={deleteNote}
+                onEditNote={updateNote}
                 isAdding={isAddingNote}
               />
             </TabsContent>

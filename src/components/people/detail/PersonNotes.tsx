@@ -9,6 +9,9 @@ import {
   Trash2, 
   Loader2,
   Send,
+  Pencil,
+  X,
+  Check,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,6 +22,7 @@ interface PersonNotesProps {
   onAddNote: (content: string) => void;
   onTogglePin: (noteId: string, isPinned: boolean) => void;
   onDeleteNote: (noteId: string) => void;
+  onEditNote?: (noteId: string, content: string) => void;
   isAdding: boolean;
 }
 
@@ -27,15 +31,36 @@ export function PersonNotes({
   onAddNote, 
   onTogglePin, 
   onDeleteNote,
+  onEditNote,
   isAdding,
 }: PersonNotesProps) {
   const [newNote, setNewNote] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.trim()) return;
     onAddNote(newNote.trim());
     setNewNote('');
+  };
+
+  const handleStartEdit = (note: PersonNote) => {
+    setEditingNoteId(note.id);
+    setEditContent(note.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNoteId(null);
+    setEditContent('');
+  };
+
+  const handleSaveEdit = () => {
+    if (editContent.trim() && editingNoteId && onEditNote) {
+      onEditNote(editingNoteId, editContent.trim());
+      setEditingNoteId(null);
+      setEditContent('');
+    }
   };
 
   return (
@@ -91,45 +116,84 @@ export function PersonNotes({
               }`}
             >
               <CardContent className="pt-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm whitespace-pre-wrap">{note.content}</p>
-                    <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-                      {note.profile && (
-                        <span>{note.profile.full_name}</span>
-                      )}
-                      <span>•</span>
-                      <span>
-                        {format(new Date(note.created_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
-                      </span>
-                      <span className="text-muted-foreground/60">
-                        ({formatDistanceToNow(new Date(note.created_at), { locale: ptBR, addSuffix: true })})
-                      </span>
+                {editingNoteId === note.id ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="min-h-[80px] resize-none bg-background/50"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        disabled={!editContent.trim()}
+                      >
+                        <Check className="h-4 w-4 mr-1" />
+                        Salvar
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onTogglePin(note.id, note.is_pinned)}
-                    >
-                      {note.is_pinned ? (
-                        <PinOff className="h-4 w-4 text-primary" />
-                      ) : (
-                        <Pin className="h-4 w-4" />
+                ) : (
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                      <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                        {note.profile && (
+                          <span>{note.profile.full_name}</span>
+                        )}
+                        <span>•</span>
+                        <span>
+                          {format(new Date(note.created_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
+                        </span>
+                        <span className="text-muted-foreground/60">
+                          ({formatDistanceToNow(new Date(note.created_at), { locale: ptBR, addSuffix: true })})
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onEditNote && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleStartEdit(note)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                       )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => onDeleteNote(note.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onTogglePin(note.id, note.is_pinned)}
+                      >
+                        {note.is_pinned ? (
+                          <PinOff className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Pin className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => onDeleteNote(note.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           ))}

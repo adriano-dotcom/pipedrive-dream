@@ -214,6 +214,25 @@ export function useDealDetails(dealId: string) {
     },
   });
 
+  // Update note mutation
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({ noteId, content }: { noteId: string; content: string }) => {
+      const { error } = await supabase
+        .from('deal_notes')
+        .update({ content, updated_at: new Date().toISOString() })
+        .eq('id', noteId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deal-notes', dealId] });
+      toast.success('Nota atualizada');
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar nota');
+    },
+  });
+
   // Update deal stage mutation
   const updateStageMutation = useMutation({
     mutationFn: async (stageId: string) => {
@@ -285,6 +304,8 @@ export function useDealDetails(dealId: string) {
     isAddingNote: addNoteMutation.isPending,
     togglePin: togglePinMutation.mutate,
     deleteNote: deleteNoteMutation.mutate,
+    updateNote: updateNoteMutation.mutate,
+    isUpdatingNote: updateNoteMutation.isPending,
     updateStage: updateStageMutation.mutate,
     updateDealStatus: updateDealStatusMutation.mutate,
     isUpdatingStatus: updateDealStatusMutation.isPending,
