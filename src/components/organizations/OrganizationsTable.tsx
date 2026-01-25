@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   useReactTable,
   getCoreRowModel,
@@ -87,7 +88,12 @@ export function OrganizationsTable({
         accessorKey: 'name',
         header: 'Nome',
         cell: ({ row }) => (
-          <span className="font-medium">{row.original.name}</span>
+          <Link 
+            to={`/organizations/${row.original.id}`}
+            className="font-medium text-primary hover:underline"
+          >
+            {row.original.name}
+          </Link>
         ),
         enableColumnFilter: true,
       },
