@@ -14,6 +14,97 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          activity_type: string
+          assigned_to: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          description: string | null
+          due_date: string
+          due_time: string | null
+          duration_minutes: number | null
+          id: string
+          is_completed: boolean
+          notes: string | null
+          organization_id: string | null
+          owner_id: string | null
+          person_id: string | null
+          priority: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          activity_type?: string
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date: string
+          due_time?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_completed?: boolean
+          notes?: string | null
+          organization_id?: string | null
+          owner_id?: string | null
+          person_id?: string | null
+          priority?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          activity_type?: string
+          assigned_to?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date?: string
+          due_time?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_completed?: boolean
+          notes?: string | null
+          organization_id?: string | null
+          owner_id?: string | null
+          person_id?: string | null
+          priority?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deals: {
         Row: {
           commission_percent: number | null
