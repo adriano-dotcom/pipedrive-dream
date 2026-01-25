@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -43,6 +43,16 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const dealSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -102,6 +112,10 @@ export function DealFormSheet({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!deal?.id;
+  
+  // State for pipeline change confirmation
+  const [isConfirmingPipelineChange, setIsConfirmingPipelineChange] = useState(false);
+  const [pendingPipelineId, setPendingPipelineId] = useState<string | null>(null);
 
   const form = useForm<DealFormValues>({
     resolver: zodResolver(dealSchema),
@@ -137,8 +151,39 @@ export function DealFormSheet({
     },
   });
 
-  // Watch selected pipeline to load stages dynamically
+  // Watch selected pipeline and stage
   const selectedPipelineId = form.watch('pipeline_id');
+  const currentStageId = form.watch('stage_id');
+
+  // Handle pipeline change with confirmation if stage is selected
+  const handlePipelineChange = (newPipelineId: string) => {
+    // If the pipeline is the same, do nothing
+    if (newPipelineId === selectedPipelineId) return;
+    
+    // If a stage is already selected, prompt for confirmation
+    if (currentStageId) {
+      setPendingPipelineId(newPipelineId);
+      setIsConfirmingPipelineChange(true);
+    } else {
+      // If no stage is selected, change directly
+      form.setValue('pipeline_id', newPipelineId);
+      form.setValue('stage_id', '');
+    }
+  };
+
+  const confirmPipelineChange = () => {
+    if (pendingPipelineId) {
+      form.setValue('pipeline_id', pendingPipelineId);
+      form.setValue('stage_id', '');
+      setPendingPipelineId(null);
+      setIsConfirmingPipelineChange(false);
+    }
+  };
+
+  const cancelPipelineChange = () => {
+    setPendingPipelineId(null);
+    setIsConfirmingPipelineChange(false);
+  };
 
   // Fetch stages for selected pipeline
   const { data: dynamicStages = [] } = useQuery({
@@ -385,11 +430,7 @@ export function DealFormSheet({
                   <FormItem>
                     <FormLabel>Funil *</FormLabel>
                     <Select
-                      onValueChange={(val) => {
-                        field.onChange(val);
-                        // Clear stage when pipeline changes
-                        form.setValue('stage_id', '');
-                      }}
+                      onValueChange={handlePipelineChange}
                       value={field.value}
                     >
                       <FormControl>
@@ -799,6 +840,22 @@ export function DealFormSheet({
           </form>
         </Form>
       </SheetContent>
+
+      {/* Confirmation dialog for pipeline change */}
+      <AlertDialog open={isConfirmingPipelineChange} onOpenChange={setIsConfirmingPipelineChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Troca de Funil?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ao trocar de funil, a etapa atual será perdida e você precisará selecionar uma nova etapa. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelPipelineChange}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPipelineChange}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
