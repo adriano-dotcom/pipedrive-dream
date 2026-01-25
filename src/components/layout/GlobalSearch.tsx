@@ -139,7 +139,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
           .from('people')
           .select(`
             id, name, email, phone, cpf,
-            organization:organizations(id, name)
+            organization:organizations!people_organization_id_fkey(id, name)
           `)
           .or(`name.ilike.${query},email.ilike.${query},phone.ilike.${query},cpf.ilike.${query}`)
           .limit(5),
