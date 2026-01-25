@@ -29,12 +29,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { 
   User, 
@@ -50,6 +57,8 @@ import {
   Unlink,
   Link2,
   Plus,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { supabase } from '@/integrations/supabase/client';
@@ -110,6 +119,7 @@ export function PersonSidebar({
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
   const [showNewOrgSheet, setShowNewOrgSheet] = useState(false);
+  const [orgSearchOpen, setOrgSearchOpen] = useState(false);
   
   const hasLeadSource = person.lead_source || person.utm_source || person.utm_medium || person.utm_campaign;
 
@@ -469,19 +479,52 @@ export function PersonSidebar({
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="organization">Organização</Label>
-              <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Selecione uma organização..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Organização</Label>
+              <Popover open={orgSearchOpen} onOpenChange={setOrgSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={orgSearchOpen}
+                    className="w-full justify-between"
+                  >
+                    <span className="truncate">
+                      {selectedOrgId
+                        ? organizations.find((org) => org.id === selectedOrgId)?.name
+                        : 'Selecione uma organização...'}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar organização..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma organização encontrada.</CommandEmpty>
+                      <CommandGroup>
+                        {organizations.map((org) => (
+                          <CommandItem
+                            key={org.id}
+                            value={org.name}
+                            onSelect={() => {
+                              setSelectedOrgId(org.id);
+                              setOrgSearchOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedOrgId === org.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {org.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             
             <div className="flex items-center gap-2">
