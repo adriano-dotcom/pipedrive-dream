@@ -14,6 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
+      deals: {
+        Row: {
+          commission_percent: number | null
+          commission_value: number | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          end_date: string | null
+          expected_close_date: string | null
+          id: string
+          insurance_type: string | null
+          insurer: string | null
+          label: string | null
+          lost_at: string | null
+          lost_reason: string | null
+          notes: string | null
+          organization_id: string | null
+          owner_id: string | null
+          person_id: string | null
+          pipeline_id: string
+          policy_number: string | null
+          probability: number | null
+          stage_id: string | null
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+          value: number | null
+          won_at: string | null
+        }
+        Insert: {
+          commission_percent?: number | null
+          commission_value?: number | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          end_date?: string | null
+          expected_close_date?: string | null
+          id?: string
+          insurance_type?: string | null
+          insurer?: string | null
+          label?: string | null
+          lost_at?: string | null
+          lost_reason?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          owner_id?: string | null
+          person_id?: string | null
+          pipeline_id: string
+          policy_number?: string | null
+          probability?: number | null
+          stage_id?: string | null
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          value?: number | null
+          won_at?: string | null
+        }
+        Update: {
+          commission_percent?: number | null
+          commission_value?: number | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          end_date?: string | null
+          expected_close_date?: string | null
+          id?: string
+          insurance_type?: string | null
+          insurer?: string | null
+          label?: string | null
+          lost_at?: string | null
+          lost_reason?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          owner_id?: string | null
+          person_id?: string | null
+          pipeline_id?: string
+          policy_number?: string | null
+          probability?: number | null
+          stage_id?: string | null
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          value?: number | null
+          won_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           address_city: string | null
@@ -157,6 +276,39 @@ export type Database = {
           },
         ]
       }
+      pipelines: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          owner_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          owner_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          owner_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -186,6 +338,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      stages: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          pipeline_id: string
+          position: number
+          probability: number | null
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          pipeline_id: string
+          position: number
+          probability?: number | null
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          pipeline_id?: string
+          position?: number
+          probability?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stages_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
