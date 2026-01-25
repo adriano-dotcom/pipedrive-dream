@@ -1,6 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { 
   Building2, 
   Phone, 
@@ -14,6 +20,7 @@ import {
   Truck,
   AlertCircle,
   DollarSign,
+  MessageCircle,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -310,31 +317,62 @@ export function OrganizationSidebar({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-          {people.map((person) => (
-              <Link 
-                key={person.id} 
-                to={`/people/${person.id}`}
-                className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block"
-              >
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
-                  {person.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{person.name}</span>
-                    {person.is_primary && (
-                      <Badge variant="secondary" className="text-xs">Principal</Badge>
-                    )}
-                  </div>
-                  {person.job_title && (
-                    <p className="text-xs text-muted-foreground">{person.job_title}</p>
-                  )}
-                  {person.phone && (
-                    <p className="text-xs text-muted-foreground">{person.phone}</p>
-                  )}
-                </div>
-              </Link>
-            ))}
+            <TooltipProvider>
+              {people.map((person) => (
+                <Tooltip key={person.id}>
+                  <TooltipTrigger asChild>
+                    <Link 
+                      to={`/people/${person.id}`}
+                      className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block"
+                    >
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
+                        {person.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate">{person.name}</span>
+                          {person.is_primary && (
+                            <Badge variant="secondary" className="text-xs">Principal</Badge>
+                          )}
+                        </div>
+                        {person.job_title && (
+                          <p className="text-xs text-muted-foreground">{person.job_title}</p>
+                        )}
+                        {person.phone && (
+                          <p className="text-xs text-muted-foreground truncate">{person.phone}</p>
+                        )}
+                      </div>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs">
+                    <div className="space-y-1.5 py-1">
+                      <p className="font-medium">{person.name}</p>
+                      {person.job_title && (
+                        <p className="text-xs text-muted-foreground">{person.job_title}</p>
+                      )}
+                      {person.email && (
+                        <p className="text-xs flex items-center gap-1.5">
+                          <Mail className="h-3 w-3 text-muted-foreground" /> 
+                          {person.email}
+                        </p>
+                      )}
+                      {person.phone && (
+                        <p className="text-xs flex items-center gap-1.5">
+                          <Phone className="h-3 w-3 text-muted-foreground" /> 
+                          {person.phone}
+                        </p>
+                      )}
+                      {person.whatsapp && (
+                        <p className="text-xs flex items-center gap-1.5">
+                          <MessageCircle className="h-3 w-3 text-muted-foreground" /> 
+                          {person.whatsapp}
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </TooltipProvider>
           </CardContent>
         </Card>
       )}
