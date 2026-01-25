@@ -10,6 +10,7 @@ import { ThemeProvider } from "next-themes";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Organizations from "./pages/Organizations";
+import OrganizationDetails from "./pages/OrganizationDetails";
 import People from "./pages/People";
 import Deals from "./pages/Deals";
 import DealDetails from "./pages/DealDetails";
@@ -42,6 +43,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Organizations />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/organizations/:id"
+                element={
+                  <ProtectedRoute>
+                    <OrganizationDetails />
                   </ProtectedRoute>
                 }
               />
