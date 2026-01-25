@@ -68,6 +68,24 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     return !!data;
   };
 
+  // Função para verificar se WhatsApp já existe
+  const checkWhatsappExists = async (whatsapp: string, excludeId?: string): Promise<boolean> => {
+    if (!whatsapp || whatsapp.trim() === '') return false;
+    
+    let query = supabase
+      .from('people')
+      .select('id')
+      .eq('whatsapp', whatsapp.trim());
+    
+    // Excluir a própria pessoa ao editar
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+    
+    const { data } = await query.maybeSingle();
+    return !!data;
+  };
+
   // Fetch organizations for dropdown
   const { data: organizations } = useQuery({
     queryKey: ['organizations-select'],
@@ -116,6 +134,14 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         }
       }
 
+      // Verificar se WhatsApp já existe
+      if (data.whatsapp) {
+        const exists = await checkWhatsappExists(data.whatsapp);
+        if (exists) {
+          throw new Error('Já existe uma pessoa com este WhatsApp cadastrado.');
+        }
+      }
+
       const { error } = await supabase.from('people').insert({
         name: data.name,
         cpf: data.cpf || null,
@@ -146,6 +172,10 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         toast.error('Email duplicado', {
           description: 'Já existe uma pessoa cadastrada com este email.',
         });
+      } else if (error.message.includes('WhatsApp')) {
+        toast.error('WhatsApp duplicado', {
+          description: 'Já existe uma pessoa cadastrada com este WhatsApp.',
+        });
       } else {
         toast.error('Erro ao criar pessoa: ' + error.message);
       }
@@ -159,6 +189,14 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         const exists = await checkEmailExists(data.email, person!.id);
         if (exists) {
           throw new Error('Já existe uma pessoa com este email cadastrado.');
+        }
+      }
+
+      // Verificar se WhatsApp já existe em outra pessoa
+      if (data.whatsapp) {
+        const exists = await checkWhatsappExists(data.whatsapp, person!.id);
+        if (exists) {
+          throw new Error('Já existe uma pessoa com este WhatsApp cadastrado.');
         }
       }
 
@@ -182,6 +220,10 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
       if (error.message.includes('email')) {
         toast.error('Email duplicado', {
           description: 'Já existe uma pessoa cadastrada com este email.',
+        });
+      } else if (error.message.includes('WhatsApp')) {
+        toast.error('WhatsApp duplicado', {
+          description: 'Já existe uma pessoa cadastrada com este WhatsApp.',
         });
       } else {
         toast.error('Erro ao atualizar pessoa: ' + error.message);
