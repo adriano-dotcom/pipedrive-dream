@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trophy, XCircle, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { DealTimeline } from '@/components/deals/detail/DealTimeline';
 import { DealNotes } from '@/components/deals/detail/DealNotes';
 import { DealActivities } from '@/components/deals/detail/DealActivities';
 import { DealFiles } from '@/components/deals/detail/DealFiles';
+import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
 
@@ -15,6 +17,8 @@ export default function DealDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
+  const [showLostDialog, setShowLostDialog] = useState(false);
+
   const {
     deal,
     stages,
@@ -28,6 +32,7 @@ export default function DealDetails() {
     deleteNote,
     updateStage,
     updateDealStatus,
+    isUpdatingStatus,
   } = useDealDetails(id || '');
 
   const {
@@ -95,7 +100,7 @@ export default function DealDetails() {
               <Button
                 variant="outline"
                 className="border-success/30 text-success hover:bg-success/10"
-                onClick={() => updateDealStatus('won')}
+                onClick={() => updateDealStatus({ status: 'won' })}
               >
                 <Trophy className="h-4 w-4 mr-2" />
                 Ganho
@@ -103,7 +108,7 @@ export default function DealDetails() {
               <Button
                 variant="outline"
                 className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                onClick={() => updateDealStatus('lost')}
+                onClick={() => setShowLostDialog(true)}
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Perdido
@@ -180,6 +185,17 @@ export default function DealDetails() {
           </Tabs>
         </div>
       </div>
+
+      {/* Lost Reason Dialog */}
+      <LostReasonDialog
+        open={showLostDialog}
+        onOpenChange={setShowLostDialog}
+        onConfirm={(reason) => {
+          updateDealStatus({ status: 'lost', lostReason: reason });
+          setShowLostDialog(false);
+        }}
+        isLoading={isUpdatingStatus}
+      />
     </div>
   );
 }

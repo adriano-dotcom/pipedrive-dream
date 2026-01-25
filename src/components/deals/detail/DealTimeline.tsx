@@ -96,6 +96,12 @@ export function DealTimeline({ history, isLoading }: DealTimelineProps) {
                 <p className="text-sm font-medium text-foreground">
                   {event.description}
                 </p>
+                {/* Show lost reason if available */}
+                {event.event_type === 'deal_lost' && event.new_value && (
+                  <p className="text-sm text-muted-foreground mt-1 italic">
+                    Motivo: {event.new_value}
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                   <span>
                     {format(new Date(event.created_at), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}
