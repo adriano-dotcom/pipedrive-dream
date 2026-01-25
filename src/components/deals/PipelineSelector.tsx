@@ -50,17 +50,25 @@ export function PipelineSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="min-w-[200px] justify-between bg-background hover:bg-accent"
+          className={cn(
+            "min-w-[200px] justify-between",
+            "bg-card/50 backdrop-blur-sm border-border/50",
+            "hover:bg-card/80 hover:border-primary/30",
+            open && "border-primary/50 bg-card/80"
+          )}
           disabled={isLoading}
         >
-          <span className="truncate">
+          <span className="truncate font-medium">
             {selectedPipeline?.name || 'Selecionar funil...'}
           </span>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className={cn(
+            "ml-2 h-4 w-4 shrink-0 opacity-50 transition-transform",
+            open && "rotate-180"
+          )} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
-        <Command>
+      <PopoverContent className="w-[280px] p-0 bg-card/95 backdrop-blur-xl border-white/[0.08]" align="start">
+        <Command className="bg-transparent">
           <CommandInput placeholder="Buscar funil..." />
           <CommandList>
             <CommandEmpty>Nenhum funil encontrado.</CommandEmpty>

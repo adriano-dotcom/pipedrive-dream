@@ -134,6 +134,25 @@ export default {
           "0%": { opacity: "0", transform: "translateY(5px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        "drop-zone-pulse": {
+          "0%, 100%": { 
+            borderColor: "hsl(var(--primary) / 0.3)",
+            backgroundColor: "hsl(var(--primary) / 0.05)"
+          },
+          "50%": { 
+            borderColor: "hsl(var(--primary) / 0.6)",
+            backgroundColor: "hsl(var(--primary) / 0.1)"
+          },
+        },
+        "card-drag": {
+          "0%": { transform: "rotate(0deg) scale(1)" },
+          "100%": { transform: "rotate(2deg) scale(1.03)" },
+        },
+        "drop-success": {
+          "0%": { transform: "scale(1.02)", opacity: "0.9" },
+          "50%": { transform: "scale(0.98)" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -149,6 +168,9 @@ export default {
         glow: "glow 2s ease-in-out infinite",
         float: "float 3s ease-in-out infinite",
         "count-up": "count-up 0.4s ease-out forwards",
+        "drop-zone-pulse": "drop-zone-pulse 1.5s ease-in-out infinite",
+        "card-drag": "card-drag 0.2s ease-out forwards",
+        "drop-success": "drop-success 0.3s ease-out forwards",
       },
       backdropBlur: {
         xs: "2px",
