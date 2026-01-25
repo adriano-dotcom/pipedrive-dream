@@ -9,7 +9,8 @@ import {
   Clock,
   CheckCircle2,
   Circle,
-  Plus
+  Plus,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -48,6 +49,7 @@ const typeIcons: Record<string, React.ElementType> = {
   meeting: Users,
   task: CheckSquare,
   deadline: Clock,
+  whatsapp: MessageCircle,
 };
 
 const priorityColors: Record<string, string> = {

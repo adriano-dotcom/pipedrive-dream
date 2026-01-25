@@ -8,7 +8,8 @@ import {
   CalendarDays,
   CalendarRange,
   ListTodo,
-  CheckCircle2
+  CheckCircle2,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 export type TimeFilter = 'overdue' | 'today' | 'week' | 'all' | 'completed';
-export type TypeFilter = 'all' | 'task' | 'call' | 'meeting' | 'email' | 'deadline';
+export type TypeFilter = 'all' | 'task' | 'call' | 'meeting' | 'email' | 'deadline' | 'whatsapp';
 
 interface ActivityFiltersProps {
   timeFilter: TimeFilter;
@@ -53,6 +54,7 @@ const typeOptions = [
   { value: 'all', label: 'Todos os tipos', icon: ListTodo },
   { value: 'task', label: 'Tarefas', icon: CheckSquare },
   { value: 'call', label: 'Ligações', icon: Phone },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { value: 'meeting', label: 'Reuniões', icon: Calendar },
   { value: 'email', label: 'Emails', icon: Mail },
   { value: 'deadline', label: 'Prazos', icon: Clock },

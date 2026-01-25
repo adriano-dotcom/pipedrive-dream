@@ -33,6 +33,7 @@ interface QuickActivityFormProps {
 const activityTypes = [
   { value: 'task', label: 'Tarefa' },
   { value: 'call', label: 'Ligação' },
+  { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'meeting', label: 'Reunião' },
   { value: 'email', label: 'E-mail' },
   { value: 'deadline', label: 'Prazo' },
