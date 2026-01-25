@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { fireConfetti } from '@/lib/confetti';
 
 export interface DealHistory {
   id: string;
@@ -263,7 +264,13 @@ export function useDealDetails(dealId: string) {
       queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deal-history', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deals'] });
-      toast.success(status === 'won' ? 'Parabéns! Negócio ganho!' : 'Negócio marcado como perdido');
+      
+      if (status === 'won') {
+        fireConfetti();
+        toast.success('🎉 Parabéns! Negócio ganho!');
+      } else {
+        toast.success('Negócio marcado como perdido');
+      }
     },
   });
 
