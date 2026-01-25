@@ -21,6 +21,8 @@ interface GlobalSearchProps {
   variant?: 'sidebar' | 'topbar';
 }
 
+type SearchCategory = 'all' | 'organizations' | 'people' | 'deals' | 'activities' | 'notes';
+
 const activityTypeLabels: Record<string, string> = {
   task: 'Tarefa',
   call: 'Ligação',
@@ -28,6 +30,20 @@ const activityTypeLabels: Record<string, string> = {
   email: 'Email',
   deadline: 'Prazo',
 };
+
+const categories: Array<{
+  id: SearchCategory;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+}> = [
+  { id: 'all', label: 'Todas', icon: Search, color: 'text-foreground' },
+  { id: 'organizations', label: 'Organizações', icon: Building2, color: 'text-primary' },
+  { id: 'people', label: 'Pessoas', icon: Users, color: 'text-emerald-500' },
+  { id: 'deals', label: 'Negócios', icon: Briefcase, color: 'text-amber-500' },
+  { id: 'activities', label: 'Atividades', icon: CheckSquare, color: 'text-blue-500' },
+  { id: 'notes', label: 'Anotações', icon: FileText, color: 'text-orange-500' },
+];
 
 function formatDueDate(dateStr: string): string {
   const date = new Date(dateStr + 'T00:00:00');
@@ -40,6 +56,7 @@ function formatDueDate(dateStr: string): string {
 export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<SearchCategory>('all');
   const navigate = useNavigate();
 
   // Keyboard shortcut (Ctrl+K / ⌘K)
@@ -54,10 +71,11 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     return () => document.removeEventListener('keydown', down);
   }, []);
 
-  // Reset search when dialog closes
+  // Reset search and filter when dialog closes
   useEffect(() => {
     if (!open) {
       setSearchQuery('');
+      setActiveCategory('all');
     }
   }, [open]);
 
@@ -181,6 +199,19 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     results.notes.length > 0
   );
 
+  const getCategoryCounts = () => {
+    if (!results) return { all: 0, organizations: 0, people: 0, deals: 0, activities: 0, notes: 0 };
+    return {
+      all: results.organizations.length + results.people.length + 
+           results.deals.length + results.activities.length + results.notes.length,
+      organizations: results.organizations.length,
+      people: results.people.length,
+      deals: results.deals.length,
+      activities: results.activities.length,
+      notes: results.notes.length,
+    };
+  };
+
   const handleSelect = (path: string) => {
     navigate(path);
     setOpen(false);
@@ -200,7 +231,54 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     return text.substring(0, maxLength) + '...';
   };
 
-  const renderSearchResults = () => (
+  const renderCategoryFilters = () => {
+    const counts = getCategoryCounts();
+    
+    return (
+      <div className="w-44 border-r border-border p-3 space-y-1 shrink-0 bg-muted/30">
+        <p className="text-xs font-medium text-muted-foreground mb-2 px-2">
+          Filtrar por
+        </p>
+        {categories.map((category) => {
+          const Icon = category.icon;
+          const count = counts[category.id] || 0;
+          const isActive = activeCategory === category.id;
+          
+          return (
+            <button
+              key={category.id}
+              onClick={() => setActiveCategory(category.id)}
+              className={cn(
+                'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                isActive 
+                  ? 'bg-accent text-accent-foreground font-medium' 
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <Icon className={cn('h-4 w-4', category.color)} />
+              <span className="flex-1 text-left truncate">{category.label}</span>
+              {searchQuery.length >= 2 && (
+                <span className={cn(
+                  'text-xs tabular-nums',
+                  isActive ? 'text-accent-foreground' : 'text-muted-foreground'
+                )}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderSearchResults = () => {
+    const showOrganizations = activeCategory === 'all' || activeCategory === 'organizations';
+    const showPeople = activeCategory === 'all' || activeCategory === 'people';
+    const showDeals = activeCategory === 'all' || activeCategory === 'deals';
+    const showActivities = activeCategory === 'all' || activeCategory === 'activities';
+    const showNotes = activeCategory === 'all' || activeCategory === 'notes';
+    return (
     <>
       {isLoading && (
         <div className="py-6 text-center">
@@ -221,7 +299,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
       )}
 
       {/* Organizations */}
-      {results?.organizations && results.organizations.length > 0 && (
+      {showOrganizations && results?.organizations && results.organizations.length > 0 && (
         <CommandGroup heading="Organizações">
           {results.organizations.map((org) => (
             <CommandItem
@@ -248,7 +326,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
       )}
 
       {/* People */}
-      {results?.people && results.people.length > 0 && (
+      {showPeople && results?.people && results.people.length > 0 && (
         <CommandGroup heading="Pessoas">
           {results.people.map((person) => (
             <CommandItem
@@ -257,7 +335,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
               onSelect={() => handleSelect(`/people/${person.id}`)}
               className="cursor-pointer"
             >
-              <Users className="mr-2 h-4 w-4 text-success shrink-0" />
+              <Users className="mr-2 h-4 w-4 text-emerald-500 shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
                 <span className="truncate font-medium">{person.name}</span>
                 <span className="text-xs text-muted-foreground truncate">
@@ -274,7 +352,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
       )}
 
       {/* Deals */}
-      {results?.deals && results.deals.length > 0 && (
+      {showDeals && results?.deals && results.deals.length > 0 && (
         <CommandGroup heading="Negócios">
           {results.deals.map((deal) => (
             <CommandItem
@@ -283,7 +361,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
               onSelect={() => handleSelect(`/deals/${deal.id}`)}
               className="cursor-pointer"
             >
-              <Briefcase className="mr-2 h-4 w-4 text-warning shrink-0" />
+              <Briefcase className="mr-2 h-4 w-4 text-amber-500 shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
                 <span className="truncate font-medium">{deal.title}</span>
                 <span className="text-xs text-muted-foreground truncate">
@@ -301,7 +379,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
       )}
 
       {/* Activities */}
-      {results?.activities && results.activities.length > 0 && (
+      {showActivities && results?.activities && results.activities.length > 0 && (
         <CommandGroup heading="Atividades">
           {results.activities.map((activity) => (
             <CommandItem
@@ -337,7 +415,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
       )}
 
       {/* Notes */}
-      {results?.notes && results.notes.length > 0 && (
+      {showNotes && results?.notes && results.notes.length > 0 && (
         <CommandGroup heading="Anotações">
           {results.notes.map((note) => (
             <CommandItem
@@ -354,7 +432,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
               }}
               className="cursor-pointer"
             >
-              <FileText className="mr-2 h-4 w-4 text-amber-500 shrink-0" />
+              <FileText className="mr-2 h-4 w-4 text-orange-500 shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
                 <span className="truncate font-medium text-xs text-muted-foreground">
                   Anotação em: {note.entityName}
@@ -394,9 +472,12 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
-          <CommandList className="max-h-[400px]">
-            {renderSearchResults()}
-          </CommandList>
+          <div className="flex min-h-[300px]">
+            {renderCategoryFilters()}
+            <CommandList className="max-h-[400px] flex-1">
+              {renderSearchResults()}
+            </CommandList>
+          </div>
         </CommandDialog>
       </>
     );
@@ -428,9 +509,12 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
           value={searchQuery}
           onValueChange={setSearchQuery}
         />
-        <CommandList className="max-h-[400px]">
-          {renderSearchResults()}
-        </CommandList>
+        <div className="flex min-h-[300px]">
+          {renderCategoryFilters()}
+          <CommandList className="max-h-[400px] flex-1">
+            {renderSearchResults()}
+          </CommandList>
+        </div>
       </CommandDialog>
     </>
   );
