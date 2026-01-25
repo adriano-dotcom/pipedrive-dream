@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { 
   User, 
   Phone, 
@@ -32,6 +48,7 @@ import {
   MessageCircle,
   Tag,
   Unlink,
+  Link2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -87,8 +104,52 @@ export function PersonSidebar({
   const queryClient = useQueryClient();
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+  const [isLinking, setIsLinking] = useState(false);
   
   const hasLeadSource = person.lead_source || person.utm_source || person.utm_medium || person.utm_campaign;
+
+  // Query para buscar organizações disponíveis
+  const { data: organizations = [] } = useQuery({
+    queryKey: ['organizations-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+    enabled: showLinkDialog,
+  });
+
+  const handleLinkToOrganization = async () => {
+    if (!selectedOrgId) {
+      toast.error('Selecione uma organização');
+      return;
+    }
+    
+    setIsLinking(true);
+    try {
+      const { error } = await supabase
+        .from('people')
+        .update({ organization_id: selectedOrgId })
+        .eq('id', person.id);
+      
+      if (error) throw error;
+      
+      toast.success('Pessoa vinculada à organização');
+      queryClient.invalidateQueries({ queryKey: ['person', person.id] });
+      setShowLinkDialog(false);
+      setSelectedOrgId('');
+    } catch (error) {
+      console.error('Error linking person:', error);
+      toast.error('Erro ao vincular à organização');
+    } finally {
+      setIsLinking(false);
+    }
+  };
 
   const handleUnlinkFromOrganization = async () => {
     if (!person.organization) return;
@@ -246,7 +307,7 @@ export function PersonSidebar({
       </Card>
 
       {/* Organization Card */}
-      {person.organization && (
+      {person.organization ? (
         <Card className="glass border-border/50">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -301,6 +362,25 @@ export function PersonSidebar({
                 </div>
               </div>
             </Link>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="glass border-border/50 border-dashed">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-muted-foreground">
+              <Building2 className="h-4 w-4" />
+              Organização
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() => setShowLinkDialog(true)}
+            >
+              <Link2 className="h-4 w-4" />
+              Vincular a uma organização
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -371,6 +451,44 @@ export function PersonSidebar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Link to Organization Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={(open) => {
+        setShowLinkDialog(open);
+        if (!open) setSelectedOrgId('');
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vincular a uma organização</DialogTitle>
+            <DialogDescription>
+              Selecione a organização à qual deseja vincular <strong>{person.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="organization">Organização</Label>
+            <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Selecione uma organização..." />
+              </SelectTrigger>
+              <SelectContent>
+                {organizations.map((org) => (
+                  <SelectItem key={org.id} value={org.id}>
+                    {org.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)} disabled={isLinking}>
+              Cancelar
+            </Button>
+            <Button onClick={handleLinkToOrganization} disabled={isLinking || !selectedOrgId}>
+              {isLinking ? 'Vinculando...' : 'Vincular'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
