@@ -1,9 +1,19 @@
 import { Draggable } from '@hello-pangea/dnd';
-import { Building2, User, Calendar, Shield } from 'lucide-react';
+import { Building2, User, Calendar, ListTodo } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { DealActivityMini } from './DealActivityMini';
+import { QuickActivityForm } from './QuickActivityForm';
+
+interface Activity {
+  id: string;
+  title: string;
+  activity_type: string;
+  due_date: string;
+  is_completed: boolean;
+}
 
 interface Deal {
   id: string;
@@ -25,6 +35,9 @@ interface DealCardProps {
   deal: Deal;
   index: number;
   onClick: () => void;
+  activities?: Activity[];
+  onToggleActivity?: (id: string, completed: boolean) => void;
+  isTogglingActivity?: boolean;
 }
 
 function formatCurrency(value: number) {
@@ -51,7 +64,10 @@ const insuranceIcons: Record<string, string> = {
   Empresarial: '🏢',
 };
 
-export function DealCard({ deal, index, onClick }: DealCardProps) {
+export function DealCard({ deal, index, onClick, activities = [], onToggleActivity, isTogglingActivity }: DealCardProps) {
+  const pendingActivities = activities.filter(a => !a.is_completed).slice(0, 3);
+  const pendingCount = activities.filter(a => !a.is_completed).length;
+
   return (
     <Draggable draggableId={deal.id} index={index}>
       {(provided, snapshot) => (
@@ -95,9 +111,29 @@ export function DealCard({ deal, index, onClick }: DealCardProps) {
             )}
           </div>
 
-          {/* Footer: Labels and Date */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1">
+          {/* Activities Section */}
+          {(pendingActivities.length > 0 || pendingCount > 0) && (
+            <div className="border-t border-border pt-2 mt-2 space-y-1">
+              {pendingCount > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1">
+                  <ListTodo className="h-3 w-3" />
+                  <span>{pendingCount} atividade{pendingCount > 1 ? 's' : ''} pendente{pendingCount > 1 ? 's' : ''}</span>
+                </div>
+              )}
+              {pendingActivities.map((activity) => (
+                <DealActivityMini
+                  key={activity.id}
+                  activity={activity}
+                  onToggleComplete={onToggleActivity || (() => {})}
+                  isLoading={isTogglingActivity}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Footer: Labels, Date, and Quick Add */}
+          <div className="flex items-center justify-between gap-2 mt-2">
+            <div className="flex items-center gap-1 flex-wrap">
               {deal.label && (
                 <Badge
                   variant="outline"
@@ -112,12 +148,19 @@ export function DealCard({ deal, index, onClick }: DealCardProps) {
                 </Badge>
               )}
             </div>
-            {deal.expected_close_date && (
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Calendar className="h-3 w-3" />
-                {format(new Date(deal.expected_close_date), 'dd/MM', { locale: ptBR })}
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              {deal.expected_close_date && (
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  {format(new Date(deal.expected_close_date), 'dd/MM', { locale: ptBR })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Add Activity */}
+          <div className="mt-2 pt-2 border-t border-border">
+            <QuickActivityForm dealId={deal.id} />
           </div>
         </div>
       )}

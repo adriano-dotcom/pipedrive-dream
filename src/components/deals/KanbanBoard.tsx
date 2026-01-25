@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,15 @@ interface Deal {
   status: string;
   organization?: { name: string } | null;
   person?: { name: string } | null;
+}
+
+interface Activity {
+  id: string;
+  title: string;
+  activity_type: string;
+  due_date: string;
+  is_completed: boolean;
+  deal_id: string;
 }
 
 export function KanbanBoard() {
@@ -91,6 +100,66 @@ export function KanbanBoard() {
     },
     enabled: !!pipeline?.id,
   });
+
+  // Fetch activities for all deals in the pipeline
+  const { data: allActivities = [] } = useQuery({
+    queryKey: ['kanban-activities', deals.map(d => d.id).join(',')],
+    queryFn: async () => {
+      if (deals.length === 0) return [];
+      const dealIds = deals.map(d => d.id);
+      const { data, error } = await supabase
+        .from('activities')
+        .select('id, title, activity_type, due_date, is_completed, deal_id')
+        .in('deal_id', dealIds)
+        .order('due_date', { ascending: true });
+      if (error) throw error;
+      return data as Activity[];
+    },
+    enabled: deals.length > 0,
+  });
+
+  // Group activities by deal
+  const activitiesByDeal = allActivities.reduce((acc, activity) => {
+    const dealId = activity.deal_id;
+    if (!acc[dealId]) acc[dealId] = [];
+    acc[dealId].push(activity);
+    return acc;
+  }, {} as Record<string, Activity[]>);
+
+  // Mutation to toggle activity completion
+  const [togglingActivityId, setTogglingActivityId] = useState<string | null>(null);
+  
+  const toggleActivityMutation = useMutation({
+    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
+      setTogglingActivityId(id);
+      const { error } = await supabase
+        .from('activities')
+        .update({
+          is_completed: completed,
+          completed_at: completed ? new Date().toISOString() : null,
+          completed_by: completed ? user?.id : null,
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban-activities'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      setTogglingActivityId(null);
+    },
+    onError: (error) => {
+      setTogglingActivityId(null);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar atividade',
+        description: error.message,
+      });
+    },
+  });
+
+  const handleToggleActivity = (id: string, completed: boolean) => {
+    toggleActivityMutation.mutate({ id, completed });
+  };
 
   // Mutation to update deal stage
   const updateDealStage = useMutation({
@@ -202,6 +271,9 @@ export function KanbanBoard() {
                   isDraggingOver={snapshot.isDraggingOver}
                   onAddDeal={() => handleAddDeal(stage.id)}
                   onEditDeal={handleEditDeal}
+                  activitiesByDeal={activitiesByDeal}
+                  onToggleActivity={handleToggleActivity}
+                  togglingActivityId={togglingActivityId}
                 />
               )}
             </Droppable>

@@ -28,6 +28,15 @@ interface Deal {
   person?: { name: string } | null;
 }
 
+interface Activity {
+  id: string;
+  title: string;
+  activity_type: string;
+  due_date: string;
+  is_completed: boolean;
+  deal_id: string;
+}
+
 interface KanbanColumnProps {
   stage: Stage;
   deals: Deal[];
@@ -36,6 +45,9 @@ interface KanbanColumnProps {
   isDraggingOver: boolean;
   onAddDeal: () => void;
   onEditDeal: (deal: Deal) => void;
+  activitiesByDeal?: Record<string, Activity[]>;
+  onToggleActivity?: (id: string, completed: boolean) => void;
+  togglingActivityId?: string | null;
 }
 
 function formatCurrency(value: number) {
@@ -55,6 +67,9 @@ export function KanbanColumn({
   isDraggingOver,
   onAddDeal,
   onEditDeal,
+  activitiesByDeal = {},
+  onToggleActivity,
+  togglingActivityId,
 }: KanbanColumnProps) {
   return (
     <div
@@ -95,6 +110,9 @@ export function KanbanColumn({
             deal={deal}
             index={index}
             onClick={() => onEditDeal(deal)}
+            activities={activitiesByDeal[deal.id] || []}
+            onToggleActivity={onToggleActivity}
+            isTogglingActivity={!!togglingActivityId}
           />
         ))}
         {provided.placeholder}
