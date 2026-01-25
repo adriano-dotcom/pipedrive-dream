@@ -381,4 +381,14 @@
   .tiptap u {
     @apply underline;
   }
+
+  /* Mention styles */
+  .tiptap .mention {
+    @apply bg-primary/20 text-primary rounded px-1 py-0.5 font-medium;
+  }
+
+  /* Tippy tooltip for mentions */
+  .tippy-box {
+    @apply bg-transparent border-none shadow-none;
+  }
 }
