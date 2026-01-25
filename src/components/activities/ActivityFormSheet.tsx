@@ -65,6 +65,9 @@ interface ActivityFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activity?: Activity | null;
+  defaultOrganizationId?: string | null;
+  defaultDealId?: string | null;
+  defaultPersonId?: string | null;
 }
 
 const activityTypes = [
@@ -81,7 +84,14 @@ const priorityOptions = [
   { value: 'high', label: 'Alta' },
 ];
 
-export function ActivityFormSheet({ open, onOpenChange, activity }: ActivityFormSheetProps) {
+export function ActivityFormSheet({ 
+  open, 
+  onOpenChange, 
+  activity,
+  defaultOrganizationId,
+  defaultDealId,
+  defaultPersonId,
+}: ActivityFormSheetProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isEditing = !!activity;
@@ -96,9 +106,9 @@ export function ActivityFormSheet({ open, onOpenChange, activity }: ActivityForm
       due_date: new Date(),
       due_time: '',
       duration_minutes: undefined,
-      deal_id: null,
-      person_id: null,
-      organization_id: null,
+      deal_id: defaultDealId || null,
+      person_id: defaultPersonId || null,
+      organization_id: defaultOrganizationId || null,
       notes: '',
     },
   });
@@ -128,13 +138,13 @@ export function ActivityFormSheet({ open, onOpenChange, activity }: ActivityForm
         due_date: new Date(),
         due_time: '',
         duration_minutes: undefined,
-        deal_id: null,
-        person_id: null,
-        organization_id: null,
+        deal_id: defaultDealId || null,
+        person_id: defaultPersonId || null,
+        organization_id: defaultOrganizationId || null,
         notes: '',
       });
     }
-  }, [activity, form]);
+  }, [activity, form, defaultOrganizationId, defaultDealId, defaultPersonId]);
 
   // Fetch deals for linking
   const { data: deals } = useQuery({
