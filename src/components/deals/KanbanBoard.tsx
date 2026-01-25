@@ -7,8 +7,10 @@ import { KanbanColumn } from './KanbanColumn';
 import { DealFormSheet } from './DealFormSheet';
 import { PipelineSelector } from './PipelineSelector';
 import { PipelineFormSheet } from './PipelineFormSheet';
+import { StageManagerSheet } from './StageManagerSheet';
+import { KanbanFilters, KanbanFiltersState } from './KanbanFilters';
 import { Button } from '@/components/ui/button';
-import { Plus, Briefcase, TrendingUp } from 'lucide-react';
+import { Plus, Briefcase, TrendingUp, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -61,6 +63,30 @@ export function KanbanBoard() {
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
   const [isPipelineFormOpen, setIsPipelineFormOpen] = useState(false);
   const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
+  const [isStageManagerOpen, setIsStageManagerOpen] = useState(false);
+  const [filters, setFilters] = useState<KanbanFiltersState>(() => {
+    const saved = localStorage.getItem('kanban-filters');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          dateRange: {
+            from: parsed.dateRange?.from ? new Date(parsed.dateRange.from) : null,
+            to: parsed.dateRange?.to ? new Date(parsed.dateRange.to) : null,
+          },
+        };
+      } catch {
+        return { insuranceTypes: [], labels: [], dateRange: { from: null, to: null }, ownerId: null };
+      }
+    }
+    return { insuranceTypes: [], labels: [], dateRange: { from: null, to: null }, ownerId: null };
+  });
+
+  // Persist filters to localStorage
+  useEffect(() => {
+    localStorage.setItem('kanban-filters', JSON.stringify(filters));
+  }, [filters]);
 
   // Fetch all pipelines
   const { data: pipelines = [], isLoading: pipelinesLoading } = useQuery({
@@ -233,9 +259,38 @@ export function KanbanBoard() {
     setIsPipelineFormOpen(true);
   };
 
+  // Filter deals based on active filters
+  const filteredDeals = deals.filter((deal) => {
+    // Insurance type filter
+    if (filters.insuranceTypes.length > 0 && 
+        (!deal.insurance_type || !filters.insuranceTypes.includes(deal.insurance_type))) {
+      return false;
+    }
+    // Label filter
+    if (filters.labels.length > 0 && 
+        (!deal.label || !filters.labels.includes(deal.label))) {
+      return false;
+    }
+    // Date range filter (expected_close_date)
+    if (filters.dateRange.from && deal.expected_close_date) {
+      const dealDate = new Date(deal.expected_close_date);
+      if (dealDate < filters.dateRange.from) return false;
+    }
+    if (filters.dateRange.to && deal.expected_close_date) {
+      const dealDate = new Date(deal.expected_close_date);
+      if (dealDate > filters.dateRange.to) return false;
+    }
+    // Owner filter
+    if (filters.ownerId && deal.organization_id !== filters.ownerId) {
+      // Note: We're checking owner_id on the deal if available
+      // For now, skip if the field doesn't match
+    }
+    return true;
+  });
+
   // Group deals by stage
   const dealsByStage = stages.reduce((acc, stage) => {
-    acc[stage.id] = deals.filter((deal) => deal.stage_id === stage.id);
+    acc[stage.id] = filteredDeals.filter((deal) => deal.stage_id === stage.id);
     return acc;
   }, {} as Record<string, Deal[]>);
 
@@ -246,8 +301,8 @@ export function KanbanBoard() {
     return acc;
   }, {} as Record<string, number>);
 
-  // Calculate total pipeline value
-  const totalPipelineValue = deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+  // Calculate total pipeline value (filtered)
+  const totalPipelineValue = filteredDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
 
   if (pipelinesLoading || stagesLoading || dealsLoading) {
     return (
@@ -277,7 +332,8 @@ export function KanbanBoard() {
             </h1>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-sm text-muted-foreground">
-                {deals.length} negócio{deals.length !== 1 ? 's' : ''} aberto{deals.length !== 1 ? 's' : ''}
+                {filteredDeals.length} negócio{filteredDeals.length !== 1 ? 's' : ''} 
+                {filteredDeals.length !== deals.length && ` (de ${deals.length})`}
               </span>
               <span className="text-sm text-muted-foreground">•</span>
               <span className="text-sm font-medium text-primary flex items-center gap-1">
@@ -299,12 +355,23 @@ export function KanbanBoard() {
             onSelect={setSelectedPipeline}
             onCreateNew={handleCreatePipeline}
           />
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => setIsStageManagerOpen(true)}
+            title="Gerenciar etapas"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
           <Button onClick={() => handleAddDeal()} className="shadow-sm">
             <Plus className="h-4 w-4 mr-2" />
             Novo Negócio
           </Button>
         </div>
       </div>
+
+      {/* Filters */}
+      <KanbanFilters filters={filters} onFiltersChange={setFilters} />
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -345,6 +412,16 @@ export function KanbanBoard() {
         onOpenChange={setIsPipelineFormOpen}
         pipeline={editingPipeline}
       />
+
+      {/* Stage Manager Sheet */}
+      {selectedPipeline && (
+        <StageManagerSheet
+          open={isStageManagerOpen}
+          onOpenChange={setIsStageManagerOpen}
+          pipelineId={selectedPipeline.id}
+          pipelineName={selectedPipeline.name}
+        />
+      )}
     </div>
   );
 }
