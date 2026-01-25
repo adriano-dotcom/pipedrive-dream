@@ -1,6 +1,19 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   User, 
   Phone, 
@@ -12,7 +25,10 @@ import {
   MapPin,
   MessageCircle,
   Tag,
+  Unlink,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -62,7 +78,49 @@ export function PersonSidebar({
   pendingActivities,
   overdueActivities,
 }: PersonSidebarProps) {
+  const queryClient = useQueryClient();
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
+  
   const hasLeadSource = person.lead_source || person.utm_source || person.utm_medium || person.utm_campaign;
+
+  const handleUnlinkFromOrganization = async () => {
+    if (!person.organization) return;
+    
+    setIsUnlinking(true);
+    try {
+      // Verificar se a pessoa é o contato principal e limpar se necessário
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('primary_contact_id')
+        .eq('id', person.organization.id)
+        .maybeSingle();
+      
+      if (org?.primary_contact_id === person.id) {
+        await supabase
+          .from('organizations')
+          .update({ primary_contact_id: null })
+          .eq('id', person.organization.id);
+      }
+      
+      // Desvincular a pessoa
+      const { error } = await supabase
+        .from('people')
+        .update({ organization_id: null })
+        .eq('id', person.id);
+      
+      if (error) throw error;
+      
+      toast.success('Pessoa desvinculada da organização');
+      queryClient.invalidateQueries({ queryKey: ['person', person.id] });
+    } catch (error) {
+      console.error('Error unlinking person:', error);
+      toast.error('Erro ao desvincular da organização');
+    } finally {
+      setIsUnlinking(false);
+      setShowUnlinkDialog(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -185,10 +243,21 @@ export function PersonSidebar({
       {person.organization && (
         <Card className="glass border-border/50">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-primary" />
-              Organização
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-primary" />
+                Organização
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => setShowUnlinkDialog(true)}
+                title="Desvincular da organização"
+              >
+                <Unlink className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Link 
@@ -262,9 +331,32 @@ export function PersonSidebar({
                 </span>
               </div>
             )}
-          </CardContent>
+            </CardContent>
         </Card>
       )}
+
+      {/* Unlink from Organization Confirmation */}
+      <AlertDialog open={showUnlinkDialog} onOpenChange={setShowUnlinkDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desvincular da organização?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja desvincular <strong>{person.name}</strong> da organização <strong>{person.organization?.name}</strong>?
+              A pessoa continuará no sistema, apenas não estará mais vinculada a esta organização.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUnlinking}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUnlinkFromOrganization}
+              disabled={isUnlinking}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isUnlinking ? 'Desvinculando...' : 'Desvincular'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
