@@ -88,6 +88,7 @@ interface DealFormSheetProps {
   deal: any | null;
   pipelineId: string;
   stages: Stage[];
+  defaultOrganizationId?: string | null;
 }
 
 const INSURANCE_TYPES = [
@@ -107,6 +108,7 @@ export function DealFormSheet({
   deal,
   pipelineId,
   stages,
+  defaultOrganizationId,
 }: DealFormSheetProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -124,7 +126,7 @@ export function DealFormSheet({
       value: '',
       pipeline_id: pipelineId || '',
       stage_id: stages[0]?.id || '',
-      organization_id: '',
+      organization_id: defaultOrganizationId || '',
       person_id: '',
       insurance_type: '',
       insurer: '',
@@ -255,7 +257,7 @@ export function DealFormSheet({
         value: '',
         pipeline_id: pipelineId || '',
         stage_id: stages[0]?.id || '',
-        organization_id: '',
+        organization_id: defaultOrganizationId || '',
         person_id: '',
         insurance_type: '',
         insurer: '',
@@ -268,7 +270,7 @@ export function DealFormSheet({
         notes: '',
       });
     }
-  }, [deal, stages, form, pipelineId]);
+  }, [deal, stages, form, pipelineId, defaultOrganizationId]);
 
   // Create/Update mutation
   const saveMutation = useMutation({
