@@ -1,5 +1,5 @@
 import { Draggable } from '@hello-pangea/dnd';
-import { Building2, User, Calendar, ListTodo, ExternalLink } from 'lucide-react';
+import { Building2, User, Calendar, ListTodo, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -80,9 +80,13 @@ export function DealCard({
   const pendingActivities = activities.filter(a => !a.is_completed).slice(0, 2);
   const pendingCount = activities.filter(a => !a.is_completed).length;
 
-  const handleOpenDetails = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCardClick = () => {
     navigate(`/deals/${deal.id}`);
+  };
+
+  const handleEditDeal = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClick();
   };
 
   return (
@@ -92,7 +96,7 @@ export function DealCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onClick={onClick}
+          onClick={handleCardClick}
           className={cn(
             'bg-card/70 backdrop-blur-sm border border-white/[0.08] rounded-xl cursor-pointer',
             'transition-all duration-200 ease-out',
@@ -215,9 +219,10 @@ export function DealCard({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 flex-shrink-0"
-                  onClick={handleOpenDetails}
+                  onClick={handleEditDeal}
+                  title="Editar negócio"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
