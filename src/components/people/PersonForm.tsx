@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PatternFormat } from 'react-number-format';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -271,11 +272,31 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Telefone</Label>
-            <Input id="phone" {...register('phone')} placeholder="(11) 99999-9999" />
+            <PatternFormat
+              format="(##) #####-####"
+              mask="_"
+              customInput={Input}
+              id="phone"
+              value={watch('phone') || ''}
+              onValueChange={(values) => {
+                setValue('phone', values.value);
+              }}
+              placeholder="(00) 00000-0000"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="whatsapp">WhatsApp</Label>
-            <Input id="whatsapp" {...register('whatsapp')} placeholder="(11) 99999-9999" />
+            <PatternFormat
+              format="(##) #####-####"
+              mask="_"
+              customInput={Input}
+              id="whatsapp"
+              value={watch('whatsapp') || ''}
+              onValueChange={(values) => {
+                setValue('whatsapp', values.value);
+              }}
+              placeholder="(00) 00000-0000"
+            />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="email">Email</Label>
