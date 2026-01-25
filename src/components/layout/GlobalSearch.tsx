@@ -11,7 +11,7 @@ import {
   CommandItem,
 } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
-import { Search, Building2, Users, Briefcase, Loader2, CheckSquare, FileText, Calendar } from 'lucide-react';
+import { Search, Building2, Users, Briefcase, Loader2, CheckSquare, FileText, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isToday, isTomorrow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -22,6 +22,41 @@ interface GlobalSearchProps {
 }
 
 type SearchCategory = 'all' | 'organizations' | 'people' | 'deals' | 'activities' | 'notes';
+
+interface RecentItem {
+  id: string;
+  name: string;
+  type: 'organization' | 'person' | 'deal';
+  url: string;
+  subtitle?: string;
+  accessedAt: number;
+}
+
+const RECENT_ITEMS_KEY = 'crm-recent-items';
+const MAX_RECENT_ITEMS = 10;
+
+function getRecentItems(): RecentItem[] {
+  try {
+    const stored = localStorage.getItem(RECENT_ITEMS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecentItem(item: Omit<RecentItem, 'accessedAt'>): void {
+  try {
+    const items = getRecentItems();
+    const filtered = items.filter(i => !(i.id === item.id && i.type === item.type));
+    const updated = [
+      { ...item, accessedAt: Date.now() },
+      ...filtered
+    ].slice(0, MAX_RECENT_ITEMS);
+    localStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify(updated));
+  } catch {
+    // Silently fail
+  }
+}
 
 const activityTypeLabels: Record<string, string> = {
   task: 'Tarefa',
@@ -212,7 +247,21 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     };
   };
 
-  const handleSelect = (path: string) => {
+  const handleSelect = (path: string, itemInfo?: {
+    id: string;
+    name: string;
+    type: 'organization' | 'person' | 'deal';
+    subtitle?: string;
+  }) => {
+    if (itemInfo) {
+      addRecentItem({
+        id: itemInfo.id,
+        name: itemInfo.name,
+        type: itemInfo.type,
+        url: path,
+        subtitle: itemInfo.subtitle,
+      });
+    }
     navigate(path);
     setOpen(false);
   };
@@ -272,7 +321,65 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     );
   };
 
+  const getRecentIcon = (type: string) => {
+    switch (type) {
+      case 'organization': return <Building2 className="h-4 w-4 text-primary" />;
+      case 'person': return <Users className="h-4 w-4 text-emerald-500" />;
+      case 'deal': return <Briefcase className="h-4 w-4 text-amber-500" />;
+      default: return <Search className="h-4 w-4" />;
+    }
+  };
+
+  const renderRecentItems = () => {
+    const recentItems = getRecentItems();
+    
+    if (recentItems.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+          <Clock className="h-8 w-8 text-muted-foreground/50" />
+          <span className="text-sm text-muted-foreground">Nenhum item acessado recentemente</span>
+          <span className="text-xs text-muted-foreground/70">
+            Digite para buscar organizações, pessoas e negócios
+          </span>
+        </div>
+      );
+    }
+    
+    return (
+      <CommandGroup heading="Acessados recentemente">
+        {recentItems.map((item) => (
+          <CommandItem
+            key={`recent-${item.type}-${item.id}`}
+            value={`recent-${item.type}-${item.id}`}
+            onSelect={() => handleSelect(item.url, {
+              id: item.id,
+              name: item.name,
+              type: item.type,
+              subtitle: item.subtitle,
+            })}
+            className="cursor-pointer"
+          >
+            <div className="mr-2 shrink-0">{getRecentIcon(item.type)}</div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="truncate font-medium">{item.name}</span>
+              {item.subtitle && (
+                <span className="text-xs text-muted-foreground truncate">
+                  {item.subtitle}
+                </span>
+              )}
+            </div>
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    );
+  };
+
   const renderSearchResults = () => {
+    // Se não digitou nada, mostrar recentes
+    if (searchQuery.length < 2) {
+      return renderRecentItems();
+    }
+
     const showOrganizations = activeCategory === 'all' || activeCategory === 'organizations';
     const showPeople = activeCategory === 'all' || activeCategory === 'people';
     const showDeals = activeCategory === 'all' || activeCategory === 'deals';
@@ -286,13 +393,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
         </div>
       )}
 
-      {!isLoading && searchQuery.length < 2 && (
-        <CommandEmpty>
-          Digite pelo menos 2 caracteres para buscar
-        </CommandEmpty>
-      )}
-
-      {!isLoading && searchQuery.length >= 2 && !hasResults && (
+      {!isLoading && !hasResults && (
         <CommandEmpty>
           Nenhum resultado encontrado para "{searchQuery}"
         </CommandEmpty>
@@ -305,7 +406,12 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             <CommandItem
               key={org.id}
               value={`org-${org.id}`}
-              onSelect={() => handleSelect(`/organizations/${org.id}`)}
+              onSelect={() => handleSelect(`/organizations/${org.id}`, {
+                id: org.id,
+                name: org.name,
+                type: 'organization',
+                subtitle: org.cnpj || org.email || undefined,
+              })}
               className="cursor-pointer"
             >
               <Building2 className="mr-2 h-4 w-4 text-primary shrink-0" />
@@ -332,7 +438,12 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             <CommandItem
               key={person.id}
               value={`person-${person.id}`}
-              onSelect={() => handleSelect(`/people/${person.id}`)}
+              onSelect={() => handleSelect(`/people/${person.id}`, {
+                id: person.id,
+                name: person.name,
+                type: 'person',
+                subtitle: person.organization?.name || person.email || undefined,
+              })}
               className="cursor-pointer"
             >
               <Users className="mr-2 h-4 w-4 text-emerald-500 shrink-0" />
@@ -358,7 +469,12 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             <CommandItem
               key={deal.id}
               value={`deal-${deal.id}`}
-              onSelect={() => handleSelect(`/deals/${deal.id}`)}
+              onSelect={() => handleSelect(`/deals/${deal.id}`, {
+                id: deal.id,
+                name: deal.title,
+                type: 'deal',
+                subtitle: deal.person?.name || deal.organization?.name || undefined,
+              })}
               className="cursor-pointer"
             >
               <Briefcase className="mr-2 h-4 w-4 text-amber-500 shrink-0" />
