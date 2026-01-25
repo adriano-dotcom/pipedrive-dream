@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Separator } from '@/components/ui/separator';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -103,7 +105,7 @@ export function AppSidebar() {
             end={item.url === '/'}
             className={cn(
               'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground transition-all duration-200',
-              'hover:bg-white/[0.05] hover:text-foreground',
+              'hover:bg-accent/50 hover:text-foreground',
               collapsed && 'justify-center px-2'
             )}
             activeClassName="bg-primary/10 text-primary shadow-sm border border-primary/20"
@@ -111,7 +113,7 @@ export function AppSidebar() {
           >
             <div className={cn(
               'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200',
-              'group-hover:bg-white/[0.05]'
+              'group-hover:bg-accent/50'
             )}>
               <item.icon className="h-[18px] w-[18px]" />
             </div>
@@ -120,6 +122,10 @@ export function AppSidebar() {
             )}
           </NavLink>
         ))}
+
+        {/* Theme Toggle */}
+        <Separator className="my-3 bg-border/50" />
+        <ThemeToggle collapsed={collapsed} />
       </nav>
 
       {/* User Section */}
