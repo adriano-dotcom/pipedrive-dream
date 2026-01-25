@@ -3,13 +3,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { PatternFormat } from 'react-number-format';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { PhoneInput } from '@/components/ui/phone-input';
+import { CnpjInput } from '@/components/ui/cnpj-input';
 import {
   Select,
   SelectContent,
@@ -329,20 +330,16 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           <div className="space-y-2">
             <Label htmlFor="cnpj">CNPJ</Label>
             <div className="relative">
-              <PatternFormat
-                format="##.###.###/####-##"
-                mask="_"
-                customInput={Input}
+              <CnpjInput
                 id="cnpj"
                 value={watch('cnpj') || ''}
-                onValueChange={(values) => {
-                  setValue('cnpj', values.value);
+                onValueChange={(value) => {
+                  setValue('cnpj', value);
                   // Fetch company data when CNPJ has 14 digits
-                  if (values.value.length === 14 && !organization) {
-                    fetchCnpjData(values.value);
+                  if (value.length === 14 && !organization) {
+                    fetchCnpjData(value);
                   }
                 }}
-                placeholder="00.000.000/0000-00"
                 disabled={isFetchingCnpj}
                 className={isFetchingCnpj ? 'pr-10' : ''}
               />
@@ -397,16 +394,10 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Telefone</Label>
-            <PatternFormat
-              format="(##) #####-####"
-              mask="_"
-              customInput={Input}
+            <PhoneInput
               id="phone"
               value={watch('phone') || ''}
-              onValueChange={(values) => {
-                setValue('phone', values.value);
-              }}
-              placeholder="(00) 00000-0000"
+              onValueChange={(value) => setValue('phone', value)}
             />
           </div>
           <div className="space-y-2">

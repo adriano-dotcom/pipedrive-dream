@@ -2,15 +2,14 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Settings as SettingsIcon, User, Shield } from 'lucide-react';
+import { Settings as SettingsIcon, User, Shield, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
-import { PatternFormat } from 'react-number-format';
 
 export default function Settings() {
   const { profile, role, user, isAdmin } = useAuth();
@@ -89,14 +88,10 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone</Label>
-              <PatternFormat
-                format="(##) #####-####"
-                mask="_"
-                customInput={Input}
+              <PhoneInput
                 id="phone"
                 value={phone}
-                onValueChange={(values) => setPhone(values.value)}
-                placeholder="(00) 00000-0000"
+                onValueChange={setPhone}
               />
             </div>
             <Button type="submit" disabled={updateProfileMutation.isPending}>
