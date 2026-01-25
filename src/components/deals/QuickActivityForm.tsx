@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -43,6 +44,7 @@ export function QuickActivityForm({ dealId, onSuccess }: QuickActivityFormProps)
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [activityType, setActivityType] = useState('task');
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -51,6 +53,7 @@ export function QuickActivityForm({ dealId, onSuccess }: QuickActivityFormProps)
     mutationFn: async () => {
       const { error } = await supabase.from('activities').insert({
         title,
+        description: description || null,
         activity_type: activityType,
         due_date: format(dueDate, 'yyyy-MM-dd'),
         deal_id: dealId,
@@ -62,7 +65,9 @@ export function QuickActivityForm({ dealId, onSuccess }: QuickActivityFormProps)
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanban-activities'] });
       queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['deal-activities'] });
       setTitle('');
+      setDescription('');
       setActivityType('task');
       setDueDate(new Date());
       setOpen(false);
@@ -118,6 +123,17 @@ export function QuickActivityForm({ dealId, onSuccess }: QuickActivityFormProps)
               placeholder="Ex: Ligar para cliente"
               className="h-8 text-sm"
               autoFocus
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description" className="text-xs">Descrição</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Detalhes da atividade..."
+              className="h-16 text-sm resize-none"
             />
           </div>
 

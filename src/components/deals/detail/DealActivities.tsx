@@ -25,6 +25,12 @@ interface Activity {
   is_completed: boolean;
   completed_at: string | null;
   priority: string | null;
+  description?: string | null;
+  notes?: string | null;
+  duration_minutes?: number | null;
+  deal_id?: string | null;
+  person_id?: string | null;
+  organization_id?: string | null;
 }
 
 interface DealActivitiesProps {
@@ -32,6 +38,7 @@ interface DealActivitiesProps {
   onToggleActivity: (activityId: string, completed: boolean) => Promise<{ completed: boolean }>;
   onActivityCompleted: () => void;
   onNewActivity: () => void;
+  onEditActivity: (activity: Activity) => void;
   isToggling?: boolean;
 }
 
@@ -54,6 +61,7 @@ export function DealActivities({
   onToggleActivity, 
   onActivityCompleted,
   onNewActivity,
+  onEditActivity,
   isToggling 
 }: DealActivitiesProps) {
   const pendingActivities = activities.filter(a => !a.is_completed);
@@ -87,11 +95,19 @@ export function DealActivities({
     const isOverdue = !activity.is_completed && isPast(dueDate) && !isToday(dueDate);
     const isDueToday = isToday(dueDate);
 
+    const handleCardClick = (e: React.MouseEvent) => {
+      // Prevent opening edit when clicking on checkbox
+      const target = e.target as HTMLElement;
+      if (target.closest('button[role="checkbox"]')) return;
+      onEditActivity(activity);
+    };
+
     return (
       <div
         key={activity.id}
+        onClick={handleCardClick}
         className={cn(
-          "flex items-start gap-3 p-3 rounded-lg border transition-all",
+          "flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer",
           "bg-card/50 hover:bg-card/80",
           activity.is_completed && "opacity-60",
           isOverdue && "border-red-500/30 bg-red-500/5"
