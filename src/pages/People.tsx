@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -206,7 +207,14 @@ export default function People() {
                     className="animate-fade-in"
                     style={{ animationDelay: `${index * 30}ms` }}
                   >
-                    <TableCell className="font-medium">{person.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link 
+                        to={`/people/${person.id}`} 
+                        className="hover:text-primary hover:underline transition-colors"
+                      >
+                        {person.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         {person.phone && (
