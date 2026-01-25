@@ -53,6 +53,24 @@ interface OrganizationFormProps {
   onCancel: () => void;
 }
 
+// Helper function to check if CNPJ already exists
+const checkCnpjExists = async (cnpj: string, excludeId?: string): Promise<boolean> => {
+  if (!cnpj || cnpj.trim() === '') return false;
+  
+  let query = supabase
+    .from('organizations')
+    .select('id')
+    .eq('cnpj', cnpj.trim());
+  
+  // Exclude current organization when editing
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+  
+  const { data } = await query.maybeSingle();
+  return !!data;
+};
+
 export function OrganizationForm({ organization, onSuccess, onCancel }: OrganizationFormProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -129,6 +147,14 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
 
   const createMutation = useMutation({
     mutationFn: async (data: OrganizationFormData) => {
+      // Check if CNPJ already exists
+      if (data.cnpj) {
+        const exists = await checkCnpjExists(data.cnpj);
+        if (exists) {
+          throw new Error('Já existe uma organização com este CNPJ cadastrado.');
+        }
+      }
+      
       // Create organization
       const { data: newOrg, error } = await supabase.from('organizations').insert({
         name: data.name,
@@ -185,12 +211,26 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
       onSuccess();
     },
     onError: (error) => {
-      toast.error('Erro ao criar organização: ' + error.message);
+      if (error.message.includes('CNPJ')) {
+        toast.error('CNPJ duplicado', {
+          description: error.message,
+        });
+      } else {
+        toast.error('Erro ao criar organização: ' + error.message);
+      }
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async (data: OrganizationFormData) => {
+      // Check if CNPJ already exists in another organization
+      if (data.cnpj) {
+        const exists = await checkCnpjExists(data.cnpj, organization!.id);
+        if (exists) {
+          throw new Error('Já existe uma organização com este CNPJ cadastrado.');
+        }
+      }
+      
       const { error } = await supabase
         .from('organizations')
         .update({
@@ -209,7 +249,13 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
       onSuccess();
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar organização: ' + error.message);
+      if (error.message.includes('CNPJ')) {
+        toast.error('CNPJ duplicado', {
+          description: error.message,
+        });
+      } else {
+        toast.error('Erro ao atualizar organização: ' + error.message);
+      }
     },
   });
 
