@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Building2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Building2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +10,7 @@ import { OrganizationNotes } from '@/components/organizations/detail/Organizatio
 import { OrganizationFiles } from '@/components/organizations/detail/OrganizationFiles';
 import { OrganizationActivities } from '@/components/organizations/detail/OrganizationActivities';
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
+import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
 import { useOrganizationFiles } from '@/hooks/useOrganizationFiles';
 import { isPast, isToday } from 'date-fns';
@@ -29,6 +31,7 @@ const getLabelColor = (label: string | null) => {
 export default function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [activitySheetOpen, setActivitySheetOpen] = useState(false);
 
   const {
     organization,
@@ -120,6 +123,14 @@ export default function OrganizationDetails() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setActivitySheetOpen(true)}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Nova Atividade
+          </Button>
           <Button variant="outline" size="sm">
             <Plus className="h-4 w-4 mr-2" />
             Novo Negócio
@@ -198,6 +209,13 @@ export default function OrganizationDetails() {
           </Tabs>
         </div>
       </div>
+
+      {/* Activity Form Sheet */}
+      <ActivityFormSheet
+        open={activitySheetOpen}
+        onOpenChange={setActivitySheetOpen}
+        defaultOrganizationId={id}
+      />
     </div>
   );
 }
