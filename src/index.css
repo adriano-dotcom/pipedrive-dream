@@ -91,6 +91,14 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Stage colors for Kanban */
+    --stage-blue: 217 91% 60%;
+    --stage-amber: 38 92% 50%;
+    --stage-orange: 25 95% 53%;
+    --stage-violet: 263 70% 50%;
+    --stage-emerald: 160 84% 39%;
+    --stage-green: 142 71% 45%;
   }
 }
 
@@ -101,5 +109,19 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .kanban-card {
+    @apply transition-all duration-200 ease-out;
+  }
+  
+  .kanban-card:hover {
+    @apply shadow-md -translate-y-0.5;
+  }
+  
+  .kanban-column-drop {
+    @apply ring-2 ring-primary/50 bg-primary/5 transition-all duration-200;
   }
 }
