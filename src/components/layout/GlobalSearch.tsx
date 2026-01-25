@@ -447,6 +447,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
       )}
     </>
   );
+  };
 
   // Topbar variant - full width search bar
   if (variant === 'topbar') {
