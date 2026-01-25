@@ -75,6 +75,7 @@ const checkCnpjExists = async (cnpj: string, excludeId?: string): Promise<boolea
 export function OrganizationForm({ organization, onSuccess, onCancel }: OrganizationFormProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
 
   // Insurance fields state (not part of zod schema for simplicity with arrays)
   const [insuranceBranches, setInsuranceBranches] = useState<string[]>(
@@ -132,6 +133,42 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
       label: organization?.label || '',
     },
   });
+
+  // Function to fetch company data from CNPJ
+  const fetchCnpjData = async (cnpj: string) => {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    if (cleanCnpj.length !== 14) return;
+    
+    setIsFetchingCnpj(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-cnpj', {
+        body: { cnpj: cleanCnpj }
+      });
+      
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      // Auto-fill form fields with fetched data
+      if (data.name) setValue('name', data.name);
+      if (data.cnae) setValue('cnae', data.cnae);
+      if (data.phone) setValue('phone', data.phone);
+      if (data.email) setValue('email', data.email);
+      if (data.address_street) setValue('address_street', data.address_street);
+      if (data.address_number) setValue('address_number', data.address_number);
+      if (data.address_complement) setValue('address_complement', data.address_complement);
+      if (data.address_neighborhood) setValue('address_neighborhood', data.address_neighborhood);
+      if (data.address_city) setValue('address_city', data.address_city);
+      if (data.address_state) setValue('address_state', data.address_state);
+      if (data.address_zipcode) setValue('address_zipcode', data.address_zipcode);
+      
+      toast.success('Dados da empresa carregados automaticamente!');
+    } catch (error) {
+      // Silent fail - user can fill manually
+      console.log('Não foi possível buscar dados do CNPJ:', error);
+    } finally {
+      setIsFetchingCnpj(false);
+    }
+  };
 
   const getInsuranceData = () => ({
     insurance_branches: insuranceBranches.length > 0 ? insuranceBranches : null,
@@ -291,17 +328,28 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           </div>
           <div className="space-y-2">
             <Label htmlFor="cnpj">CNPJ</Label>
-            <PatternFormat
-              format="##.###.###/####-##"
-              mask="_"
-              customInput={Input}
-              id="cnpj"
-              value={watch('cnpj') || ''}
-              onValueChange={(values) => {
-                setValue('cnpj', values.value);
-              }}
-              placeholder="00.000.000/0000-00"
-            />
+            <div className="relative">
+              <PatternFormat
+                format="##.###.###/####-##"
+                mask="_"
+                customInput={Input}
+                id="cnpj"
+                value={watch('cnpj') || ''}
+                onValueChange={(values) => {
+                  setValue('cnpj', values.value);
+                  // Fetch company data when CNPJ has 14 digits
+                  if (values.value.length === 14 && !organization) {
+                    fetchCnpjData(values.value);
+                  }
+                }}
+                placeholder="00.000.000/0000-00"
+                disabled={isFetchingCnpj}
+                className={isFetchingCnpj ? 'pr-10' : ''}
+              />
+              {isFetchingCnpj && (
+                <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
             {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj.message}</p>}
           </div>
           <div className="space-y-2">
