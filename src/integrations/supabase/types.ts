@@ -253,6 +253,7 @@ export type Database = {
           phone: string | null
           policy_renewal_month: number | null
           preferred_insurers: string[] | null
+          primary_contact_id: string | null
           risk_profile: string | null
           rntrc_antt: string | null
           updated_at: string
@@ -286,6 +287,7 @@ export type Database = {
           phone?: string | null
           policy_renewal_month?: number | null
           preferred_insurers?: string[] | null
+          primary_contact_id?: string | null
           risk_profile?: string | null
           rntrc_antt?: string | null
           updated_at?: string
@@ -319,12 +321,21 @@ export type Database = {
           phone?: string | null
           policy_renewal_month?: number | null
           preferred_insurers?: string[] | null
+          primary_contact_id?: string | null
           risk_profile?: string | null
           rntrc_antt?: string | null
           updated_at?: string
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_primary_contact_id_fkey"
+            columns: ["primary_contact_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       people: {
         Row: {

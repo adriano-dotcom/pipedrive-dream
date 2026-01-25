@@ -19,9 +19,11 @@ import {
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { InsuranceFieldsSection } from './InsuranceFieldsSection';
+import { ContactPersonSection } from './ContactPersonSection';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
+type Person = Tables<'people'>;
 
 const organizationSchema = z.object({
   name: z.string().trim().min(2, 'Nome é obrigatório').max(200, 'Nome muito longo'),
@@ -75,6 +77,12 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     organization?.has_claims_history || false
   );
   const [brokerNotes, setBrokerNotes] = useState(organization?.broker_notes || '');
+  
+  // Contact person state
+  const [primaryContactId, setPrimaryContactId] = useState<string | null>(
+    organization?.primary_contact_id || null
+  );
+  const [pendingContacts, setPendingContacts] = useState<Person[]>([]);
 
   const {
     register,
@@ -119,7 +127,8 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
 
   const createMutation = useMutation({
     mutationFn: async (data: OrganizationFormData) => {
-      const { error } = await supabase.from('organizations').insert({
+      // Create organization
+      const { data: newOrg, error } = await supabase.from('organizations').insert({
         name: data.name,
         cnpj: data.cnpj || null,
         cnae: data.cnae || null,
@@ -138,13 +147,37 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         label: data.label || null,
         owner_id: user?.id,
         created_by: user?.id,
+        primary_contact_id: null, // Will update after linking people
         ...getInsuranceData(),
-      });
+      }).select().single();
+      
       if (error) throw error;
+      
+      // Link pending contacts to the new organization
+      if (pendingContacts.length > 0 && newOrg) {
+        const updatePromises = pendingContacts.map(person =>
+          supabase
+            .from('people')
+            .update({ organization_id: newOrg.id })
+            .eq('id', person.id)
+        );
+        await Promise.all(updatePromises);
+        
+        // Update primary contact if set
+        if (primaryContactId) {
+          await supabase
+            .from('organizations')
+            .update({ primary_contact_id: primaryContactId })
+            .eq('id', newOrg.id);
+        }
+      }
+      
+      return newOrg;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
       toast.success('Organização criada com sucesso!');
       onSuccess();
     },
@@ -160,12 +193,14 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         .update({
           ...data,
           ...getInsuranceData(),
+          primary_contact_id: primaryContactId,
         })
         .eq('id', organization!.id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['organization-contacts'] });
       toast.success('Organização atualizada com sucesso!');
       onSuccess();
     },
@@ -293,6 +328,15 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           </div>
         </div>
       </div>
+
+      {/* Contact People */}
+      <ContactPersonSection
+        organizationId={organization?.id}
+        primaryContactId={primaryContactId}
+        onPrimaryContactChange={setPrimaryContactId}
+        pendingContacts={pendingContacts}
+        onPendingContactsChange={setPendingContacts}
+      />
 
       {/* Insurance Fields */}
       <InsuranceFieldsSection
