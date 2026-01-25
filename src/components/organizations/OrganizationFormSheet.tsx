@@ -14,14 +14,23 @@ interface OrganizationFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organization: Organization | null;
+  onSuccess?: () => void;
 }
 
 export function OrganizationFormSheet({
   open,
   onOpenChange,
   organization,
+  onSuccess,
 }: OrganizationFormSheetProps) {
-  const handleClose = () => onOpenChange(false);
+  const handleClose = () => {
+    onOpenChange(false);
+  };
+
+  const handleSuccess = () => {
+    onOpenChange(false);
+    onSuccess?.();
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -40,7 +49,7 @@ export function OrganizationFormSheet({
         <div className="mt-6">
           <OrganizationForm
             organization={organization}
-            onSuccess={handleClose}
+            onSuccess={handleSuccess}
             onCancel={handleClose}
           />
         </div>
