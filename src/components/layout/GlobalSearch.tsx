@@ -66,6 +66,20 @@ const activityTypeLabels: Record<string, string> = {
   deadline: 'Prazo',
 };
 
+const highlightMatch = (text: string | null | undefined, query: string): React.ReactNode => {
+  if (!query || query.length < 2 || !text) return text || '';
+  
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escapedQuery})`, 'gi');
+  const parts = text.split(regex);
+  
+  return parts.map((part, index) => 
+    regex.test(part) ? (
+      <mark key={index} className="bg-yellow-400/40 text-inherit rounded-sm px-0.5">{part}</mark>
+    ) : part
+  );
+};
+
 const categories: Array<{
   id: SearchCategory;
   label: string;
@@ -416,14 +430,11 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             >
               <Building2 className="mr-2 h-4 w-4 text-primary shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="truncate font-medium">{org.name}</span>
+                <span className="truncate font-medium">{highlightMatch(org.name, searchQuery)}</span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {[
-                    org.cnpj,
-                    org.address_street && org.address_city 
-                      ? `${org.address_street}, ${org.address_city}` 
-                      : org.email,
-                  ].filter(Boolean).join(' · ') || 'Sem informações adicionais'}
+                  {org.cnpj && <>{highlightMatch(org.cnpj, searchQuery)} · </>}
+                  {org.email && <>{highlightMatch(org.email, searchQuery)}</>}
+                  {!org.cnpj && !org.email && 'Sem informações adicionais'}
                 </span>
               </div>
             </CommandItem>
@@ -448,13 +459,12 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             >
               <Users className="mr-2 h-4 w-4 text-emerald-500 shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="truncate font-medium">{person.name}</span>
+                <span className="truncate font-medium">{highlightMatch(person.name, searchQuery)}</span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {[
-                    person.organization?.name,
-                    person.email,
-                    person.phone,
-                  ].filter(Boolean).join(' · ') || 'Sem informações adicionais'}
+                  {person.organization?.name && <>{person.organization.name} · </>}
+                  {person.email && <>{highlightMatch(person.email, searchQuery)} · </>}
+                  {person.phone && <>{highlightMatch(person.phone, searchQuery)}</>}
+                  {!person.organization?.name && !person.email && !person.phone && 'Sem informações adicionais'}
                 </span>
               </div>
             </CommandItem>
@@ -479,14 +489,13 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             >
               <Briefcase className="mr-2 h-4 w-4 text-amber-500 shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="truncate font-medium">{deal.title}</span>
+                <span className="truncate font-medium">{highlightMatch(deal.title, searchQuery)}</span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {[
-                    deal.person?.name,
-                    deal.organization?.name,
-                    formatValue(deal.value),
-                    deal.policy_number && `Apólice: ${deal.policy_number}`,
-                  ].filter(Boolean).join(' · ') || 'Sem informações adicionais'}
+                  {deal.person?.name && <>{deal.person.name} · </>}
+                  {deal.organization?.name && <>{deal.organization.name} · </>}
+                  {deal.value && <>{formatValue(deal.value)} · </>}
+                  {deal.policy_number && <>Apólice: {highlightMatch(deal.policy_number, searchQuery)}</>}
+                  {!deal.person?.name && !deal.organization?.name && !deal.value && !deal.policy_number && 'Sem informações adicionais'}
                 </span>
               </div>
             </CommandItem>
@@ -516,13 +525,10 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             >
               <CheckSquare className="mr-2 h-4 w-4 text-blue-500 shrink-0" />
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="truncate font-medium">{activity.title}</span>
+                <span className="truncate font-medium">{highlightMatch(activity.title, searchQuery)}</span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {[
-                    activityTypeLabels[activity.activity_type] || activity.activity_type,
-                    formatDueDate(activity.due_date),
-                    activity.description && truncateText(activity.description, 40),
-                  ].filter(Boolean).join(' · ')}
+                  {activityTypeLabels[activity.activity_type] || activity.activity_type} · {formatDueDate(activity.due_date)}
+                  {activity.description && <> · {highlightMatch(truncateText(activity.description, 40), searchQuery)}</>}
                 </span>
               </div>
             </CommandItem>
@@ -554,7 +560,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
                   Anotação em: {note.entityName}
                 </span>
                 <span className="text-xs truncate">
-                  "{truncateText(note.content, 70)}"
+                  "{highlightMatch(truncateText(note.content, 70), searchQuery)}"
                 </span>
               </div>
             </CommandItem>
