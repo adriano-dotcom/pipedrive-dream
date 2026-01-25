@@ -168,6 +168,8 @@ export default function DealDetails() {
                 onDeleteNote={deleteNote}
                 onEditNote={(noteId, content) => updateNote({ noteId, content })}
                 isAdding={isAddingNote}
+                dealId={id || ''}
+                dealTitle={deal?.title || ''}
               />
             </TabsContent>
 

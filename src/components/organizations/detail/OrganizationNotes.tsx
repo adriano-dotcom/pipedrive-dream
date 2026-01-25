@@ -16,6 +16,7 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { OrganizationNote } from '@/hooks/useOrganizationDetails';
+import { useMentionNotifications } from '@/hooks/useMentionNotifications';
 
 interface OrganizationNotesProps {
   notes: OrganizationNote[];
@@ -24,6 +25,8 @@ interface OrganizationNotesProps {
   onDeleteNote: (noteId: string) => void;
   onEditNote?: (noteId: string, content: string) => void;
   isAdding: boolean;
+  organizationId: string;
+  organizationName: string;
 }
 
 export function OrganizationNotes({ 
@@ -33,16 +36,29 @@ export function OrganizationNotes({
   onDeleteNote,
   onEditNote,
   isAdding,
+  organizationId,
+  organizationName,
 }: OrganizationNotesProps) {
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const { sendMentionNotifications } = useMentionNotifications();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const textContent = newNote.replace(/<[^>]*>/g, '').trim();
     if (!textContent) return;
+    
     onAddNote(newNote);
+    
+    // Send mention notifications in background
+    sendMentionNotifications({
+      noteContent: newNote,
+      entityType: 'organization',
+      entityId: organizationId,
+      entityName: organizationName,
+    });
+    
     setNewNote('');
   };
 

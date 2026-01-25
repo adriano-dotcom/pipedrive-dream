@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { RichTextEditor, RichTextContent } from '@/components/ui/rich-text-editor';
 import { cn } from '@/lib/utils';
 import type { DealNote } from '@/hooks/useDealDetails';
+import { useMentionNotifications } from '@/hooks/useMentionNotifications';
 
 interface DealNotesProps {
   notes: DealNote[];
@@ -14,6 +15,8 @@ interface DealNotesProps {
   onDeleteNote: (noteId: string) => void;
   onEditNote?: (noteId: string, content: string) => void;
   isAdding?: boolean;
+  dealId: string;
+  dealTitle: string;
 }
 
 export function DealNotes({ 
@@ -22,11 +25,14 @@ export function DealNotes({
   onTogglePin, 
   onDeleteNote,
   onEditNote,
-  isAdding 
+  isAdding,
+  dealId,
+  dealTitle,
 }: DealNotesProps) {
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const { sendMentionNotifications } = useMentionNotifications();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +40,15 @@ export function DealNotes({
     const textContent = newNote.replace(/<[^>]*>/g, '').trim();
     if (textContent) {
       onAddNote(newNote);
+      
+      // Send mention notifications in background
+      sendMentionNotifications({
+        noteContent: newNote,
+        entityType: 'deal',
+        entityId: dealId,
+        entityName: dealTitle,
+      });
+      
       setNewNote('');
     }
   };

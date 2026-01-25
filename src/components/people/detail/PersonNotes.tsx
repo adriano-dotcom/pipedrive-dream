@@ -16,6 +16,7 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { PersonNote } from '@/hooks/usePersonDetails';
+import { useMentionNotifications } from '@/hooks/useMentionNotifications';
 
 interface PersonNotesProps {
   notes: PersonNote[];
@@ -24,6 +25,8 @@ interface PersonNotesProps {
   onDeleteNote: (noteId: string) => void;
   onEditNote?: (noteId: string, content: string) => void;
   isAdding: boolean;
+  personId: string;
+  personName: string;
 }
 
 export function PersonNotes({ 
@@ -33,16 +36,29 @@ export function PersonNotes({
   onDeleteNote,
   onEditNote,
   isAdding,
+  personId,
+  personName,
 }: PersonNotesProps) {
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const { sendMentionNotifications } = useMentionNotifications();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const textContent = newNote.replace(/<[^>]*>/g, '').trim();
     if (!textContent) return;
+    
     onAddNote(newNote);
+    
+    // Send mention notifications in background
+    sendMentionNotifications({
+      noteContent: newNote,
+      entityType: 'person',
+      entityId: personId,
+      entityName: personName,
+    });
+    
     setNewNote('');
   };
 
