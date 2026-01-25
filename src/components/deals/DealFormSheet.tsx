@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Trash2, Trophy, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NumericFormat } from 'react-number-format';
 
 import {
   Sheet,
@@ -426,7 +427,19 @@ export function DealFormSheet({
                 <FormItem>
                   <FormLabel>Valor (R$) *</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="0" min="1" {...field} />
+                    <NumericFormat
+                      customInput={Input}
+                      thousandSeparator="."
+                      decimalSeparator=","
+                      prefix="R$ "
+                      decimalScale={2}
+                      allowNegative={false}
+                      placeholder="R$ 0,00"
+                      value={field.value}
+                      onValueChange={(values) => {
+                        field.onChange(values.value);
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
