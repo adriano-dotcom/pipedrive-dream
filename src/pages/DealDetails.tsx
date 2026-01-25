@@ -10,17 +10,20 @@ import { DealNotes } from '@/components/deals/detail/DealNotes';
 import { DealActivities } from '@/components/deals/detail/DealActivities';
 import { DealFiles } from '@/components/deals/detail/DealFiles';
 import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
-import { NextActivityDialog } from '@/components/deals/detail/NextActivityDialog';
+import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
+import { Tables } from '@/integrations/supabase/types';
+
+type Activity = Tables<'activities'>;
 
 export default function DealDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
   const [showLostDialog, setShowLostDialog] = useState(false);
-  const [showNextActivityDialog, setShowNextActivityDialog] = useState(false);
-  const [isNewActivityMode, setIsNewActivityMode] = useState(false);
+  const [activityFormOpen, setActivityFormOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
   const {
     deal,
@@ -189,12 +192,16 @@ export default function DealDetails() {
                 activities={activities} 
                 onToggleActivity={(activityId, completed) => toggleActivity({ activityId, completed })}
                 onActivityCompleted={() => {
-                  setIsNewActivityMode(false);
-                  setShowNextActivityDialog(true);
+                  setEditingActivity(null);
+                  setActivityFormOpen(true);
                 }}
                 onNewActivity={() => {
-                  setIsNewActivityMode(true);
-                  setShowNextActivityDialog(true);
+                  setEditingActivity(null);
+                  setActivityFormOpen(true);
+                }}
+                onEditActivity={(activity) => {
+                  setEditingActivity(activity as Activity);
+                  setActivityFormOpen(true);
                 }}
                 isToggling={isTogglingActivity}
               />
@@ -218,12 +225,14 @@ export default function DealDetails() {
         isLoading={isUpdatingStatus}
       />
 
-      {/* Next Activity Dialog */}
-      <NextActivityDialog
-        open={showNextActivityDialog}
-        onOpenChange={setShowNextActivityDialog}
-        dealId={id || ''}
-        isNewMode={isNewActivityMode}
+      {/* Activity Form Sheet */}
+      <ActivityFormSheet
+        open={activityFormOpen}
+        onOpenChange={setActivityFormOpen}
+        activity={editingActivity}
+        defaultDealId={id}
+        defaultPersonId={deal?.person_id}
+        defaultOrganizationId={deal?.organization_id}
       />
     </div>
   );
