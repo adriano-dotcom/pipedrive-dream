@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 interface DealSidebarProps {
   deal: {
@@ -90,7 +91,12 @@ export function DealSidebar({ deal }: DealSidebarProps) {
       {deal.person && (
         <SidebarSection title="Pessoa" icon={User}>
           <div className="space-y-1">
-            <p className="font-medium text-foreground">{deal.person.name}</p>
+            <Link 
+              to={`/people/${deal.person.id}`}
+              className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
+            >
+              {deal.person.name}
+            </Link>
             {deal.person.job_title && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Briefcase className="h-3.5 w-3.5" />
@@ -117,7 +123,12 @@ export function DealSidebar({ deal }: DealSidebarProps) {
       {deal.organization && (
         <SidebarSection title="Organização" icon={Building2}>
           <div className="space-y-1">
-            <p className="font-medium text-foreground">{deal.organization.name}</p>
+            <Link 
+              to={`/organizations/${deal.organization.id}`}
+              className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
+            >
+              {deal.organization.name}
+            </Link>
             {deal.organization.phone && (
               <a href={`tel:${deal.organization.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
                 <Phone className="h-3.5 w-3.5" />
