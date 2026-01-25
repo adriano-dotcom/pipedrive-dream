@@ -36,6 +36,7 @@ interface NextActivityDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dealId: string;
+  isNewMode?: boolean;
 }
 
 const activityTypes = [
@@ -46,7 +47,7 @@ const activityTypes = [
   { value: 'deadline', label: 'Prazo', icon: Clock },
 ];
 
-export function NextActivityDialog({ open, onOpenChange, dealId }: NextActivityDialogProps) {
+export function NextActivityDialog({ open, onOpenChange, dealId, isNewMode = false }: NextActivityDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   
@@ -109,10 +110,12 @@ export function NextActivityDialog({ open, onOpenChange, dealId }: NextActivityD
             <div className="p-2 rounded-lg bg-primary/10">
               <CheckSquare className="h-4 w-4 text-primary" />
             </div>
-            Criar próxima atividade?
+            {isNewMode ? 'Nova Atividade' : 'Criar próxima atividade?'}
           </DialogTitle>
           <DialogDescription>
-            Atividade concluída! Deseja agendar a próxima ação para este negócio?
+            {isNewMode 
+              ? 'Agende uma nova atividade para acompanhar este negócio.'
+              : 'Atividade concluída! Deseja agendar a próxima ação para este negócio?'}
           </DialogDescription>
         </DialogHeader>
 
@@ -192,7 +195,7 @@ export function NextActivityDialog({ open, onOpenChange, dealId }: NextActivityD
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="ghost" onClick={handleClose}>
-              Não, obrigado
+              {isNewMode ? 'Cancelar' : 'Não, obrigado'}
             </Button>
             <Button type="submit" disabled={createActivityMutation.isPending}>
               {createActivityMutation.isPending ? 'Criando...' : 'Criar Atividade'}

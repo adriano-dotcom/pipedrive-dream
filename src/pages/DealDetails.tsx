@@ -20,6 +20,7 @@ export default function DealDetails() {
   
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [showNextActivityDialog, setShowNextActivityDialog] = useState(false);
+  const [isNewActivityMode, setIsNewActivityMode] = useState(false);
 
   const {
     deal,
@@ -185,7 +186,14 @@ export default function DealDetails() {
               <DealActivities 
                 activities={activities} 
                 onToggleActivity={(activityId, completed) => toggleActivity({ activityId, completed })}
-                onActivityCompleted={() => setShowNextActivityDialog(true)}
+                onActivityCompleted={() => {
+                  setIsNewActivityMode(false);
+                  setShowNextActivityDialog(true);
+                }}
+                onNewActivity={() => {
+                  setIsNewActivityMode(true);
+                  setShowNextActivityDialog(true);
+                }}
                 isToggling={isTogglingActivity}
               />
             </TabsContent>
@@ -213,6 +221,7 @@ export default function DealDetails() {
         open={showNextActivityDialog}
         onOpenChange={setShowNextActivityDialog}
         dealId={id || ''}
+        isNewMode={isNewActivityMode}
       />
     </div>
   );

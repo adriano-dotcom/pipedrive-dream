@@ -9,8 +9,9 @@ import {
   Clock,
   CheckCircle2,
   Circle,
-  AlertCircle
+  Plus
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,6 +31,7 @@ interface DealActivitiesProps {
   activities: Activity[];
   onToggleActivity: (activityId: string, completed: boolean) => Promise<{ completed: boolean }>;
   onActivityCompleted: () => void;
+  onNewActivity: () => void;
   isToggling?: boolean;
 }
 
@@ -51,6 +53,7 @@ export function DealActivities({
   activities, 
   onToggleActivity, 
   onActivityCompleted,
+  onNewActivity,
   isToggling 
 }: DealActivitiesProps) {
   const pendingActivities = activities.filter(a => !a.is_completed);
@@ -69,7 +72,11 @@ export function DealActivities({
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Calendar className="h-12 w-12 text-muted-foreground/50 mb-4" />
         <p className="text-muted-foreground">Nenhuma atividade</p>
-        <p className="text-sm text-muted-foreground/70">Adicione atividades pelo formulário rápido no Kanban</p>
+        <p className="text-sm text-muted-foreground/70 mb-4">Adicione atividades para acompanhar este negócio</p>
+        <Button onClick={onNewActivity} size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Atividade
+        </Button>
       </div>
     );
   }
@@ -149,6 +156,14 @@ export function DealActivities({
 
   return (
     <div className="space-y-6">
+      {/* Header with New Activity Button */}
+      <div className="flex items-center justify-end">
+        <Button onClick={onNewActivity} size="sm" variant="outline">
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Atividade
+        </Button>
+      </div>
+
       {/* Pending Activities */}
       {pendingActivities.length > 0 && (
         <div>
