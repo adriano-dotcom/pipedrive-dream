@@ -232,11 +232,15 @@ export function useDealDetails(dealId: string) {
 
   // Mark deal as won/lost
   const updateDealStatusMutation = useMutation({
-    mutationFn: async (status: 'won' | 'lost') => {
+    mutationFn: async ({ status, lostReason }: { status: 'won' | 'lost'; lostReason?: string }) => {
       const updates: Record<string, unknown> = {
         status,
         [status === 'won' ? 'won_at' : 'lost_at']: new Date().toISOString(),
       };
+
+      if (status === 'lost' && lostReason) {
+        updates.lost_reason = lostReason;
+      }
 
       const { error } = await supabase
         .from('deals')
@@ -250,10 +254,12 @@ export function useDealDetails(dealId: string) {
         deal_id: dealId,
         event_type: status === 'won' ? 'deal_won' : 'deal_lost',
         description: status === 'won' ? 'Negócio ganho! 🎉' : 'Negócio perdido',
+        new_value: status === 'lost' ? lostReason : null,
+        metadata: status === 'lost' && lostReason ? { reason: lostReason } : {},
         created_by: user?.id,
       });
     },
-    onSuccess: (_, status) => {
+    onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deal-history', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deals'] });
@@ -274,5 +280,6 @@ export function useDealDetails(dealId: string) {
     deleteNote: deleteNoteMutation.mutate,
     updateStage: updateStageMutation.mutate,
     updateDealStatus: updateDealStatusMutation.mutate,
+    isUpdatingStatus: updateDealStatusMutation.isPending,
   };
 }
