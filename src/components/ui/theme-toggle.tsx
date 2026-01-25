@@ -1,5 +1,6 @@
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +10,35 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ collapsed, className }: ThemeToggleProps) {
+  const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled
+        className={cn(
+          'w-full justify-start gap-3 rounded-xl px-3 py-2.5',
+          'text-muted-foreground',
+          collapsed && 'justify-center px-2',
+          className
+        )}
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/50">
+          <div className="w-[18px] h-[18px]" />
+        </div>
+        {!collapsed && <span className="font-medium text-sm">Tema</span>}
+      </Button>
+    );
+  }
+
   const isDark = theme === 'dark';
 
   const toggleTheme = () => {
