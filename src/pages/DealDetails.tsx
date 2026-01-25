@@ -100,6 +100,14 @@ export default function DealDetails() {
             <p className="text-sm text-muted-foreground">
               {deal.pipeline?.name} • {deal.stage?.name}
             </p>
+            <p className="text-lg font-semibold text-primary mt-1">
+              {new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(deal.value || 0)}
+            </p>
           </div>
         </div>
 
