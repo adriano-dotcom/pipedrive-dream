@@ -30,6 +30,7 @@ const organizationSchema = z.object({
   cnpj: z.string().trim().max(18, 'CNPJ inválido').optional().or(z.literal('')),
   cnae: z.string().trim().max(20, 'CNAE inválido').optional().or(z.literal('')),
   rntrc_antt: z.string().trim().max(20, 'RNTRC/ANTT inválido').optional().or(z.literal('')),
+  automotores: z.string().trim().optional().or(z.literal('')),
   phone: z.string().trim().max(20, 'Telefone inválido').optional().or(z.literal('')),
   email: z.string().trim().email('Email inválido').optional().or(z.literal('')),
   website: z.string().trim().max(200, 'Website muito longo').optional().or(z.literal('')),
@@ -97,6 +98,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
       cnpj: organization?.cnpj || '',
       cnae: organization?.cnae || '',
       rntrc_antt: organization?.rntrc_antt || '',
+      automotores: organization?.automotores?.toString() || '',
       phone: organization?.phone || '',
       email: organization?.email || '',
       website: organization?.website || '',
@@ -133,6 +135,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         cnpj: data.cnpj || null,
         cnae: data.cnae || null,
         rntrc_antt: data.rntrc_antt || null,
+        automotores: data.automotores ? parseInt(data.automotores, 10) : null,
         phone: data.phone || null,
         email: data.email || null,
         website: data.website || null,
@@ -192,6 +195,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         .from('organizations')
         .update({
           ...data,
+          automotores: data.automotores ? parseInt(data.automotores, 10) : null,
           ...getInsuranceData(),
           primary_contact_id: primaryContactId,
         })
@@ -250,6 +254,16 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           <div className="space-y-2">
             <Label htmlFor="rntrc_antt">RNTRC/ANTT</Label>
             <Input id="rntrc_antt" {...register('rntrc_antt')} placeholder="000000000" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="automotores">Automotores</Label>
+            <Input
+              id="automotores"
+              type="number"
+              min="0"
+              {...register('automotores')}
+              placeholder="Quantidade de veículos"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="label">Status/Temperatura</Label>
