@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { CnpjInput } from '@/components/ui/cnpj-input';
+import { CepInput } from '@/components/ui/cep-input';
 import {
   Select,
   SelectContent,
@@ -444,7 +445,11 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="address_zipcode">CEP</Label>
-            <Input id="address_zipcode" {...register('address_zipcode')} placeholder="00000-000" />
+            <CepInput
+              id="address_zipcode"
+              value={watch('address_zipcode') || ''}
+              onValueChange={(value) => setValue('address_zipcode', value)}
+            />
           </div>
         </div>
       </div>
