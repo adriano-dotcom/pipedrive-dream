@@ -56,7 +56,15 @@ import {
 
 const dealSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
-  value: z.string().optional(),
+  value: z.string()
+    .min(1, 'Valor é obrigatório')
+    .refine(
+      (val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num > 0;
+      },
+      { message: 'Valor deve ser maior que zero' }
+    ),
   pipeline_id: z.string().min(1, 'Funil é obrigatório'),
   stage_id: z.string().min(1, 'Etapa é obrigatória'),
   organization_id: z.string().optional(),
@@ -416,9 +424,9 @@ export function DealFormSheet({
               name="value"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Valor (R$)</FormLabel>
+                  <FormLabel>Valor (R$) *</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="0" {...field} />
+                    <Input type="number" placeholder="0" min="1" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
