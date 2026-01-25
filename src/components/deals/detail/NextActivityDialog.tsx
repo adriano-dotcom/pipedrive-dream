@@ -173,7 +173,6 @@ export function NextActivityDialog({ open, onOpenChange, dealId }: NextActivityD
                     mode="single"
                     selected={dueDate}
                     onSelect={(date) => date && setDueDate(date)}
-                    initialFocus
                     className="pointer-events-auto"
                   />
                 </PopoverContent>
