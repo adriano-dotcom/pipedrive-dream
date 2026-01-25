@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Organizations from "./pages/Organizations";
 import OrganizationDetails from "./pages/OrganizationDetails";
 import People from "./pages/People";
+import PersonDetails from "./pages/PersonDetails";
 import Deals from "./pages/Deals";
 import DealDetails from "./pages/DealDetails";
 import Activities from "./pages/Activities";
@@ -59,6 +60,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <People />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/people/:id"
+                element={
+                  <ProtectedRoute>
+                    <PersonDetails />
                   </ProtectedRoute>
                 }
               />
