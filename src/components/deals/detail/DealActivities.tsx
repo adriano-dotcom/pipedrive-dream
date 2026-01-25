@@ -1,0 +1,152 @@
+import { format, isPast, isToday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { 
+  Phone, 
+  Mail, 
+  Calendar, 
+  CheckSquare, 
+  Users, 
+  Clock,
+  CheckCircle2,
+  Circle,
+  AlertCircle
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+
+interface Activity {
+  id: string;
+  title: string;
+  activity_type: string;
+  due_date: string;
+  due_time: string | null;
+  is_completed: boolean;
+  priority: string | null;
+}
+
+interface DealActivitiesProps {
+  activities: Activity[];
+}
+
+const typeIcons: Record<string, React.ElementType> = {
+  call: Phone,
+  email: Mail,
+  meeting: Users,
+  task: CheckSquare,
+  deadline: Clock,
+};
+
+const priorityColors: Record<string, string> = {
+  high: 'bg-red-500/15 text-red-400 border-red-500/30',
+  normal: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  low: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
+};
+
+export function DealActivities({ activities }: DealActivitiesProps) {
+  const pendingActivities = activities.filter(a => !a.is_completed);
+  const completedActivities = activities.filter(a => a.is_completed);
+
+  if (activities.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Calendar className="h-12 w-12 text-muted-foreground/50 mb-4" />
+        <p className="text-muted-foreground">Nenhuma atividade</p>
+        <p className="text-sm text-muted-foreground/70">Adicione atividades pelo formulário rápido no Kanban</p>
+      </div>
+    );
+  }
+
+  const renderActivity = (activity: Activity) => {
+    const Icon = typeIcons[activity.activity_type] || CheckSquare;
+    const dueDate = new Date(activity.due_date);
+    const isOverdue = !activity.is_completed && isPast(dueDate) && !isToday(dueDate);
+    const isDueToday = isToday(dueDate);
+
+    return (
+      <div
+        key={activity.id}
+        className={cn(
+          "flex items-start gap-3 p-3 rounded-lg border transition-all",
+          "bg-card/50 hover:bg-card/80",
+          activity.is_completed && "opacity-60",
+          isOverdue && "border-red-500/30 bg-red-500/5"
+        )}
+      >
+        {/* Status Icon */}
+        <div className="mt-0.5">
+          {activity.is_completed ? (
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          ) : isOverdue ? (
+            <AlertCircle className="h-5 w-5 text-red-500" />
+          ) : (
+            <Circle className="h-5 w-5 text-muted-foreground" />
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+            <span className={cn(
+              "text-sm font-medium",
+              activity.is_completed && "line-through text-muted-foreground"
+            )}>
+              {activity.title}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn(
+              "text-xs",
+              isOverdue ? "text-red-400" : isDueToday ? "text-amber-400" : "text-muted-foreground"
+            )}>
+              {isOverdue && "Atrasada • "}
+              {isDueToday && "Hoje • "}
+              {format(dueDate, "d 'de' MMM", { locale: ptBR })}
+              {activity.due_time && ` às ${activity.due_time.slice(0, 5)}`}
+            </span>
+
+            {activity.priority && activity.priority !== 'normal' && (
+              <Badge 
+                variant="outline" 
+                className={cn("text-[10px] px-1.5 py-0", priorityColors[activity.priority])}
+              >
+                {activity.priority === 'high' ? 'Alta' : 'Baixa'}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Pending Activities */}
+      {pendingActivities.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+            <Circle className="h-4 w-4" />
+            Pendentes ({pendingActivities.length})
+          </h4>
+          <div className="space-y-2">
+            {pendingActivities.map(renderActivity)}
+          </div>
+        </div>
+      )}
+
+      {/* Completed Activities */}
+      {completedActivities.length > 0 && (
+        <div>
+          <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Concluídas ({completedActivities.length})
+          </h4>
+          <div className="space-y-2">
+            {completedActivities.map(renderActivity)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

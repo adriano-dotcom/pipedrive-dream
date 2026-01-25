@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Organizations from "./pages/Organizations";
 import People from "./pages/People";
 import Deals from "./pages/Deals";
+import DealDetails from "./pages/DealDetails";
 import Activities from "./pages/Activities";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -57,6 +58,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Deals />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/deals/:id"
+                element={
+                  <ProtectedRoute>
+                    <DealDetails />
                   </ProtectedRoute>
                 }
               />
