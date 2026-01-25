@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
+import { GlobalSearch } from './GlobalSearch';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -13,9 +14,19 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       <AppSidebar />
       
-      <main className="relative flex-1 overflow-auto scrollbar-modern">
-        {children}
-      </main>
+      <div className="relative flex-1 flex flex-col overflow-hidden">
+        {/* Top Header with Global Search */}
+        <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-6 shrink-0">
+          <div className="w-full max-w-2xl">
+            <GlobalSearch variant="topbar" />
+          </div>
+        </header>
+        
+        <main className="flex-1 overflow-auto scrollbar-modern">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
+
