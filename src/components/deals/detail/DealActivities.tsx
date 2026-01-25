@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Activity {
   id: string;
@@ -21,11 +22,15 @@ interface Activity {
   due_date: string;
   due_time: string | null;
   is_completed: boolean;
+  completed_at: string | null;
   priority: string | null;
 }
 
 interface DealActivitiesProps {
   activities: Activity[];
+  onToggleActivity: (activityId: string, completed: boolean) => Promise<{ completed: boolean }>;
+  onActivityCompleted: () => void;
+  isToggling?: boolean;
 }
 
 const typeIcons: Record<string, React.ElementType> = {
@@ -42,9 +47,22 @@ const priorityColors: Record<string, string> = {
   low: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
 };
 
-export function DealActivities({ activities }: DealActivitiesProps) {
+export function DealActivities({ 
+  activities, 
+  onToggleActivity, 
+  onActivityCompleted,
+  isToggling 
+}: DealActivitiesProps) {
   const pendingActivities = activities.filter(a => !a.is_completed);
   const completedActivities = activities.filter(a => a.is_completed);
+
+  const handleToggle = async (activityId: string, currentCompleted: boolean) => {
+    const result = await onToggleActivity(activityId, !currentCompleted);
+    // Se marcou como concluída, abre dialog para próxima atividade
+    if (result.completed) {
+      onActivityCompleted();
+    }
+  };
 
   if (activities.length === 0) {
     return (
@@ -72,15 +90,18 @@ export function DealActivities({ activities }: DealActivitiesProps) {
           isOverdue && "border-red-500/30 bg-red-500/5"
         )}
       >
-        {/* Status Icon */}
+        {/* Checkbox */}
         <div className="mt-0.5">
-          {activity.is_completed ? (
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
-          ) : isOverdue ? (
-            <AlertCircle className="h-5 w-5 text-red-500" />
-          ) : (
-            <Circle className="h-5 w-5 text-muted-foreground" />
-          )}
+          <Checkbox
+            checked={activity.is_completed}
+            onCheckedChange={() => handleToggle(activity.id, activity.is_completed)}
+            disabled={isToggling}
+            className={cn(
+              "h-5 w-5",
+              activity.is_completed && "bg-green-500 border-green-500 text-white",
+              isOverdue && !activity.is_completed && "border-red-500"
+            )}
+          />
         </div>
 
         {/* Content */}
@@ -96,15 +117,21 @@ export function DealActivities({ activities }: DealActivitiesProps) {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={cn(
-              "text-xs",
-              isOverdue ? "text-red-400" : isDueToday ? "text-amber-400" : "text-muted-foreground"
-            )}>
-              {isOverdue && "Atrasada • "}
-              {isDueToday && "Hoje • "}
-              {format(dueDate, "d 'de' MMM", { locale: ptBR })}
-              {activity.due_time && ` às ${activity.due_time.slice(0, 5)}`}
-            </span>
+            {activity.is_completed && activity.completed_at ? (
+              <span className="text-xs text-green-500">
+                Concluída em {format(new Date(activity.completed_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+              </span>
+            ) : (
+              <span className={cn(
+                "text-xs",
+                isOverdue ? "text-red-400" : isDueToday ? "text-amber-400" : "text-muted-foreground"
+              )}>
+                {isOverdue && "Atrasada • "}
+                {isDueToday && "Hoje • "}
+                {format(dueDate, "d 'de' MMM", { locale: ptBR })}
+                {activity.due_time && ` às ${activity.due_time.slice(0, 5)}`}
+              </span>
+            )}
 
             {activity.priority && activity.priority !== 'normal' && (
               <Badge 
