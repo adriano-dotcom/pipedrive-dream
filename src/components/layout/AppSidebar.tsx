@@ -97,13 +97,8 @@ export function AppSidebar() {
         )}
       </Button>
 
-      {/* Global Search */}
-      <div className="relative px-3 pt-4">
-        <GlobalSearch collapsed={collapsed} />
-      </div>
-
       {/* Navigation */}
-      <nav className="relative flex-1 space-y-1 p-3 pt-3">
+      <nav className="relative flex-1 space-y-1 p-3 pt-6">
         {menuItems.map((item, index) => (
           <NavLink
             key={item.url}
