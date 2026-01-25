@@ -47,6 +47,7 @@ import { Separator } from '@/components/ui/separator';
 const dealSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   value: z.string().optional(),
+  pipeline_id: z.string().min(1, 'Funil é obrigatório'),
   stage_id: z.string().min(1, 'Etapa é obrigatória'),
   organization_id: z.string().optional(),
   person_id: z.string().optional(),
@@ -107,6 +108,7 @@ export function DealFormSheet({
     defaultValues: {
       title: '',
       value: '',
+      pipeline_id: pipelineId || '',
       stage_id: stages[0]?.id || '',
       organization_id: '',
       person_id: '',
@@ -120,6 +122,38 @@ export function DealFormSheet({
       label: '',
       notes: '',
     },
+  });
+
+  // Fetch all pipelines
+  const { data: pipelines = [] } = useQuery({
+    queryKey: ['pipelines-select'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pipelines')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Watch selected pipeline to load stages dynamically
+  const selectedPipelineId = form.watch('pipeline_id');
+
+  // Fetch stages for selected pipeline
+  const { data: dynamicStages = [] } = useQuery({
+    queryKey: ['stages-dynamic', selectedPipelineId],
+    queryFn: async () => {
+      if (!selectedPipelineId) return [];
+      const { data, error } = await supabase
+        .from('stages')
+        .select('id, name, position, color, probability')
+        .eq('pipeline_id', selectedPipelineId)
+        .order('position');
+      if (error) throw error;
+      return data as Stage[];
+    },
+    enabled: !!selectedPipelineId,
   });
 
   // Fetch organizations
@@ -156,6 +190,7 @@ export function DealFormSheet({
       form.reset({
         title: deal.title || '',
         value: deal.value?.toString() || '',
+        pipeline_id: deal.pipeline_id || pipelineId || '',
         stage_id: deal.stage_id || stages[0]?.id || '',
         organization_id: deal.organization_id || '',
         person_id: deal.person_id || '',
@@ -173,6 +208,7 @@ export function DealFormSheet({
       form.reset({
         title: '',
         value: '',
+        pipeline_id: pipelineId || '',
         stage_id: stages[0]?.id || '',
         organization_id: '',
         person_id: '',
@@ -187,7 +223,7 @@ export function DealFormSheet({
         notes: '',
       });
     }
-  }, [deal, stages, form]);
+  }, [deal, stages, form, pipelineId]);
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -196,7 +232,7 @@ export function DealFormSheet({
         title: values.title,
         value: values.value ? parseFloat(values.value) : 0,
         stage_id: values.stage_id,
-        pipeline_id: pipelineId,
+        pipeline_id: values.pipeline_id,
         organization_id: values.organization_id || null,
         person_id: values.person_id || null,
         insurance_type: values.insurance_type || null,
@@ -325,17 +361,50 @@ export function DealFormSheet({
               )}
             />
 
-            {/* Value and Stage */}
+            {/* Value */}
+            <FormField
+              control={form.control}
+              name="value"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Valor (R$)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="0" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Pipeline and Stage */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="value"
+                name="pipeline_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Valor (R$)</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="0" {...field} />
-                    </FormControl>
+                    <FormLabel>Funil *</FormLabel>
+                    <Select
+                      onValueChange={(val) => {
+                        field.onChange(val);
+                        // Clear stage when pipeline changes
+                        form.setValue('stage_id', '');
+                      }}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {pipelines.map((pipeline) => (
+                          <SelectItem key={pipeline.id} value={pipeline.id}>
+                            {pipeline.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -347,14 +416,18 @@ export function DealFormSheet({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Etapa *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={!selectedPipelineId || dynamicStages.length === 0}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {stages.map((stage) => (
+                        {dynamicStages.map((stage) => (
                           <SelectItem key={stage.id} value={stage.id}>
                             {stage.name}
                           </SelectItem>
