@@ -135,9 +135,16 @@ export function OrganizationsTable({
         accessorFn: (row) => row.primary_contact?.name ?? '',
         header: 'Contato Principal',
         cell: ({ row }) => (
-          <span className="text-muted-foreground">
-            {row.original.primary_contact?.name || '-'}
-          </span>
+          row.original.primary_contact && row.original.primary_contact_id ? (
+            <Link
+              to={`/people/${row.original.primary_contact_id}`}
+              className="text-muted-foreground hover:text-primary hover:underline transition-colors"
+            >
+              {row.original.primary_contact.name}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )
         ),
         enableColumnFilter: true,
       },
