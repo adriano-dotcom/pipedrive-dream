@@ -8,6 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -171,65 +179,73 @@ export function AddContactPersonDialog({
           </TabsList>
 
           <TabsContent value="search" className="space-y-4 mt-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
+            <Command className="rounded-lg border" shouldFilter={false}>
+              <CommandInput
                 placeholder="Buscar por nome, email ou telefone..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                onValueChange={setSearchQuery}
               />
-            </div>
-
-            <div className="space-y-2 max-h-[250px] overflow-y-auto">
-              {isSearching ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : searchQuery.length < 2 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Digite pelo menos 2 caracteres para buscar
-                </p>
-              ) : searchResults?.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhuma pessoa encontrada
-                </p>
-              ) : (
-                searchResults?.map((person) => (
-                  <div
-                    key={person.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{person.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {person.email || person.phone || 'Sem contato'}
-                      </p>
-                      {person.organization_id && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                          Já vinculada a outra organização
-                        </p>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => linkMutation.mutate(person.id)}
-                      disabled={isLinking || !organizationId}
-                    >
-                      {isLinking ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Link2 className="h-4 w-4 mr-1" />
-                          Vincular
-                        </>
-                      )}
-                    </Button>
+              <CommandList className="max-h-[250px]">
+                {isSearching ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
-                ))
-              )}
-            </div>
+                ) : searchQuery.length < 2 ? (
+                  <CommandEmpty>
+                    Digite pelo menos 2 caracteres para buscar
+                  </CommandEmpty>
+                ) : searchResults?.length === 0 ? (
+                  <CommandEmpty>
+                    Nenhuma pessoa encontrada
+                  </CommandEmpty>
+                ) : (
+                  <CommandGroup>
+                    {searchResults?.map((person) => (
+                      <CommandItem
+                        key={person.id}
+                        value={person.name}
+                        className="flex items-center justify-between cursor-pointer"
+                        onSelect={() => {
+                          if (!isLinking && organizationId) {
+                            linkMutation.mutate(person.id);
+                          }
+                        }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{person.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {person.email || person.phone || 'Sem contato'}
+                          </p>
+                          {person.organization_id && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                              Já vinculada a outra organização
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            linkMutation.mutate(person.id);
+                          }}
+                          disabled={isLinking || !organizationId}
+                        >
+                          {isLinking ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Link2 className="h-4 w-4 mr-1" />
+                              Vincular
+                            </>
+                          )}
+                        </Button>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
+              </CommandList>
+            </Command>
 
             {!organizationId && (
               <p className="text-xs text-muted-foreground text-center">
