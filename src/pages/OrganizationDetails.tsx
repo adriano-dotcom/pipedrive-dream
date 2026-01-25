@@ -13,6 +13,7 @@ import { OrganizationActivities } from '@/components/organizations/detail/Organi
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
+import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
 import { useOrganizationFiles } from '@/hooks/useOrganizationFiles';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,6 +37,7 @@ export default function OrganizationDetails() {
   const navigate = useNavigate();
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
 
   const {
     organization,
@@ -180,7 +182,11 @@ export default function OrganizationDetails() {
             <Plus className="h-4 w-4 mr-2" />
             Novo Negócio
           </Button>
-          <Button variant="outline" size="icon">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => setEditSheetOpen(true)}
+          >
             <Pencil className="h-4 w-4" />
           </Button>
         </div>
@@ -273,6 +279,13 @@ export default function OrganizationDetails() {
           defaultOrganizationId={id}
         />
       )}
+
+      {/* Organization Edit Sheet */}
+      <OrganizationFormSheet
+        open={editSheetOpen}
+        onOpenChange={setEditSheetOpen}
+        organization={organization}
+      />
     </div>
   );
 }
