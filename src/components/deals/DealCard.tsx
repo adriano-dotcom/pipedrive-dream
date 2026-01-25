@@ -38,6 +38,7 @@ interface DealCardProps {
   activities?: Activity[];
   onToggleActivity?: (id: string, completed: boolean) => void;
   isTogglingActivity?: boolean;
+  stageColor?: string;
 }
 
 function formatCurrency(value: number) {
@@ -49,10 +50,10 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-const labelColors: Record<string, string> = {
-  Quente: 'bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30',
-  Morno: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30',
-  Frio: 'bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30',
+const labelColors: Record<string, { bg: string; text: string; border: string }> = {
+  Quente: { bg: 'bg-red-500/15', text: 'text-red-600 dark:text-red-400', border: 'border-red-500/30' },
+  Morno: { bg: 'bg-amber-500/15', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/30' },
+  Frio: { bg: 'bg-blue-500/15', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-500/30' },
 };
 
 const insuranceIcons: Record<string, string> = {
@@ -64,8 +65,16 @@ const insuranceIcons: Record<string, string> = {
   Empresarial: '🏢',
 };
 
-export function DealCard({ deal, index, onClick, activities = [], onToggleActivity, isTogglingActivity }: DealCardProps) {
-  const pendingActivities = activities.filter(a => !a.is_completed).slice(0, 3);
+export function DealCard({ 
+  deal, 
+  index, 
+  onClick, 
+  activities = [], 
+  onToggleActivity, 
+  isTogglingActivity,
+  stageColor = '#6366f1'
+}: DealCardProps) {
+  const pendingActivities = activities.filter(a => !a.is_completed).slice(0, 2);
   const pendingCount = activities.filter(a => !a.is_completed).length;
 
   return (
@@ -77,90 +86,115 @@ export function DealCard({ deal, index, onClick, activities = [], onToggleActivi
           {...provided.dragHandleProps}
           onClick={onClick}
           className={cn(
-            'bg-card border border-border rounded-lg p-3 cursor-pointer',
-            'hover:shadow-md transition-shadow duration-200',
-            snapshot.isDragging && 'shadow-lg ring-2 ring-primary/50'
+            'bg-card border border-border/60 rounded-xl cursor-pointer',
+            'transition-all duration-200 ease-out',
+            'hover:shadow-lg hover:-translate-y-0.5 hover:border-border',
+            'animate-slide-up',
+            snapshot.isDragging && 'shadow-2xl ring-2 ring-primary/50 rotate-1 scale-[1.02]'
           )}
+          style={{
+            ...provided.draggableProps.style,
+            animationDelay: `${index * 50}ms`,
+          }}
         >
-          {/* Title and Value */}
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <h4 className="font-medium text-sm line-clamp-2">{deal.title}</h4>
-            {deal.insurance_type && insuranceIcons[deal.insurance_type] && (
-              <span className="text-lg">{insuranceIcons[deal.insurance_type]}</span>
-            )}
-          </div>
-
-          {/* Value */}
-          <p className="text-lg font-bold text-primary mb-2">
-            {formatCurrency(Number(deal.value || 0))}
-          </p>
-
-          {/* Organization/Person */}
-          <div className="space-y-1 text-xs text-muted-foreground mb-2">
-            {deal.organization?.name && (
-              <div className="flex items-center gap-1">
-                <Building2 className="h-3 w-3" />
-                <span className="truncate">{deal.organization.name}</span>
+          {/* Colored left border accent */}
+          <div className="relative overflow-hidden rounded-xl">
+            <div 
+              className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
+              style={{ backgroundColor: stageColor }}
+            />
+            
+            <div className="p-3.5 pl-4">
+              {/* Title and Insurance Icon */}
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h4 className="font-semibold text-sm line-clamp-2 text-foreground/90">
+                  {deal.title}
+                </h4>
+                {deal.insurance_type && insuranceIcons[deal.insurance_type] && (
+                  <span className="text-lg flex-shrink-0">{insuranceIcons[deal.insurance_type]}</span>
+                )}
               </div>
-            )}
-            {deal.person?.name && (
-              <div className="flex items-center gap-1">
-                <User className="h-3 w-3" />
-                <span className="truncate">{deal.person.name}</span>
-              </div>
-            )}
-          </div>
 
-          {/* Activities Section */}
-          {(pendingActivities.length > 0 || pendingCount > 0) && (
-            <div className="border-t border-border pt-2 mt-2 space-y-1">
+              {/* Value with emphasis */}
+              <div 
+                className="text-lg font-bold mb-3"
+                style={{ color: stageColor }}
+              >
+                {formatCurrency(Number(deal.value || 0))}
+              </div>
+
+              {/* Organization/Person with icons */}
+              <div className="space-y-1.5 mb-3">
+                {deal.organization?.name && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">{deal.organization.name}</span>
+                  </div>
+                )}
+                {deal.person?.name && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <User className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">{deal.person.name}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Activities Section */}
               {pendingCount > 0 && (
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-1">
-                  <ListTodo className="h-3 w-3" />
-                  <span>{pendingCount} atividade{pendingCount > 1 ? 's' : ''} pendente{pendingCount > 1 ? 's' : ''}</span>
+                <div className="border-t border-border/50 pt-2.5 mt-2.5 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground mb-1.5">
+                    <ListTodo className="h-3 w-3" />
+                    <span>{pendingCount} atividade{pendingCount > 1 ? 's' : ''}</span>
+                  </div>
+                  {pendingActivities.map((activity) => (
+                    <DealActivityMini
+                      key={activity.id}
+                      activity={activity}
+                      onToggleComplete={onToggleActivity || (() => {})}
+                      isLoading={isTogglingActivity}
+                    />
+                  ))}
                 </div>
               )}
-              {pendingActivities.map((activity) => (
-                <DealActivityMini
-                  key={activity.id}
-                  activity={activity}
-                  onToggleComplete={onToggleActivity || (() => {})}
-                  isLoading={isTogglingActivity}
-                />
-              ))}
-            </div>
-          )}
 
-          {/* Footer: Labels, Date, and Quick Add */}
-          <div className="flex items-center justify-between gap-2 mt-2">
-            <div className="flex items-center gap-1 flex-wrap">
-              {deal.label && (
-                <Badge
-                  variant="outline"
-                  className={cn('text-[10px] px-1.5 py-0', labelColors[deal.label])}
-                >
-                  {deal.label}
-                </Badge>
-              )}
-              {deal.insurance_type && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {deal.insurance_type}
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {deal.expected_close_date && (
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <Calendar className="h-3 w-3" />
-                  {format(new Date(deal.expected_close_date), 'dd/MM', { locale: ptBR })}
+              {/* Footer: Labels, Date */}
+              <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-border/50">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {deal.label && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        'text-[10px] px-2 py-0.5 font-medium',
+                        labelColors[deal.label]?.bg,
+                        labelColors[deal.label]?.text,
+                        labelColors[deal.label]?.border
+                      )}
+                    >
+                      {deal.label}
+                    </Badge>
+                  )}
+                  {deal.insurance_type && (
+                    <Badge 
+                      variant="secondary" 
+                      className="text-[10px] px-2 py-0.5 bg-secondary/80"
+                    >
+                      {deal.insurance_type}
+                    </Badge>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+                {deal.expected_close_date && (
+                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    {format(new Date(deal.expected_close_date), 'dd/MM', { locale: ptBR })}
+                  </div>
+                )}
+              </div>
 
-          {/* Quick Add Activity */}
-          <div className="mt-2 pt-2 border-t border-border">
-            <QuickActivityForm dealId={deal.id} />
+              {/* Quick Add Activity */}
+              <div className="mt-2.5 pt-2.5 border-t border-border/50">
+                <QuickActivityForm dealId={deal.id} />
+              </div>
+            </div>
           </div>
         </div>
       )}

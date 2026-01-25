@@ -1,14 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { KanbanColumn } from './KanbanColumn';
 import { DealFormSheet } from './DealFormSheet';
+import { PipelineSelector } from './PipelineSelector';
+import { PipelineFormSheet } from './PipelineFormSheet';
 import { Button } from '@/components/ui/button';
-import { Plus, Briefcase } from 'lucide-react';
+import { Plus, Briefcase, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+
+interface Pipeline {
+  id: string;
+  name: string;
+  description: string | null;
+  is_default: boolean | null;
+}
 
 interface Stage {
   id: string;
@@ -49,42 +58,52 @@ export function KanbanBoard() {
   const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
+  const [isPipelineFormOpen, setIsPipelineFormOpen] = useState(false);
+  const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
 
-  // Fetch default pipeline
-  const { data: pipeline } = useQuery({
-    queryKey: ['default-pipeline'],
+  // Fetch all pipelines
+  const { data: pipelines = [], isLoading: pipelinesLoading } = useQuery({
+    queryKey: ['pipelines'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pipelines')
         .select('*')
-        .eq('is_default', true)
-        .maybeSingle();
+        .order('name');
       if (error) throw error;
-      return data;
+      return data as Pipeline[];
     },
   });
 
-  // Fetch stages for the pipeline
+  // Set default pipeline on load
+  useEffect(() => {
+    if (pipelines.length > 0 && !selectedPipeline) {
+      const defaultPipeline = pipelines.find(p => p.is_default) || pipelines[0];
+      setSelectedPipeline(defaultPipeline);
+    }
+  }, [pipelines, selectedPipeline]);
+
+  // Fetch stages for the selected pipeline
   const { data: stages = [], isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages', pipeline?.id],
+    queryKey: ['stages', selectedPipeline?.id],
     queryFn: async () => {
-      if (!pipeline?.id) return [];
+      if (!selectedPipeline?.id) return [];
       const { data, error } = await supabase
         .from('stages')
         .select('*')
-        .eq('pipeline_id', pipeline.id)
+        .eq('pipeline_id', selectedPipeline.id)
         .order('position');
       if (error) throw error;
       return data as Stage[];
     },
-    enabled: !!pipeline?.id,
+    enabled: !!selectedPipeline?.id,
   });
 
-  // Fetch deals for the pipeline
+  // Fetch deals for the selected pipeline
   const { data: deals = [], isLoading: dealsLoading } = useQuery({
-    queryKey: ['deals', pipeline?.id],
+    queryKey: ['deals', selectedPipeline?.id],
     queryFn: async () => {
-      if (!pipeline?.id) return [];
+      if (!selectedPipeline?.id) return [];
       const { data, error } = await supabase
         .from('deals')
         .select(`
@@ -92,13 +111,13 @@ export function KanbanBoard() {
           organization:organizations(name),
           person:people(name)
         `)
-        .eq('pipeline_id', pipeline.id)
+        .eq('pipeline_id', selectedPipeline.id)
         .eq('status', 'open')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as Deal[];
     },
-    enabled: !!pipeline?.id,
+    enabled: !!selectedPipeline?.id,
   });
 
   // Fetch activities for all deals in the pipeline
@@ -209,6 +228,11 @@ export function KanbanBoard() {
     setEditingDeal(null);
   };
 
+  const handleCreatePipeline = () => {
+    setEditingPipeline(null);
+    setIsPipelineFormOpen(true);
+  };
+
   // Group deals by stage
   const dealsByStage = stages.reduce((acc, stage) => {
     acc[stage.id] = deals.filter((deal) => deal.stage_id === stage.id);
@@ -222,7 +246,10 @@ export function KanbanBoard() {
     return acc;
   }, {} as Record<string, number>);
 
-  if (stagesLoading || dealsLoading) {
+  // Calculate total pipeline value
+  const totalPipelineValue = deals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+
+  if (pipelinesLoading || stagesLoading || dealsLoading) {
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
@@ -231,7 +258,7 @@ export function KanbanBoard() {
         </div>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="min-w-[280px] h-[500px]" />
+            <Skeleton key={i} className="min-w-[300px] h-[500px] rounded-xl" />
           ))}
         </div>
       </div>
@@ -241,25 +268,47 @@ export function KanbanBoard() {
   return (
     <div className="p-6 space-y-6 h-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Briefcase className="h-8 w-8" />
-            Negócios
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {pipeline?.name || 'Pipeline Principal'} — {deals.length} negócio(s) aberto(s)
-          </p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Briefcase className="h-6 w-6 text-primary" />
+              Negócios
+            </h1>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-sm text-muted-foreground">
+                {deals.length} negócio{deals.length !== 1 ? 's' : ''} aberto{deals.length !== 1 ? 's' : ''}
+              </span>
+              <span className="text-sm text-muted-foreground">•</span>
+              <span className="text-sm font-medium text-primary flex items-center gap-1">
+                <TrendingUp className="h-3.5 w-3.5" />
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                  minimumFractionDigits: 0,
+                }).format(totalPipelineValue)}
+              </span>
+            </div>
+          </div>
         </div>
-        <Button onClick={() => handleAddDeal()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Negócio
-        </Button>
+        
+        <div className="flex items-center gap-3">
+          <PipelineSelector
+            pipelines={pipelines}
+            selectedPipeline={selectedPipeline}
+            onSelect={setSelectedPipeline}
+            onCreateNew={handleCreatePipeline}
+          />
+          <Button onClick={() => handleAddDeal()} className="shadow-sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Negócio
+          </Button>
+        </div>
       </div>
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-220px)]">
+        <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)]">
           {stages.map((stage) => (
             <Droppable key={stage.id} droppableId={stage.id}>
               {(provided, snapshot) => (
@@ -286,8 +335,15 @@ export function KanbanBoard() {
         open={isFormOpen}
         onOpenChange={handleCloseForm}
         deal={editingDeal}
-        pipelineId={pipeline?.id || ''}
+        pipelineId={selectedPipeline?.id || ''}
         stages={stages}
+      />
+
+      {/* Pipeline Form Sheet */}
+      <PipelineFormSheet
+        open={isPipelineFormOpen}
+        onOpenChange={setIsPipelineFormOpen}
+        pipeline={editingPipeline}
       />
     </div>
   );
