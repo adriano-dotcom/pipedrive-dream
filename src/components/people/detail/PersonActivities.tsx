@@ -9,6 +9,7 @@ import {
   CheckSquare,
   Clock,
   AlertCircle,
+  MessageCircle,
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -22,6 +23,8 @@ const getActivityIcon = (type: string) => {
   switch (type) {
     case 'call':
       return <Phone className="h-4 w-4" />;
+    case 'whatsapp':
+      return <MessageCircle className="h-4 w-4" />;
     case 'email':
       return <Mail className="h-4 w-4" />;
     case 'meeting':
@@ -37,6 +40,8 @@ const getActivityTypeLabel = (type: string) => {
   switch (type) {
     case 'call':
       return 'Ligação';
+    case 'whatsapp':
+      return 'WhatsApp';
     case 'email':
       return 'Email';
     case 'meeting':

@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Building2,
   User,
-  Briefcase
+  Briefcase,
+  MessageCircle
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ interface ActivityCardProps {
 const activityTypeConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   task: { icon: CheckSquare, label: 'Tarefa', color: 'text-blue-500' },
   call: { icon: Phone, label: 'Ligação', color: 'text-green-500' },
+  whatsapp: { icon: MessageCircle, label: 'WhatsApp', color: 'text-emerald-500' },
   meeting: { icon: Calendar, label: 'Reunião', color: 'text-purple-500' },
   email: { icon: Mail, label: 'Email', color: 'text-orange-500' },
   deadline: { icon: Clock, label: 'Prazo', color: 'text-red-500' },

@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, CheckSquare, Phone, Calendar, Mail, Clock } from 'lucide-react';
+import { CalendarIcon, CheckSquare, Phone, Calendar, Mail, Clock, MessageCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,7 +48,7 @@ type Activity = Tables<'activities'>;
 const activitySchema = z.object({
   title: z.string().min(1, 'Título é obrigatório').max(200),
   description: z.string().max(1000).optional(),
-  activity_type: z.enum(['task', 'call', 'meeting', 'email', 'deadline']),
+  activity_type: z.enum(['task', 'call', 'meeting', 'email', 'deadline', 'whatsapp']),
   due_date: z.date({ required_error: 'Data de vencimento é obrigatória' }),
   due_time: z.string().optional(),
   duration_minutes: z.number().min(0).max(480).optional(),
@@ -73,6 +73,7 @@ interface ActivityFormSheetProps {
 const activityTypes = [
   { value: 'task', label: 'Tarefa', icon: CheckSquare },
   { value: 'call', label: 'Ligação', icon: Phone },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { value: 'meeting', label: 'Reunião', icon: Calendar },
   { value: 'email', label: 'Email', icon: Mail },
   { value: 'deadline', label: 'Prazo', icon: Clock },

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, Phone, Mail, Users, CheckSquare, Clock } from 'lucide-react';
+import { CalendarIcon, Phone, Mail, Users, CheckSquare, Clock, MessageCircle } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,6 +41,7 @@ interface NextActivityDialogProps {
 
 const activityTypes = [
   { value: 'call', label: 'Ligação', icon: Phone },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { value: 'email', label: 'Email', icon: Mail },
   { value: 'meeting', label: 'Reunião', icon: Users },
   { value: 'task', label: 'Tarefa', icon: CheckSquare },

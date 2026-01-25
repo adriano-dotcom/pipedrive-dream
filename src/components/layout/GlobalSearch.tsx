@@ -61,6 +61,7 @@ function addRecentItem(item: Omit<RecentItem, 'accessedAt'>): void {
 const activityTypeLabels: Record<string, string> = {
   task: 'Tarefa',
   call: 'Ligação',
+  whatsapp: 'WhatsApp',
   meeting: 'Reunião',
   email: 'Email',
   deadline: 'Prazo',
