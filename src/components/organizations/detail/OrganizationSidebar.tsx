@@ -1,6 +1,6 @@
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { 
   Building2, 
   Phone, 
@@ -310,8 +310,12 @@ export function OrganizationSidebar({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {people.map((person) => (
-              <div key={person.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+          {people.map((person) => (
+              <Link 
+                key={person.id} 
+                to={`/people/${person.id}`}
+                className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block"
+              >
                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
                   {person.name.charAt(0).toUpperCase()}
                 </div>
@@ -329,7 +333,7 @@ export function OrganizationSidebar({
                     <p className="text-xs text-muted-foreground">{person.phone}</p>
                   )}
                 </div>
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>
