@@ -49,7 +49,9 @@ import {
   Tag,
   Unlink,
   Link2,
+  Plus,
 } from 'lucide-react';
+import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -107,11 +109,12 @@ export function PersonSidebar({
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   const [isLinking, setIsLinking] = useState(false);
+  const [showNewOrgSheet, setShowNewOrgSheet] = useState(false);
   
   const hasLeadSource = person.lead_source || person.utm_source || person.utm_medium || person.utm_campaign;
 
   // Query para buscar organizações disponíveis
-  const { data: organizations = [] } = useQuery({
+  const { data: organizations = [], refetch: refetchOrganizations } = useQuery({
     queryKey: ['organizations-select'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -121,7 +124,7 @@ export function PersonSidebar({
       if (error) throw error;
       return data;
     },
-    enabled: showLinkDialog,
+    enabled: showLinkDialog || showNewOrgSheet,
   });
 
   const handleLinkToOrganization = async () => {
@@ -464,20 +467,38 @@ export function PersonSidebar({
               Selecione a organização à qual deseja vincular <strong>{person.name}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="organization">Organização</Label>
-            <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Selecione uma organização..." />
-              </SelectTrigger>
-              <SelectContent>
-                {organizations.map((org) => (
-                  <SelectItem key={org.id} value={org.id}>
-                    {org.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="organization">Organização</Label>
+              <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Selecione uma organização..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">ou</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowNewOrgSheet(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Criar nova organização
+            </Button>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLinkDialog(false)} disabled={isLinking}>
@@ -489,6 +510,18 @@ export function PersonSidebar({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* New Organization Sheet */}
+      <OrganizationFormSheet
+        open={showNewOrgSheet}
+        onOpenChange={(open) => {
+          setShowNewOrgSheet(open);
+          if (!open) {
+            refetchOrganizations();
+          }
+        }}
+        organization={null}
+      />
     </div>
   );
 }
