@@ -397,7 +397,17 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Telefone</Label>
-            <Input id="phone" {...register('phone')} placeholder="(11) 99999-9999" />
+            <PatternFormat
+              format="(##) #####-####"
+              mask="_"
+              customInput={Input}
+              id="phone"
+              value={watch('phone') || ''}
+              onValueChange={(values) => {
+                setValue('phone', values.value);
+              }}
+              placeholder="(00) 00000-0000"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
