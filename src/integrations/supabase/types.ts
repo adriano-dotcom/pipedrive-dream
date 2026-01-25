@@ -234,6 +234,7 @@ export type Database = {
           address_street: string | null
           address_zipcode: string | null
           annual_premium_estimate: number | null
+          automotores: number | null
           broker_notes: string | null
           cnae: string | null
           cnpj: string | null
@@ -268,6 +269,7 @@ export type Database = {
           address_street?: string | null
           address_zipcode?: string | null
           annual_premium_estimate?: number | null
+          automotores?: number | null
           broker_notes?: string | null
           cnae?: string | null
           cnpj?: string | null
@@ -302,6 +304,7 @@ export type Database = {
           address_street?: string | null
           address_zipcode?: string | null
           annual_premium_estimate?: number | null
+          automotores?: number | null
           broker_notes?: string | null
           cnae?: string | null
           cnpj?: string | null
