@@ -1,9 +1,11 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, ReactRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
+import Mention from '@tiptap/extension-mention';
+import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { 
   Bold, 
   Italic, 
@@ -14,11 +16,14 @@ import {
   AlignLeft, 
   AlignCenter, 
   AlignRight, 
-  RemoveFormatting 
+  RemoveFormatting,
+  AtSign
 } from 'lucide-react';
 import { Button } from './button';
+import { MentionList, MentionListRef, MentionUser } from './mention-list';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 interface RichTextEditorProps {
   content: string;
@@ -32,11 +37,86 @@ interface RichTextEditorProps {
 export function RichTextEditor({ 
   content, 
   onChange, 
-  placeholder = 'Escreva aqui...', 
+  placeholder = 'Escreva aqui... (use @ para mencionar)', 
   editable = true,
   minHeight = '80px',
   className
 }: RichTextEditorProps) {
+  const { data: teamMembers = [] } = useTeamMembers();
+  const teamMembersRef = useRef<MentionUser[]>([]);
+
+  // Keep ref in sync with latest data
+  useEffect(() => {
+    teamMembersRef.current = teamMembers.map(m => ({
+      id: m.user_id,
+      name: m.full_name,
+      avatar_url: m.avatar_url,
+    }));
+  }, [teamMembers]);
+
+  const mentionSuggestion = useMemo(() => ({
+    items: ({ query }: { query: string }) => {
+      return teamMembersRef.current
+        .filter(item =>
+          item.name.toLowerCase().includes(query.toLowerCase())
+        )
+        .slice(0, 5);
+    },
+    render: () => {
+      let component: ReactRenderer<MentionListRef> | null = null;
+      let popup: TippyInstance[] | null = null;
+
+      return {
+        onStart: (props: any) => {
+          component = new ReactRenderer(MentionList, {
+            props,
+            editor: props.editor,
+          });
+
+          if (!props.clientRect) {
+            return;
+          }
+
+          popup = tippy('body', {
+            getReferenceClientRect: props.clientRect,
+            appendTo: () => document.body,
+            content: component.element,
+            showOnCreate: true,
+            interactive: true,
+            trigger: 'manual',
+            placement: 'bottom-start',
+          });
+        },
+
+        onUpdate(props: any) {
+          component?.updateProps(props);
+
+          if (!props.clientRect) {
+            return;
+          }
+
+          popup?.[0]?.setProps({
+            getReferenceClientRect: props.clientRect,
+          });
+        },
+
+        onKeyDown(props: any) {
+          if (props.event.key === 'Escape') {
+            popup?.[0]?.hide();
+            return true;
+          }
+
+          return component?.ref?.onKeyDown(props) ?? false;
+        },
+
+        onExit() {
+          popup?.[0]?.destroy();
+          component?.destroy();
+        },
+      };
+    },
+  }), []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -61,6 +141,12 @@ export function RichTextEditor({
       }),
       Placeholder.configure({
         placeholder,
+      }),
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention',
+        },
+        suggestion: mentionSuggestion,
       }),
     ],
     content,
@@ -100,6 +186,11 @@ export function RichTextEditor({
     }
 
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }, [editor]);
+
+  const insertMention = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().insertContent('@').run();
   }, [editor]);
 
   if (!editor) {
@@ -142,6 +233,13 @@ export function RichTextEditor({
           title="Inserir link"
         >
           <LinkIcon className="h-4 w-4" />
+        </ToolbarButton>
+        
+        <ToolbarButton
+          onClick={insertMention}
+          title="Mencionar usuário (@)"
+        >
+          <AtSign className="h-4 w-4" />
         </ToolbarButton>
 
         <div className="w-px h-5 bg-border/50 mx-1" />
