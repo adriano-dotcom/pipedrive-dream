@@ -23,7 +23,6 @@ import {
 import { Plus, Search, Users, Phone, Mail, Building2, Loader2, Pencil, Trash2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
-import { AppLayout } from '@/components/layout/AppLayout';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -109,8 +108,7 @@ export default function People() {
   };
 
   return (
-    <AppLayout>
-      <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -282,7 +280,6 @@ export default function People() {
             </Table>
           </div>
         )}
-      </div>
-    </AppLayout>
+    </div>
   );
 }

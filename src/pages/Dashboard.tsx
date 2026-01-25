@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { AppLayout } from '@/components/layout/AppLayout';
 
 interface StatCardProps {
   title: string;
@@ -126,8 +125,7 @@ export default function Dashboard() {
   });
 
   return (
-    <AppLayout>
-      <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
+    <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
@@ -299,7 +297,6 @@ export default function Dashboard() {
             Você está logado como <Badge variant="outline" className="ml-1 text-xs">Administrador</Badge>
           </p>
         )}
-      </div>
-    </AppLayout>
+    </div>
   );
 }

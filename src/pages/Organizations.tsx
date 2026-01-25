@@ -15,7 +15,6 @@ import { Plus, Search, Building2, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { OrganizationForm } from '@/components/organizations/OrganizationForm';
 import { OrganizationsTable } from '@/components/organizations/OrganizationsTable';
-import { AppLayout } from '@/components/layout/AppLayout';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -92,8 +91,7 @@ export default function Organizations() {
   };
 
   return (
-    <AppLayout>
-      <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+    <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -178,7 +176,6 @@ export default function Organizations() {
             />
           </div>
         )}
-      </div>
-    </AppLayout>
+    </div>
   );
 }
