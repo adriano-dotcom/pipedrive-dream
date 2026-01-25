@@ -22,7 +22,7 @@ import {
 import { Button } from './button';
 import { MentionList, MentionListRef, MentionUser } from './mention-list';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 interface RichTextEditorProps {
@@ -44,6 +44,9 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const { data: teamMembers = [], isLoading } = useTeamMembers();
 
+  // Use ref to always have access to latest mentionUsers without causing re-renders
+  const mentionUsersRef = useRef<MentionUser[]>([]);
+  
   // Transform team members to mention users format
   const mentionUsers = useMemo(() => 
     teamMembers.map(m => ({
@@ -52,9 +55,15 @@ export function RichTextEditor({
       avatar_url: m.avatar_url,
     })), [teamMembers]);
 
+  // Keep ref updated
+  useEffect(() => {
+    mentionUsersRef.current = mentionUsers;
+  }, [mentionUsers]);
+
+  // Create stable suggestion config that uses ref
   const mentionSuggestion = useMemo(() => ({
     items: ({ query }: { query: string }) => {
-      return mentionUsers
+      return mentionUsersRef.current
         .filter(item =>
           item.name.toLowerCase().includes(query.toLowerCase())
         )
@@ -113,7 +122,7 @@ export function RichTextEditor({
         },
       };
     },
-  }), [mentionUsers]);
+  }), []); // Empty deps - uses ref internally
 
   const editor = useEditor({
     extensions: [
@@ -161,7 +170,7 @@ export function RichTextEditor({
         style: `min-height: ${minHeight}`,
       },
     },
-  }, [mentionSuggestion]);
+  }); // No dependencies - editor is stable
 
   // Update content when it changes externally
   useEffect(() => {
