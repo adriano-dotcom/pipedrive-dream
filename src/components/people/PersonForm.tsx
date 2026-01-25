@@ -86,6 +86,24 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     return !!data;
   };
 
+  // Função para verificar se CPF já existe
+  const checkCpfExists = async (cpf: string, excludeId?: string): Promise<boolean> => {
+    if (!cpf || cpf.trim() === '') return false;
+    
+    let query = supabase
+      .from('people')
+      .select('id')
+      .eq('cpf', cpf.trim());
+    
+    // Excluir a própria pessoa ao editar
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+    
+    const { data } = await query.maybeSingle();
+    return !!data;
+  };
+
   // Fetch organizations for dropdown
   const { data: organizations } = useQuery({
     queryKey: ['organizations-select'],
@@ -142,6 +160,14 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         }
       }
 
+      // Verificar se CPF já existe
+      if (data.cpf) {
+        const exists = await checkCpfExists(data.cpf);
+        if (exists) {
+          throw new Error('Já existe uma pessoa com este CPF cadastrado.');
+        }
+      }
+
       const { error } = await supabase.from('people').insert({
         name: data.name,
         cpf: data.cpf || null,
@@ -176,6 +202,10 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         toast.error('WhatsApp duplicado', {
           description: 'Já existe uma pessoa cadastrada com este WhatsApp.',
         });
+      } else if (error.message.includes('CPF')) {
+        toast.error('CPF duplicado', {
+          description: 'Já existe uma pessoa cadastrada com este CPF.',
+        });
       } else {
         toast.error('Erro ao criar pessoa: ' + error.message);
       }
@@ -197,6 +227,14 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         const exists = await checkWhatsappExists(data.whatsapp, person!.id);
         if (exists) {
           throw new Error('Já existe uma pessoa com este WhatsApp cadastrado.');
+        }
+      }
+
+      // Verificar se CPF já existe em outra pessoa
+      if (data.cpf) {
+        const exists = await checkCpfExists(data.cpf, person!.id);
+        if (exists) {
+          throw new Error('Já existe uma pessoa com este CPF cadastrado.');
         }
       }
 
@@ -224,6 +262,10 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
       } else if (error.message.includes('WhatsApp')) {
         toast.error('WhatsApp duplicado', {
           description: 'Já existe uma pessoa cadastrada com este WhatsApp.',
+        });
+      } else if (error.message.includes('CPF')) {
+        toast.error('CPF duplicado', {
+          description: 'Já existe uma pessoa cadastrada com este CPF.',
         });
       } else {
         toast.error('Erro ao atualizar pessoa: ' + error.message);
@@ -263,7 +305,17 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="cpf">CPF</Label>
-            <Input id="cpf" {...register('cpf')} placeholder="000.000.000-00" />
+            <PatternFormat
+              format="###.###.###-##"
+              mask="_"
+              customInput={Input}
+              id="cpf"
+              value={watch('cpf') || ''}
+              onValueChange={(values) => {
+                setValue('cpf', values.value);
+              }}
+              placeholder="000.000.000-00"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="job_title">Cargo</Label>
