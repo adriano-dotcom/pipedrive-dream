@@ -7,7 +7,9 @@ import { DealSidebar } from '@/components/deals/detail/DealSidebar';
 import { DealTimeline } from '@/components/deals/detail/DealTimeline';
 import { DealNotes } from '@/components/deals/detail/DealNotes';
 import { DealActivities } from '@/components/deals/detail/DealActivities';
+import { DealFiles } from '@/components/deals/detail/DealFiles';
 import { useDealDetails } from '@/hooks/useDealDetails';
+import { useDealFiles } from '@/hooks/useDealFiles';
 
 export default function DealDetails() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +29,15 @@ export default function DealDetails() {
     updateStage,
     updateDealStatus,
   } = useDealDetails(id || '');
+
+  const {
+    files,
+    isLoading: isLoadingFiles,
+    uploadFile,
+    isUploading,
+    downloadFile,
+    deleteFile,
+  } = useDealFiles(id || '');
 
   if (isLoading) {
     return (
@@ -127,6 +138,9 @@ export default function DealDetails() {
               <TabsTrigger value="notes" className="flex-1 sm:flex-none">
                 Notas ({notes.length})
               </TabsTrigger>
+              <TabsTrigger value="files" className="flex-1 sm:flex-none">
+                Arquivos ({files.length})
+              </TabsTrigger>
               <TabsTrigger value="activities" className="flex-1 sm:flex-none">
                 Atividades ({activities.length})
               </TabsTrigger>
@@ -142,6 +156,17 @@ export default function DealDetails() {
                 onTogglePin={togglePin}
                 onDeleteNote={deleteNote}
                 isAdding={isAddingNote}
+              />
+            </TabsContent>
+
+            <TabsContent value="files" className="mt-4">
+              <DealFiles
+                files={files}
+                isLoading={isLoadingFiles}
+                isUploading={isUploading}
+                onUpload={uploadFile}
+                onDownload={downloadFile}
+                onDelete={deleteFile}
               />
             </TabsContent>
 
