@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { GlobalSearch } from './GlobalSearch';
+import { NotificationBell } from './NotificationBell';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -16,9 +17,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       
       <div className="relative flex-1 flex flex-col overflow-hidden">
         {/* Top Header with Global Search */}
-        <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-6 shrink-0">
-          <div className="w-full max-w-2xl">
+        <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-sm flex items-center px-6 shrink-0">
+          <div className="flex-1 max-w-2xl mx-auto">
             <GlobalSearch variant="topbar" />
+          </div>
+          <div className="ml-4">
+            <NotificationBell />
           </div>
         </header>
         
