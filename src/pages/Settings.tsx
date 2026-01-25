@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { PatternFormat } from 'react-number-format';
 
 export default function Settings() {
   const { profile, role, user, isAdmin } = useAuth();
@@ -88,11 +89,14 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone</Label>
-              <Input
+              <PatternFormat
+                format="(##) #####-####"
+                mask="_"
+                customInput={Input}
                 id="phone"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(11) 99999-9999"
+                onValueChange={(values) => setPhone(values.value)}
+                placeholder="(00) 00000-0000"
               />
             </div>
             <Button type="submit" disabled={updateProfileMutation.isPending}>

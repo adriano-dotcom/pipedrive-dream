@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Search, Loader2, UserPlus, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PatternFormat } from 'react-number-format';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -278,20 +279,26 @@ export function AddContactPersonDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="new-person-phone">Telefone</Label>
-                <Input
+                <PatternFormat
+                  format="(##) #####-####"
+                  mask="_"
+                  customInput={Input}
                   id="new-person-phone"
                   value={newPersonPhone}
-                  onChange={(e) => setNewPersonPhone(e.target.value)}
-                  placeholder="(11) 99999-9999"
+                  onValueChange={(values) => setNewPersonPhone(values.value)}
+                  placeholder="(00) 00000-0000"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="new-person-whatsapp">WhatsApp</Label>
-                <Input
+                <PatternFormat
+                  format="(##) #####-####"
+                  mask="_"
+                  customInput={Input}
                   id="new-person-whatsapp"
                   value={newPersonWhatsapp}
-                  onChange={(e) => setNewPersonWhatsapp(e.target.value)}
-                  placeholder="(11) 99999-9999"
+                  onValueChange={(values) => setNewPersonWhatsapp(values.value)}
+                  placeholder="(00) 00000-0000"
                 />
               </div>
             </div>
