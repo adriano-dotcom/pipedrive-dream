@@ -22,7 +22,7 @@ import {
 import { Button } from './button';
 import { MentionList, MentionListRef, MentionUser } from './mention-list';
 import { cn } from '@/lib/utils';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 interface RichTextEditorProps {
@@ -42,21 +42,19 @@ export function RichTextEditor({
   minHeight = '80px',
   className
 }: RichTextEditorProps) {
-  const { data: teamMembers = [] } = useTeamMembers();
-  const teamMembersRef = useRef<MentionUser[]>([]);
+  const { data: teamMembers = [], isLoading } = useTeamMembers();
 
-  // Keep ref in sync with latest data
-  useEffect(() => {
-    teamMembersRef.current = teamMembers.map(m => ({
+  // Transform team members to mention users format
+  const mentionUsers = useMemo(() => 
+    teamMembers.map(m => ({
       id: m.user_id,
       name: m.full_name,
       avatar_url: m.avatar_url,
-    }));
-  }, [teamMembers]);
+    })), [teamMembers]);
 
   const mentionSuggestion = useMemo(() => ({
     items: ({ query }: { query: string }) => {
-      return teamMembersRef.current
+      return mentionUsers
         .filter(item =>
           item.name.toLowerCase().includes(query.toLowerCase())
         )
@@ -115,7 +113,7 @@ export function RichTextEditor({
         },
       };
     },
-  }), []);
+  }), [mentionUsers]);
 
   const editor = useEditor({
     extensions: [
@@ -163,7 +161,7 @@ export function RichTextEditor({
         style: `min-height: ${minHeight}`,
       },
     },
-  });
+  }, [mentionSuggestion]);
 
   // Update content when it changes externally
   useEffect(() => {

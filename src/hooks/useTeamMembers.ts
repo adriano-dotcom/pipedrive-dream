@@ -12,12 +12,17 @@ export function useTeamMembers() {
   return useQuery({
     queryKey: ['team-members'],
     queryFn: async () => {
+      console.log('[useTeamMembers] Fetching team members...');
       const { data, error } = await supabase
         .from('profiles')
         .select('id, user_id, full_name, avatar_url')
         .order('full_name');
       
-      if (error) throw error;
+      if (error) {
+        console.error('[useTeamMembers] Error:', error);
+        throw error;
+      }
+      console.log('[useTeamMembers] Loaded members:', data?.length);
       return data as TeamMember[];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
