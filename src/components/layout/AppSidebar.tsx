@@ -26,6 +26,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Separator } from '@/components/ui/separator';
+import { GlobalSearch } from './GlobalSearch';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
@@ -96,8 +97,13 @@ export function AppSidebar() {
         )}
       </Button>
 
+      {/* Global Search */}
+      <div className="relative px-3 pt-4">
+        <GlobalSearch collapsed={collapsed} />
+      </div>
+
       {/* Navigation */}
-      <nav className="relative flex-1 space-y-1 p-3 pt-6">
+      <nav className="relative flex-1 space-y-1 p-3 pt-3">
         {menuItems.map((item, index) => (
           <NavLink
             key={item.url}
