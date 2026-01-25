@@ -49,6 +49,24 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Função para verificar se email já existe
+  const checkEmailExists = async (email: string, excludeId?: string): Promise<boolean> => {
+    if (!email || email.trim() === '') return false;
+    
+    let query = supabase
+      .from('people')
+      .select('id')
+      .eq('email', email.trim().toLowerCase());
+    
+    // Excluir a própria pessoa ao editar
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+    
+    const { data } = await query.maybeSingle();
+    return !!data;
+  };
+
   // Fetch organizations for dropdown
   const { data: organizations } = useQuery({
     queryKey: ['organizations-select'],
@@ -89,10 +107,18 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
 
   const createMutation = useMutation({
     mutationFn: async (data: PersonFormData) => {
+      // Verificar se email já existe
+      if (data.email) {
+        const exists = await checkEmailExists(data.email);
+        if (exists) {
+          throw new Error('Já existe uma pessoa com este email cadastrado.');
+        }
+      }
+
       const { error } = await supabase.from('people').insert({
         name: data.name,
         cpf: data.cpf || null,
-        email: data.email || null,
+        email: data.email?.toLowerCase() || null,
         phone: data.phone || null,
         whatsapp: data.whatsapp || null,
         job_title: data.job_title || null,
@@ -115,14 +141,29 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
       onSuccess();
     },
     onError: (error) => {
-      toast.error('Erro ao criar pessoa: ' + error.message);
+      if (error.message.includes('email')) {
+        toast.error('Email duplicado', {
+          description: 'Já existe uma pessoa cadastrada com este email.',
+        });
+      } else {
+        toast.error('Erro ao criar pessoa: ' + error.message);
+      }
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async (data: PersonFormData) => {
+      // Verificar se email já existe em outra pessoa
+      if (data.email) {
+        const exists = await checkEmailExists(data.email, person!.id);
+        if (exists) {
+          throw new Error('Já existe uma pessoa com este email cadastrado.');
+        }
+      }
+
       const updateData = {
         ...data,
+        email: data.email?.toLowerCase() || null,
         organization_id: data.organization_id || null,
       };
       const { error } = await supabase
@@ -137,7 +178,13 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
       onSuccess();
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar pessoa: ' + error.message);
+      if (error.message.includes('email')) {
+        toast.error('Email duplicado', {
+          description: 'Já existe uma pessoa cadastrada com este email.',
+        });
+      } else {
+        toast.error('Erro ao atualizar pessoa: ' + error.message);
+      }
     },
   });
 
