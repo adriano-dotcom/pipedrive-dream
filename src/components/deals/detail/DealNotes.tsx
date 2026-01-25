@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Pin, Trash2, Send, StickyNote, Pencil, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor, RichTextContent } from '@/components/ui/rich-text-editor';
 import { cn } from '@/lib/utils';
 import type { DealNote } from '@/hooks/useDealDetails';
 
@@ -30,8 +30,10 @@ export function DealNotes({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newNote.trim()) {
-      onAddNote(newNote.trim());
+    // Check if content has actual text (not just empty HTML)
+    const textContent = newNote.replace(/<[^>]*>/g, '').trim();
+    if (textContent) {
+      onAddNote(newNote);
       setNewNote('');
     }
   };
@@ -47,8 +49,9 @@ export function DealNotes({
   };
 
   const handleSaveEdit = () => {
-    if (editContent.trim() && editingNoteId && onEditNote) {
-      onEditNote(editingNoteId, editContent.trim());
+    const textContent = editContent.replace(/<[^>]*>/g, '').trim();
+    if (textContent && editingNoteId && onEditNote) {
+      onEditNote(editingNoteId, editContent);
       setEditingNoteId(null);
       setEditContent('');
     }
@@ -58,17 +61,17 @@ export function DealNotes({
     <div className="space-y-4">
       {/* Add Note Form */}
       <form onSubmit={handleSubmit} className="space-y-2">
-        <Textarea
-          value={newNote}
-          onChange={(e) => setNewNote(e.target.value)}
+        <RichTextEditor
+          content={newNote}
+          onChange={setNewNote}
           placeholder="Escreva uma nota..."
-          className="min-h-[80px] resize-none bg-background/50"
+          minHeight="100px"
         />
         <div className="flex justify-end">
           <Button 
             type="submit" 
             size="sm" 
-            disabled={!newNote.trim() || isAdding}
+            disabled={!newNote.replace(/<[^>]*>/g, '').trim() || isAdding}
           >
             <Send className="h-4 w-4 mr-2" />
             Adicionar
@@ -107,11 +110,11 @@ export function DealNotes({
 
               {editingNoteId === note.id ? (
                 <div className="space-y-3">
-                  <Textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="min-h-[80px] resize-none bg-background/50"
-                    autoFocus
+                  <RichTextEditor
+                    content={editContent}
+                    onChange={setEditContent}
+                    placeholder="Editar nota..."
+                    minHeight="100px"
                   />
                   <div className="flex justify-end gap-2">
                     <Button
@@ -125,7 +128,7 @@ export function DealNotes({
                     <Button
                       size="sm"
                       onClick={handleSaveEdit}
-                      disabled={!editContent.trim()}
+                      disabled={!editContent.replace(/<[^>]*>/g, '').trim()}
                     >
                       <Check className="h-4 w-4 mr-1" />
                       Salvar
@@ -134,9 +137,7 @@ export function DealNotes({
                 </div>
               ) : (
                 <>
-                  <p className="text-sm whitespace-pre-wrap text-foreground">
-                    {note.content}
-                  </p>
+                  <RichTextContent content={note.content} className="text-sm" />
 
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
                     <div className="text-xs text-muted-foreground">

@@ -334,4 +334,51 @@
     @apply absolute inset-0 rounded-lg bg-primary/20 blur-lg -z-10;
     animation: pulse-glow 2s ease-in-out infinite;
   }
+
+  /* Tiptap Editor Styles */
+  .tiptap {
+    @apply outline-none;
+  }
+
+  .tiptap p.is-editor-empty:first-child::before {
+    @apply text-muted-foreground pointer-events-none float-left h-0;
+    content: attr(data-placeholder);
+  }
+
+  .tiptap ul,
+  .tiptap ol {
+    @apply pl-6 my-2;
+  }
+
+  .tiptap ul {
+    @apply list-disc;
+  }
+
+  .tiptap ol {
+    @apply list-decimal;
+  }
+
+  .tiptap li {
+    @apply my-0.5;
+  }
+
+  .tiptap p {
+    @apply my-1;
+  }
+
+  .tiptap a {
+    @apply text-primary underline cursor-pointer;
+  }
+
+  .tiptap strong {
+    @apply font-semibold;
+  }
+
+  .tiptap em {
+    @apply italic;
+  }
+
+  .tiptap u {
+    @apply underline;
+  }
 }

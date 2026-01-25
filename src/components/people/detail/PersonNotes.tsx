@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor, RichTextContent } from '@/components/ui/rich-text-editor';
 import { 
   StickyNote, 
   Pin, 
@@ -40,8 +40,9 @@ export function PersonNotes({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNote.trim()) return;
-    onAddNote(newNote.trim());
+    const textContent = newNote.replace(/<[^>]*>/g, '').trim();
+    if (!textContent) return;
+    onAddNote(newNote);
     setNewNote('');
   };
 
@@ -56,8 +57,9 @@ export function PersonNotes({
   };
 
   const handleSaveEdit = () => {
-    if (editContent.trim() && editingNoteId && onEditNote) {
-      onEditNote(editingNoteId, editContent.trim());
+    const textContent = editContent.replace(/<[^>]*>/g, '').trim();
+    if (textContent && editingNoteId && onEditNote) {
+      onEditNote(editingNoteId, editContent);
       setEditingNoteId(null);
       setEditContent('');
     }
@@ -69,16 +71,16 @@ export function PersonNotes({
       <Card className="glass border-border/50">
         <CardContent className="pt-4">
           <form onSubmit={handleSubmit} className="space-y-3">
-            <Textarea
+            <RichTextEditor
+              content={newNote}
+              onChange={setNewNote}
               placeholder="Adicione uma nota sobre esta pessoa..."
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              className="min-h-[80px] resize-none bg-background/50"
+              minHeight="100px"
             />
             <div className="flex justify-end">
               <Button 
                 type="submit" 
-                disabled={!newNote.trim() || isAdding}
+                disabled={!newNote.replace(/<[^>]*>/g, '').trim() || isAdding}
                 size="sm"
               >
                 {isAdding ? (
@@ -118,11 +120,11 @@ export function PersonNotes({
               <CardContent className="pt-4">
                 {editingNoteId === note.id ? (
                   <div className="space-y-3">
-                    <Textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="min-h-[80px] resize-none bg-background/50"
-                      autoFocus
+                    <RichTextEditor
+                      content={editContent}
+                      onChange={setEditContent}
+                      placeholder="Editar nota..."
+                      minHeight="100px"
                     />
                     <div className="flex justify-end gap-2">
                       <Button
@@ -136,7 +138,7 @@ export function PersonNotes({
                       <Button
                         size="sm"
                         onClick={handleSaveEdit}
-                        disabled={!editContent.trim()}
+                        disabled={!editContent.replace(/<[^>]*>/g, '').trim()}
                       >
                         <Check className="h-4 w-4 mr-1" />
                         Salvar
@@ -146,7 +148,7 @@ export function PersonNotes({
                 ) : (
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                      <RichTextContent content={note.content} className="text-sm" />
                       <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                         {note.profile && (
                           <span>{note.profile.full_name}</span>
