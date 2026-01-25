@@ -1,4 +1,15 @@
-import { Building2, Users, Briefcase, CheckSquare, LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  Building2, 
+  Users, 
+  Briefcase, 
+  CheckSquare, 
+  LayoutDashboard, 
+  Settings, 
+  LogOut, 
+  ChevronLeft, 
+  ChevronRight,
+  Sparkles
+} from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -38,86 +49,132 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r bg-sidebar transition-all duration-300',
-        collapsed ? 'w-16' : 'w-64'
+        'flex h-screen flex-col border-r border-white/[0.06] bg-sidebar transition-all duration-300 relative',
+        collapsed ? 'w-[72px]' : 'w-64'
       )}
     >
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
+      
       {/* Header */}
-      <div className="flex h-16 items-center justify-between border-b px-4">
+      <div className="relative flex h-16 items-center justify-between border-b border-white/[0.06] px-4">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Building2 className="h-4 w-4 text-primary-foreground" />
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 shadow-lg shadow-primary/25">
+              <Sparkles className="h-4 w-4 text-white" />
+              <div className="absolute inset-0 rounded-xl bg-white/10" />
             </div>
-            <span className="font-semibold text-sidebar-foreground">CRM Jacometo</span>
+            <div className="flex flex-col">
+              <span className="font-bold text-foreground tracking-tight">CRM Jacometo</span>
+              <span className="text-[10px] text-muted-foreground font-medium">Gestão de Seguros</span>
+            </div>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+        {collapsed && (
+          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 shadow-lg shadow-primary/25">
+            <Sparkles className="h-4 w-4 text-white" />
+          </div>
+        )}
       </div>
 
+      {/* Collapse button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setCollapsed(!collapsed)}
+        className={cn(
+          'absolute -right-3 top-[60px] z-10 h-6 w-6 rounded-full border border-border bg-background shadow-md hover:bg-accent',
+          'transition-all duration-200 hover:scale-110'
+        )}
+      >
+        {collapsed ? (
+          <ChevronRight className="h-3 w-3" />
+        ) : (
+          <ChevronLeft className="h-3 w-3" />
+        )}
+      </Button>
+
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-2">
-        {menuItems.map((item) => (
+      <nav className="relative flex-1 space-y-1 p-3 pt-6">
+        {menuItems.map((item, index) => (
           <NavLink
             key={item.url}
             to={item.url}
             end={item.url === '/'}
             className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+              'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground transition-all duration-200',
+              'hover:bg-white/[0.05] hover:text-foreground',
               collapsed && 'justify-center px-2'
             )}
-            activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+            activeClassName="bg-primary/10 text-primary shadow-sm border border-primary/20"
+            style={{ animationDelay: `${index * 50}ms` }}
           >
-            <item.icon className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>{item.title}</span>}
+            <div className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200',
+              'group-hover:bg-white/[0.05]'
+            )}>
+              <item.icon className="h-[18px] w-[18px]" />
+            </div>
+            {!collapsed && (
+              <span className="font-medium text-sm">{item.title}</span>
+            )}
           </NavLink>
         ))}
       </nav>
 
       {/* User Section */}
-      <div className="border-t p-2">
+      <div className="relative border-t border-white/[0.06] p-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               className={cn(
-                'w-full justify-start gap-3 px-3 py-2 text-sidebar-foreground hover:bg-sidebar-accent',
+                'w-full justify-start gap-3 rounded-xl px-3 py-6 text-sidebar-foreground',
+                'hover:bg-white/[0.05] transition-all duration-200',
                 collapsed && 'justify-center px-2'
               )}
             >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {profile?.full_name ? getInitials(profile.full_name) : '?'}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="h-9 w-9 ring-2 ring-primary/20 ring-offset-2 ring-offset-sidebar">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-white text-xs font-semibold">
+                    {profile?.full_name ? getInitials(profile.full_name) : '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-success border-2 border-sidebar" />
+              </div>
               {!collapsed && (
                 <div className="flex flex-1 flex-col items-start text-left">
-                  <span className="text-sm font-medium truncate max-w-[140px]">
+                  <span className="text-sm font-semibold truncate max-w-[140px]">
                     {profile?.full_name || 'Usuário'}
                   </span>
-                  <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                  <Badge 
+                    variant="outline" 
+                    className={cn(
+                      'text-[10px] px-1.5 py-0 mt-0.5 font-medium border-0',
+                      isAdmin 
+                        ? 'bg-primary/20 text-primary' 
+                        : 'bg-muted text-muted-foreground'
+                    )}
+                  >
                     {isAdmin ? 'Admin' : 'Corretor'}
                   </Badge>
                 </div>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent 
+            align="end" 
+            className="w-56 glass border-white/10"
+            sideOffset={8}
+          >
             <DropdownMenuItem asChild>
               <NavLink to="/settings" className="flex items-center gap-2 cursor-pointer">
                 <Settings className="h-4 w-4" />
                 Configurações
               </NavLink>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-white/10" />
             <DropdownMenuItem
               onClick={signOut}
               className="text-destructive focus:text-destructive cursor-pointer"
