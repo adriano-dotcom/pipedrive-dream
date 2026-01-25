@@ -11,10 +11,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Building2, Loader2 } from 'lucide-react';
+import { Plus, Search, Building2, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { OrganizationForm } from '@/components/organizations/OrganizationForm';
 import { OrganizationsTable } from '@/components/organizations/OrganizationsTable';
+import { AppLayout } from '@/components/layout/AppLayout';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -91,72 +92,93 @@ export default function Organizations() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Building2 className="h-8 w-8" />
-            Organizações
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Gerencie empresas e clientes da sua corretora
-          </p>
+    <AppLayout>
+      <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
+        {/* Header */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Organizações</h1>
+              <p className="text-muted-foreground text-sm">
+                Gerencie empresas e clientes da sua corretora
+              </p>
+            </div>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingOrg(null)} className="shadow-lg shadow-primary/20">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Organização
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingOrg ? 'Editar Organização' : 'Nova Organização'}
+                </DialogTitle>
+              </DialogHeader>
+              <OrganizationForm
+                organization={editingOrg}
+                onSuccess={handleCloseDialog}
+                onCancel={handleCloseDialog}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingOrg(null)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Organização
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingOrg ? 'Editar Organização' : 'Nova Organização'}
-              </DialogTitle>
-            </DialogHeader>
-            <OrganizationForm
-              organization={editingOrg}
-              onSuccess={handleCloseDialog}
-              onCancel={handleCloseDialog}
+
+        {/* Search */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, CNPJ ou email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-card/50"
+          />
+        </div>
+
+        {/* Table */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="relative">
+              <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary relative" />
+            </div>
+            <p className="text-sm text-muted-foreground mt-4">Carregando organizações...</p>
+          </div>
+        ) : organizations?.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-2xl bg-muted/50 blur-xl" />
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/50 border border-border/50">
+                <Building2 className="h-7 w-7 text-muted-foreground" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold mb-1">Nenhuma organização encontrada</h3>
+            <p className="text-muted-foreground mb-6 max-w-sm">
+              {search ? 'Tente ajustar sua busca' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
+            </p>
+            {!search && (
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Criar Primeira Organização
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
+            <OrganizationsTable
+              organizations={organizations || []}
+              isAdmin={isAdmin}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
             />
-          </DialogContent>
-        </Dialog>
+          </div>
+        )}
       </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, CNPJ ou email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Table */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : organizations?.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">Nenhuma organização encontrada</h3>
-          <p className="text-muted-foreground mb-4">
-            {search ? 'Tente ajustar sua busca' : 'Adicione sua primeira organização para começar'}
-          </p>
-        </div>
-      ) : (
-        <OrganizationsTable
-          organizations={organizations || []}
-          isAdmin={isAdmin}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      )}
-    </div>
+    </AppLayout>
   );
 }
