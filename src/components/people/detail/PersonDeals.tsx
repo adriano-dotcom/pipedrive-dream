@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import type { PersonDeal } from '@/hooks/usePersonDetails';
 
 interface PersonDealsProps {
@@ -49,11 +50,99 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const getStatusBorderColor = (status: string) => {
+  switch (status) {
+    case 'won':
+      return 'border-l-green-500';
+    case 'lost':
+      return 'border-l-red-500';
+    default:
+      return 'border-l-blue-500';
+  }
+};
+
+const getStatusBackground = (status: string) => {
+  switch (status) {
+    case 'won':
+      return 'bg-green-500/5 hover:bg-green-500/10';
+    case 'lost':
+      return 'bg-red-500/5 hover:bg-red-500/10';
+    default:
+      return 'hover:bg-muted/50';
+  }
+};
+
+function DealCard({ deal }: { deal: PersonDeal }) {
+  return (
+    <Link to={`/deals/${deal.id}`}>
+      <Card 
+        className={cn(
+          "glass border-border/50 hover:border-primary/30 transition-all cursor-pointer group",
+          "border-l-4",
+          getStatusBorderColor(deal.status),
+          getStatusBackground(deal.status)
+        )}
+      >
+        <CardContent className="py-3">
+          <div className="flex items-center gap-3">
+            {getStatusIcon(deal.status)}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm group-hover:text-primary transition-colors">
+                  {deal.title}
+                </span>
+                <Badge 
+                  variant="secondary" 
+                  className={`text-xs ${getStatusColor(deal.status)}`}
+                >
+                  {getStatusLabel(deal.status)}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                {deal.pipeline && <span>{deal.pipeline.name}</span>}
+                {deal.stage && (
+                  <>
+                    <span>•</span>
+                    <span 
+                      className="px-1.5 py-0.5 rounded text-xs"
+                      style={{ 
+                        backgroundColor: `${deal.stage.color}20`,
+                        color: deal.stage.color || undefined,
+                      }}
+                    >
+                      {deal.stage.name}
+                    </span>
+                  </>
+                )}
+                <span>•</span>
+                <span>{format(new Date(deal.created_at), 'dd/MM/yy', { locale: ptBR })}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {deal.value && deal.value > 0 && (
+                <span className="font-medium text-sm">
+                  {new Intl.NumberFormat('pt-BR', { 
+                    style: 'currency', 
+                    currency: 'BRL',
+                  }).format(deal.value)}
+                </span>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 export function PersonDeals({ deals }: PersonDealsProps) {
   const openDeals = deals.filter(d => d.status === 'open');
   const wonDeals = deals.filter(d => d.status === 'won');
+  const lostDeals = deals.filter(d => d.status === 'lost');
 
   const wonValue = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+  const lostValue = lostDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
   if (deals.length === 0) {
     return (
@@ -81,21 +170,31 @@ export function PersonDeals({ deals }: PersonDealsProps) {
             <p className="text-xs text-muted-foreground">Total</p>
           </CardContent>
         </Card>
-        <Card className="glass border-border/50">
+        <Card className="glass border-border/50 border-l-4 border-l-blue-500">
           <CardContent className="py-3 text-center">
             <p className="text-2xl font-bold text-blue-500">{openDeals.length}</p>
             <p className="text-xs text-muted-foreground">Em andamento</p>
           </CardContent>
         </Card>
-        <Card className="glass border-border/50">
+        <Card className="glass border-border/50 border-l-4 border-l-green-500">
           <CardContent className="py-3 text-center">
             <p className="text-2xl font-bold text-green-500">{wonDeals.length}</p>
             <p className="text-xs text-muted-foreground">Ganhos</p>
           </CardContent>
         </Card>
-        <Card className="glass border-border/50">
+        <Card className="glass border-border/50 border-l-4 border-l-red-500">
           <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold text-primary">
+            <p className="text-2xl font-bold text-red-500">{lostDeals.length}</p>
+            <p className="text-xs text-muted-foreground">Perdidos</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Value Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="glass border-border/50 bg-green-500/5">
+          <CardContent className="py-3 text-center">
+            <p className="text-xl font-bold text-green-500">
               {new Intl.NumberFormat('pt-BR', { 
                 style: 'currency', 
                 currency: 'BRL',
@@ -105,64 +204,63 @@ export function PersonDeals({ deals }: PersonDealsProps) {
             <p className="text-xs text-muted-foreground">Valor Ganho</p>
           </CardContent>
         </Card>
+        <Card className="glass border-border/50 bg-red-500/5">
+          <CardContent className="py-3 text-center">
+            <p className="text-xl font-bold text-red-500">
+              {new Intl.NumberFormat('pt-BR', { 
+                style: 'currency', 
+                currency: 'BRL',
+                notation: 'compact',
+              }).format(lostValue)}
+            </p>
+            <p className="text-xs text-muted-foreground">Valor Perdido</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Deals List */}
-      <div className="space-y-2">
-        {deals.map((deal) => (
-          <Link key={deal.id} to={`/deals/${deal.id}`}>
-            <Card className="glass border-border/50 hover:border-primary/30 transition-all cursor-pointer group">
-              <CardContent className="py-3">
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(deal.status)}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm group-hover:text-primary transition-colors">
-                        {deal.title}
-                      </span>
-                      <Badge 
-                        variant="secondary" 
-                        className={`text-xs ${getStatusColor(deal.status)}`}
-                      >
-                        {getStatusLabel(deal.status)}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                      {deal.pipeline && <span>{deal.pipeline.name}</span>}
-                      {deal.stage && (
-                        <>
-                          <span>•</span>
-                          <span 
-                            className="px-1.5 py-0.5 rounded text-xs"
-                            style={{ 
-                              backgroundColor: `${deal.stage.color}20`,
-                              color: deal.stage.color || undefined,
-                            }}
-                          >
-                            {deal.stage.name}
-                          </span>
-                        </>
-                      )}
-                      <span>•</span>
-                      <span>{format(new Date(deal.created_at), 'dd/MM/yy', { locale: ptBR })}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {deal.value && deal.value > 0 && (
-                      <span className="font-medium text-sm">
-                        {new Intl.NumberFormat('pt-BR', { 
-                          style: 'currency', 
-                          currency: 'BRL',
-                        }).format(deal.value)}
-                      </span>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      {/* Deals List - Grouped by Status */}
+      <div className="space-y-6">
+        {/* Open Deals */}
+        {openDeals.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-blue-500 flex items-center gap-2">
+              <Clock className="h-4 w-4" /> Em Andamento ({openDeals.length})
+            </h4>
+            <div className="space-y-2">
+              {openDeals.map((deal) => (
+                <DealCard key={deal.id} deal={deal} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Won Deals */}
+        {wonDeals.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-green-500 flex items-center gap-2">
+              <Trophy className="h-4 w-4" /> Ganhos ({wonDeals.length})
+            </h4>
+            <div className="space-y-2">
+              {wonDeals.map((deal) => (
+                <DealCard key={deal.id} deal={deal} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Lost Deals */}
+        {lostDeals.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-red-500 flex items-center gap-2">
+              <XCircle className="h-4 w-4" /> Perdidos ({lostDeals.length})
+            </h4>
+            <div className="space-y-2">
+              {lostDeals.map((deal) => (
+                <DealCard key={deal.id} deal={deal} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
