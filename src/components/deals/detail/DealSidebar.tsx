@@ -1,6 +1,6 @@
-import { Building2, User, Phone, Mail, Briefcase, Calendar, Percent, DollarSign, Shield, FileText } from 'lucide-react';
+import { Building2, User, Phone, Mail, Briefcase, Calendar, Percent, DollarSign, Shield, FileText, ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -91,12 +91,21 @@ export function DealSidebar({ deal }: DealSidebarProps) {
       {deal.person && (
         <SidebarSection title="Pessoa" icon={User}>
           <div className="space-y-1">
-            <Link 
-              to={`/people/${deal.person.id}`}
-              className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
-            >
-              {deal.person.name}
-            </Link>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link 
+                    to={`/people/${deal.person.id}`}
+                    className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                  >
+                    {deal.person.name}
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Clique para ver detalhes</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {deal.person.job_title && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Briefcase className="h-3.5 w-3.5" />
@@ -123,12 +132,21 @@ export function DealSidebar({ deal }: DealSidebarProps) {
       {deal.organization && (
         <SidebarSection title="Organização" icon={Building2}>
           <div className="space-y-1">
-            <Link 
-              to={`/organizations/${deal.organization.id}`}
-              className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
-            >
-              {deal.organization.name}
-            </Link>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link 
+                    to={`/organizations/${deal.organization.id}`}
+                    className="font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                  >
+                    {deal.organization.name}
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Clique para ver detalhes</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {deal.organization.phone && (
               <a href={`tel:${deal.organization.phone}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
                 <Phone className="h-3.5 w-3.5" />
