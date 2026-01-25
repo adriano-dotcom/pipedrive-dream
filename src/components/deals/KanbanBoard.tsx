@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Briefcase, TrendingUp, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { NextActivityDialog } from './detail/NextActivityDialog';
 
 interface Pipeline {
   id: string;
@@ -64,6 +65,8 @@ export function KanbanBoard() {
   const [isPipelineFormOpen, setIsPipelineFormOpen] = useState(false);
   const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
   const [isStageManagerOpen, setIsStageManagerOpen] = useState(false);
+  const [showNextActivityDialog, setShowNextActivityDialog] = useState(false);
+  const [completedActivityDealId, setCompletedActivityDealId] = useState<string | null>(null);
   const [filters, setFilters] = useState<KanbanFiltersState>(() => {
     const saved = localStorage.getItem('kanban-filters');
     if (saved) {
@@ -202,8 +205,17 @@ export function KanbanBoard() {
     },
   });
 
-  const handleToggleActivity = (id: string, completed: boolean) => {
-    toggleActivityMutation.mutate({ id, completed });
+  const handleToggleActivity = async (id: string, completed: boolean) => {
+    // Encontrar o deal_id da atividade antes de atualizar
+    const activity = Object.values(activitiesByDeal).flat().find(a => a.id === id);
+    
+    await toggleActivityMutation.mutateAsync({ id, completed });
+    
+    // Se marcou como concluída, abrir dialog para próxima atividade
+    if (completed && activity?.deal_id) {
+      setCompletedActivityDealId(activity.deal_id);
+      setShowNextActivityDialog(true);
+    }
   };
 
   // Mutation to update deal stage
@@ -441,6 +453,18 @@ export function KanbanBoard() {
       />
 
       {/* Stage Manager Sheet */}
+      {/* Next Activity Dialog */}
+      {completedActivityDealId && (
+        <NextActivityDialog
+          open={showNextActivityDialog}
+          onOpenChange={(open) => {
+            setShowNextActivityDialog(open);
+            if (!open) setCompletedActivityDealId(null);
+          }}
+          dealId={completedActivityDealId}
+        />
+      )}
+
       {selectedPipeline && (
         <StageManagerSheet
           open={isStageManagerOpen}

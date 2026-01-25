@@ -152,6 +152,31 @@ export function useDealDetails(dealId: string) {
     enabled: !!dealId,
   });
 
+  // Toggle activity completion mutation
+  const toggleActivityMutation = useMutation({
+    mutationFn: async ({ activityId, completed }: { activityId: string; completed: boolean }) => {
+      const { error } = await supabase
+        .from('activities')
+        .update({
+          is_completed: completed,
+          completed_at: completed ? new Date().toISOString() : null,
+          completed_by: completed ? user?.id : null,
+        })
+        .eq('id', activityId);
+
+      if (error) throw error;
+      return { completed };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deal-activities', dealId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban-activities'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar atividade');
+    },
+  });
+
   // Add note mutation
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -309,5 +334,7 @@ export function useDealDetails(dealId: string) {
     updateStage: updateStageMutation.mutate,
     updateDealStatus: updateDealStatusMutation.mutate,
     isUpdatingStatus: updateDealStatusMutation.isPending,
+    toggleActivity: toggleActivityMutation.mutateAsync,
+    isTogglingActivity: toggleActivityMutation.isPending,
   };
 }

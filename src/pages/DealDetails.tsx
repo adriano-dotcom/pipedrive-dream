@@ -10,6 +10,7 @@ import { DealNotes } from '@/components/deals/detail/DealNotes';
 import { DealActivities } from '@/components/deals/detail/DealActivities';
 import { DealFiles } from '@/components/deals/detail/DealFiles';
 import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
+import { NextActivityDialog } from '@/components/deals/detail/NextActivityDialog';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
 
@@ -18,6 +19,7 @@ export default function DealDetails() {
   const navigate = useNavigate();
   
   const [showLostDialog, setShowLostDialog] = useState(false);
+  const [showNextActivityDialog, setShowNextActivityDialog] = useState(false);
 
   const {
     deal,
@@ -34,6 +36,8 @@ export default function DealDetails() {
     updateStage,
     updateDealStatus,
     isUpdatingStatus,
+    toggleActivity,
+    isTogglingActivity,
   } = useDealDetails(id || '');
 
   const {
@@ -178,7 +182,12 @@ export default function DealDetails() {
             </TabsContent>
 
             <TabsContent value="activities" className="mt-4">
-              <DealActivities activities={activities} />
+              <DealActivities 
+                activities={activities} 
+                onToggleActivity={(activityId, completed) => toggleActivity({ activityId, completed })}
+                onActivityCompleted={() => setShowNextActivityDialog(true)}
+                isToggling={isTogglingActivity}
+              />
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">
@@ -197,6 +206,13 @@ export default function DealDetails() {
           setShowLostDialog(false);
         }}
         isLoading={isUpdatingStatus}
+      />
+
+      {/* Next Activity Dialog */}
+      <NextActivityDialog
+        open={showNextActivityDialog}
+        onOpenChange={setShowNextActivityDialog}
+        dealId={id || ''}
       />
     </div>
   );
