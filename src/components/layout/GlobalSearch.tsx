@@ -589,7 +589,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
           <kbd className="text-[10px] bg-background/80 px-2 py-1 rounded-md font-mono border border-border/50">⌘K</kbd>
         </button>
 
-        <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandDialog open={open} onOpenChange={setOpen} shouldFilter={false}>
           <CommandInput
             placeholder="Buscar por nome, email, telefone, CNPJ, CPF, atividades, anotações..."
             value={searchQuery}
@@ -626,7 +626,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
         )}
       </Button>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog open={open} onOpenChange={setOpen} shouldFilter={false}>
         <CommandInput
           placeholder="Buscar por nome, email, telefone, CNPJ, CPF, atividades, anotações..."
           value={searchQuery}
