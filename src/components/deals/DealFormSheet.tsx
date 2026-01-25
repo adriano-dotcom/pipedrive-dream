@@ -376,8 +376,8 @@ export function DealFormSheet({
                   <FormItem>
                     <FormLabel>Organização</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
-                      value={field.value || ''}
+                      onValueChange={(val) => field.onChange(val === '__none__' ? '' : val)}
+                      value={field.value || '__none__'}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -385,7 +385,7 @@ export function DealFormSheet({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhuma</SelectItem>
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
                         {organizations.map((org) => (
                           <SelectItem key={org.id} value={org.id}>
                             {org.name}
@@ -405,8 +405,8 @@ export function DealFormSheet({
                   <FormItem>
                     <FormLabel>Pessoa</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
-                      value={field.value || ''}
+                      onValueChange={(val) => field.onChange(val === '__none__' ? '' : val)}
+                      value={field.value || '__none__'}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -414,7 +414,7 @@ export function DealFormSheet({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhuma</SelectItem>
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
                         {people.map((person) => (
                           <SelectItem key={person.id} value={person.id}>
                             {person.name}
@@ -442,8 +442,8 @@ export function DealFormSheet({
                     <FormItem>
                       <FormLabel>Tipo de Seguro</FormLabel>
                       <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
+                        onValueChange={(val) => field.onChange(val === '__none__' ? '' : val)}
+                        value={field.value || '__none__'}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -451,7 +451,7 @@ export function DealFormSheet({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">Nenhum</SelectItem>
+                          <SelectItem value="__none__">Nenhum</SelectItem>
                           {INSURANCE_TYPES.map((type) => (
                             <SelectItem key={type} value={type}>
                               {type}
@@ -637,8 +637,8 @@ export function DealFormSheet({
                   <FormItem>
                     <FormLabel>Temperatura</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
-                      value={field.value || ''}
+                      onValueChange={(val) => field.onChange(val === '__none__' ? '' : val)}
+                      value={field.value || '__none__'}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -646,7 +646,7 @@ export function DealFormSheet({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Nenhuma</SelectItem>
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
                         {LABELS.map((label) => (
                           <SelectItem key={label} value={label}>
                             {label}
