@@ -10,6 +10,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Building2, 
   Phone, 
@@ -25,6 +35,7 @@ import {
   DollarSign,
   MessageCircle,
   Pencil,
+  Unlink,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -98,6 +109,8 @@ export function OrganizationSidebar({
   const queryClient = useQueryClient();
   const [editingPerson, setEditingPerson] = useState<Tables<'people'> | null>(null);
   const [isLoadingPerson, setIsLoadingPerson] = useState(false);
+  const [unlinkingPerson, setUnlinkingPerson] = useState<OrganizationPerson | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
 
   const handleEditPerson = async (e: React.MouseEvent, personId: string) => {
     e.preventDefault();
@@ -122,6 +135,40 @@ export function OrganizationSidebar({
   const handleEditSuccess = () => {
     setEditingPerson(null);
     queryClient.invalidateQueries({ queryKey: ['organization-people', organization.id] });
+  };
+
+  const handleUnlinkPerson = async () => {
+    if (!unlinkingPerson) return;
+    
+    setIsUnlinking(true);
+    try {
+      // Se a pessoa era o contato principal, limpar o primary_contact_id
+      if (unlinkingPerson.is_primary) {
+        const { error: orgError } = await supabase
+          .from('organizations')
+          .update({ primary_contact_id: null })
+          .eq('id', organization.id);
+        
+        if (orgError) throw orgError;
+      }
+      
+      // Desvincular a pessoa
+      const { error } = await supabase
+        .from('people')
+        .update({ organization_id: null })
+        .eq('id', unlinkingPerson.id);
+      
+      if (error) throw error;
+      
+      toast.success(`${unlinkingPerson.name} desvinculado da organização`);
+      queryClient.invalidateQueries({ queryKey: ['organization-people', organization.id] });
+      queryClient.invalidateQueries({ queryKey: ['organization', organization.id] });
+    } catch (error) {
+      toast.error('Erro ao desvincular pessoa');
+    } finally {
+      setIsUnlinking(false);
+      setUnlinkingPerson(null);
+    }
   };
 
   const hasAddress = organization.address_street || organization.address_city;
@@ -379,15 +426,29 @@ export function OrganizationSidebar({
                           <p className="text-xs text-muted-foreground truncate">{person.phone}</p>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        onClick={(e) => handleEditPerson(e, person.id)}
-                        disabled={isLoadingPerson}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => handleEditPerson(e, person.id)}
+                          disabled={isLoadingPerson}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setUnlinkingPerson(person);
+                          }}
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </Link>
                   </TooltipTrigger>
                   <TooltipContent side="left" className="max-w-xs">
@@ -459,6 +520,29 @@ export function OrganizationSidebar({
         person={editingPerson}
         onSuccess={handleEditSuccess}
       />
+
+      {/* Unlink Person Confirmation */}
+      <AlertDialog open={!!unlinkingPerson} onOpenChange={(open) => !open && setUnlinkingPerson(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desvincular pessoa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja desvincular <strong>{unlinkingPerson?.name}</strong> desta organização?
+              A pessoa continuará no sistema, apenas não estará mais vinculada a esta organização.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUnlinking}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUnlinkPerson}
+              disabled={isUnlinking}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isUnlinking ? 'Desvinculando...' : 'Desvincular'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
