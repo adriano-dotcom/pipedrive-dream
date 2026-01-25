@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { PatternFormat } from 'react-number-format';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -290,7 +291,17 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           </div>
           <div className="space-y-2">
             <Label htmlFor="cnpj">CNPJ</Label>
-            <Input id="cnpj" {...register('cnpj')} placeholder="00.000.000/0000-00" />
+            <PatternFormat
+              format="##.###.###/####-##"
+              mask="_"
+              customInput={Input}
+              id="cnpj"
+              value={watch('cnpj') || ''}
+              onValueChange={(values) => {
+                setValue('cnpj', values.value);
+              }}
+              placeholder="00.000.000/0000-00"
+            />
             {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj.message}</p>}
           </div>
           <div className="space-y-2">
