@@ -17,6 +17,17 @@ interface MentionNotificationRequest {
   authorName: string;
 }
 
+interface NotificationInsert {
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+  entity_type: string;
+  entity_id: string;
+  entity_name: string;
+  created_by: string;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -58,6 +69,33 @@ serve(async (req) => {
       });
     }
 
+    // Clean HTML for plain text preview
+    const plainTextContent = noteContent
+      .replace(/<[^>]*>/g, "")
+      .substring(0, 200);
+
+    // Insert in-app notifications for all mentioned users
+    const notificationsToInsert: NotificationInsert[] = mentionedUserIds.map((userId) => ({
+      user_id: userId,
+      type: "mention",
+      title: `${authorName} mencionou você em uma nota`,
+      message: plainTextContent,
+      entity_type: entityType,
+      entity_id: entityId,
+      entity_name: entityName,
+      created_by: claimsData.user.id,
+    }));
+
+    const { error: notificationError } = await supabase
+      .from("notifications")
+      .insert(notificationsToInsert);
+
+    if (notificationError) {
+      console.error("Error inserting notifications:", notificationError);
+    } else {
+      console.log(`Inserted ${notificationsToInsert.length} in-app notifications`);
+    }
+
     // Get user emails from auth.users via profiles
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
@@ -81,12 +119,7 @@ serve(async (req) => {
       }
     }
 
-    console.log("Sending notifications to:", emails.map(e => e.email));
-
-    // Clean HTML for plain text preview
-    const plainTextContent = noteContent
-      .replace(/<[^>]*>/g, "")
-      .substring(0, 200);
+    console.log("Sending email notifications to:", emails.map(e => e.email));
 
     const entityTypeLabels: Record<string, string> = {
       deal: "negócio",
