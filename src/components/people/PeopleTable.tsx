@@ -4,9 +4,11 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   flexRender,
   ColumnDef,
   ColumnFiltersState,
+  PaginationState,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -27,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -51,6 +53,7 @@ interface PeopleTableProps {
 }
 
 const STORAGE_KEY = 'people-table-column-order';
+const PAGE_SIZE_KEY = 'people-table-page-size';
 
 const getLabelStyles = (label: string | null) => {
   switch (label) {
@@ -70,6 +73,10 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
+  });
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
   });
 
   const columns = useMemo<ColumnDef<PersonWithOrg>[]>(() => [
@@ -232,11 +239,14 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     state: {
       columnFilters,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
+      pagination,
     },
     onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: setColumnOrder,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const handleDragEnd = (result: DropResult) => {
@@ -368,6 +378,87 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
           </TableBody>
         </Table>
       </DragDropContext>
+      
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">
+            Mostrando {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
+            {" "}a{" "}
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+              table.getFilteredRowModel().rows.length
+            )}
+            {" "}de {table.getFilteredRowModel().rows.length} registros
+          </span>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Itens por página:</span>
+            <Select
+              value={String(pagination.pageSize)}
+              onValueChange={(value) => {
+                const newSize = Number(value);
+                setPagination(prev => ({ ...prev, pageSize: newSize, pageIndex: 0 }));
+                localStorage.setItem(PAGE_SIZE_KEY, value);
+              }}
+            >
+              <SelectTrigger className="h-8 w-20 bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border border-border z-50">
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <span className="px-3 text-sm text-muted-foreground">
+            Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1}
+          </span>
+          
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            disabled={!table.getCanNextPage()}
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
