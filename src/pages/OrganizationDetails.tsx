@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Pencil, Plus, Building2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,8 +12,10 @@ import { OrganizationFiles } from '@/components/organizations/detail/Organizatio
 import { OrganizationActivities } from '@/components/organizations/detail/OrganizationActivities';
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
 import { useOrganizationFiles } from '@/hooks/useOrganizationFiles';
+import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
 
 const getLabelColor = (label: string | null) => {
@@ -32,6 +35,7 @@ export default function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
+  const [dealSheetOpen, setDealSheetOpen] = useState(false);
 
   const {
     organization,
@@ -55,6 +59,43 @@ export default function OrganizationDetails() {
     downloadFile,
     deleteFile,
   } = useOrganizationFiles(id || '');
+
+  // Fetch default pipeline for new deals
+  const { data: defaultPipeline } = useQuery({
+    queryKey: ['default-pipeline'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('pipelines')
+        .select('id')
+        .eq('is_default', true)
+        .maybeSingle();
+      
+      if (!data) {
+        const { data: first } = await supabase
+          .from('pipelines')
+          .select('id')
+          .order('created_at')
+          .limit(1)
+          .maybeSingle();
+        return first;
+      }
+      return data;
+    },
+  });
+
+  // Fetch stages for default pipeline
+  const { data: defaultStages = [] } = useQuery({
+    queryKey: ['stages', defaultPipeline?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('stages')
+        .select('id, name, position, color, probability')
+        .eq('pipeline_id', defaultPipeline!.id)
+        .order('position');
+      return data || [];
+    },
+    enabled: !!defaultPipeline?.id,
+  });
 
   // Calculate activity stats
   const pendingActivities = activities.filter(a => !a.is_completed).length;
@@ -131,7 +172,11 @@ export default function OrganizationDetails() {
             <Calendar className="h-4 w-4 mr-2" />
             Nova Atividade
           </Button>
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setDealSheetOpen(true)}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Novo Negócio
           </Button>
@@ -216,6 +261,18 @@ export default function OrganizationDetails() {
         onOpenChange={setActivitySheetOpen}
         defaultOrganizationId={id}
       />
+
+      {/* Deal Form Sheet */}
+      {defaultPipeline && (
+        <DealFormSheet
+          open={dealSheetOpen}
+          onOpenChange={setDealSheetOpen}
+          deal={null}
+          pipelineId={defaultPipeline.id}
+          stages={defaultStages}
+          defaultOrganizationId={id}
+        />
+      )}
     </div>
   );
 }
