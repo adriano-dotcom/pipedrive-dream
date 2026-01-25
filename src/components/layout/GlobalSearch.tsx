@@ -11,12 +11,30 @@ import {
   CommandItem,
 } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
-import { Search, Building2, Users, Briefcase, Loader2 } from 'lucide-react';
+import { Search, Building2, Users, Briefcase, Loader2, CheckSquare, FileText, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format, isToday, isTomorrow, isPast } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface GlobalSearchProps {
   collapsed?: boolean;
   variant?: 'sidebar' | 'topbar';
+}
+
+const activityTypeLabels: Record<string, string> = {
+  task: 'Tarefa',
+  call: 'Ligação',
+  meeting: 'Reunião',
+  email: 'Email',
+  deadline: 'Prazo',
+};
+
+function formatDueDate(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
+  if (isToday(date)) return 'Hoje';
+  if (isTomorrow(date)) return 'Amanhã';
+  if (isPast(date)) return 'Atrasada';
+  return format(date, 'dd/MM', { locale: ptBR });
 }
 
 export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchProps) {
@@ -48,28 +66,108 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     queryFn: async () => {
       const query = `%${searchQuery}%`;
 
-      const [orgsResult, peopleResult, dealsResult] = await Promise.all([
+      const [
+        orgsResult,
+        peopleResult,
+        dealsResult,
+        activitiesResult,
+        dealNotesResult,
+        peopleNotesResult,
+        orgNotesResult,
+      ] = await Promise.all([
+        // Organizations
         supabase
           .from('organizations')
-          .select('id, name, cnpj, email, phone')
+          .select('id, name, cnpj, email, phone, address_street, address_city')
           .or(`name.ilike.${query},cnpj.ilike.${query},email.ilike.${query},phone.ilike.${query}`)
           .limit(5),
+        // People with organization
         supabase
           .from('people')
-          .select('id, name, email, phone, cpf')
+          .select(`
+            id, name, email, phone, cpf,
+            organization:organizations(id, name)
+          `)
           .or(`name.ilike.${query},email.ilike.${query},phone.ilike.${query},cpf.ilike.${query}`)
           .limit(5),
+        // Deals with organization and person
         supabase
           .from('deals')
-          .select('id, title, policy_number')
+          .select(`
+            id, title, policy_number, value, status,
+            organization:organizations(id, name),
+            person:people(id, name)
+          `)
           .or(`title.ilike.${query},policy_number.ilike.${query}`)
           .limit(5),
+        // Activities
+        supabase
+          .from('activities')
+          .select('id, title, description, activity_type, due_date, deal_id, person_id, organization_id')
+          .or(`title.ilike.${query},description.ilike.${query}`)
+          .limit(5),
+        // Deal notes
+        supabase
+          .from('deal_notes')
+          .select('id, content, deal_id')
+          .ilike('content', query)
+          .limit(3),
+        // People notes
+        supabase
+          .from('people_notes')
+          .select('id, content, person_id')
+          .ilike('content', query)
+          .limit(3),
+        // Organization notes
+        supabase
+          .from('organization_notes')
+          .select('id, content, organization_id')
+          .ilike('content', query)
+          .limit(3),
       ]);
+
+      // Fetch related entity names for notes
+      const dealIds = dealNotesResult.data?.map(n => n.deal_id) || [];
+      const personIds = peopleNotesResult.data?.map(n => n.person_id) || [];
+      const orgIds = orgNotesResult.data?.map(n => n.organization_id) || [];
+
+      const [dealsForNotes, peopleForNotes, orgsForNotes] = await Promise.all([
+        dealIds.length > 0 
+          ? supabase.from('deals').select('id, title').in('id', dealIds)
+          : { data: [] },
+        personIds.length > 0 
+          ? supabase.from('people').select('id, name').in('id', personIds)
+          : { data: [] },
+        orgIds.length > 0 
+          ? supabase.from('organizations').select('id, name').in('id', orgIds)
+          : { data: [] },
+      ]);
+
+      // Map notes with entity names
+      const dealNotesWithNames = (dealNotesResult.data || []).map(note => ({
+        ...note,
+        type: 'deal' as const,
+        entityName: dealsForNotes.data?.find(d => d.id === note.deal_id)?.title || 'Negócio',
+      }));
+
+      const peopleNotesWithNames = (peopleNotesResult.data || []).map(note => ({
+        ...note,
+        type: 'person' as const,
+        entityName: peopleForNotes.data?.find(p => p.id === note.person_id)?.name || 'Pessoa',
+      }));
+
+      const orgNotesWithNames = (orgNotesResult.data || []).map(note => ({
+        ...note,
+        type: 'organization' as const,
+        entityName: orgsForNotes.data?.find(o => o.id === note.organization_id)?.name || 'Organização',
+      }));
 
       return {
         organizations: orgsResult.data || [],
         people: peopleResult.data || [],
         deals: dealsResult.data || [],
+        activities: activitiesResult.data || [],
+        notes: [...dealNotesWithNames, ...peopleNotesWithNames, ...orgNotesWithNames],
       };
     },
     enabled: searchQuery.length >= 2,
@@ -78,12 +176,28 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
   const hasResults = results && (
     results.organizations.length > 0 ||
     results.people.length > 0 ||
-    results.deals.length > 0
+    results.deals.length > 0 ||
+    results.activities.length > 0 ||
+    results.notes.length > 0
   );
 
   const handleSelect = (path: string) => {
     navigate(path);
     setOpen(false);
+  };
+
+  const formatValue = (value: number | null) => {
+    if (!value) return null;
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const truncateText = (text: string, maxLength: number = 60) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   const renderSearchResults = () => (
@@ -106,6 +220,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
         </CommandEmpty>
       )}
 
+      {/* Organizations */}
       {results?.organizations && results.organizations.length > 0 && (
         <CommandGroup heading="Organizações">
           {results.organizations.map((org) => (
@@ -115,11 +230,16 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
               onSelect={() => handleSelect(`/organizations/${org.id}`)}
               className="cursor-pointer"
             >
-              <Building2 className="mr-2 h-4 w-4 text-primary" />
-              <div className="flex flex-col min-w-0">
-                <span className="truncate">{org.name}</span>
+              <Building2 className="mr-2 h-4 w-4 text-primary shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate font-medium">{org.name}</span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {org.cnpj || org.email || org.phone || 'Sem informações adicionais'}
+                  {[
+                    org.cnpj,
+                    org.address_street && org.address_city 
+                      ? `${org.address_street}, ${org.address_city}` 
+                      : org.email,
+                  ].filter(Boolean).join(' · ') || 'Sem informações adicionais'}
                 </span>
               </div>
             </CommandItem>
@@ -127,6 +247,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
         </CommandGroup>
       )}
 
+      {/* People */}
       {results?.people && results.people.length > 0 && (
         <CommandGroup heading="Pessoas">
           {results.people.map((person) => (
@@ -136,11 +257,15 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
               onSelect={() => handleSelect(`/people/${person.id}`)}
               className="cursor-pointer"
             >
-              <Users className="mr-2 h-4 w-4 text-success" />
-              <div className="flex flex-col min-w-0">
-                <span className="truncate">{person.name}</span>
+              <Users className="mr-2 h-4 w-4 text-success shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate font-medium">{person.name}</span>
                 <span className="text-xs text-muted-foreground truncate">
-                  {person.email || person.phone || person.cpf || 'Sem informações adicionais'}
+                  {[
+                    person.organization?.name,
+                    person.email,
+                    person.phone,
+                  ].filter(Boolean).join(' · ') || 'Sem informações adicionais'}
                 </span>
               </div>
             </CommandItem>
@@ -148,6 +273,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
         </CommandGroup>
       )}
 
+      {/* Deals */}
       {results?.deals && results.deals.length > 0 && (
         <CommandGroup heading="Negócios">
           {results.deals.map((deal) => (
@@ -157,14 +283,85 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
               onSelect={() => handleSelect(`/deals/${deal.id}`)}
               className="cursor-pointer"
             >
-              <Briefcase className="mr-2 h-4 w-4 text-warning" />
-              <div className="flex flex-col min-w-0">
-                <span className="truncate">{deal.title}</span>
-                {deal.policy_number && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    Apólice: {deal.policy_number}
-                  </span>
-                )}
+              <Briefcase className="mr-2 h-4 w-4 text-warning shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate font-medium">{deal.title}</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {[
+                    deal.person?.name,
+                    deal.organization?.name,
+                    formatValue(deal.value),
+                    deal.policy_number && `Apólice: ${deal.policy_number}`,
+                  ].filter(Boolean).join(' · ') || 'Sem informações adicionais'}
+                </span>
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      )}
+
+      {/* Activities */}
+      {results?.activities && results.activities.length > 0 && (
+        <CommandGroup heading="Atividades">
+          {results.activities.map((activity) => (
+            <CommandItem
+              key={activity.id}
+              value={`activity-${activity.id}`}
+              onSelect={() => {
+                if (activity.deal_id) {
+                  handleSelect(`/deals/${activity.deal_id}`);
+                } else if (activity.person_id) {
+                  handleSelect(`/people/${activity.person_id}`);
+                } else if (activity.organization_id) {
+                  handleSelect(`/organizations/${activity.organization_id}`);
+                } else {
+                  handleSelect('/activities');
+                }
+              }}
+              className="cursor-pointer"
+            >
+              <CheckSquare className="mr-2 h-4 w-4 text-blue-500 shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate font-medium">{activity.title}</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {[
+                    activityTypeLabels[activity.activity_type] || activity.activity_type,
+                    formatDueDate(activity.due_date),
+                    activity.description && truncateText(activity.description, 40),
+                  ].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      )}
+
+      {/* Notes */}
+      {results?.notes && results.notes.length > 0 && (
+        <CommandGroup heading="Anotações">
+          {results.notes.map((note) => (
+            <CommandItem
+              key={`${note.type}-note-${note.id}`}
+              value={`note-${note.type}-${note.id}`}
+              onSelect={() => {
+                if (note.type === 'deal') {
+                  handleSelect(`/deals/${note.deal_id}`);
+                } else if (note.type === 'person') {
+                  handleSelect(`/people/${note.person_id}`);
+                } else {
+                  handleSelect(`/organizations/${note.organization_id}`);
+                }
+              }}
+              className="cursor-pointer"
+            >
+              <FileText className="mr-2 h-4 w-4 text-amber-500 shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="truncate font-medium text-xs text-muted-foreground">
+                  Anotação em: {note.entityName}
+                </span>
+                <span className="text-xs truncate">
+                  "{truncateText(note.content, 70)}"
+                </span>
               </div>
             </CommandItem>
           ))}
@@ -187,17 +384,17 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
           )}
         >
           <Search className="h-4 w-4" />
-          <span className="flex-1 text-left text-sm">Buscar por nome, CNPJ ou email...</span>
+          <span className="flex-1 text-left text-sm">Buscar por nome, CNPJ, email, atividades...</span>
           <kbd className="text-[10px] bg-background/80 px-2 py-1 rounded-md font-mono border border-border/50">⌘K</kbd>
         </button>
 
         <CommandDialog open={open} onOpenChange={setOpen}>
           <CommandInput
-            placeholder="Buscar por nome, email, telefone, CNPJ, CPF..."
+            placeholder="Buscar por nome, email, telefone, CNPJ, CPF, atividades, anotações..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
-          <CommandList>
+          <CommandList className="max-h-[400px]">
             {renderSearchResults()}
           </CommandList>
         </CommandDialog>
@@ -227,11 +424,11 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput
-          placeholder="Buscar por nome, email, telefone, CNPJ, CPF..."
+          placeholder="Buscar por nome, email, telefone, CNPJ, CPF, atividades, anotações..."
           value={searchQuery}
           onValueChange={setSearchQuery}
         />
-        <CommandList>
+        <CommandList className="max-h-[400px]">
           {renderSearchResults()}
         </CommandList>
       </CommandDialog>
