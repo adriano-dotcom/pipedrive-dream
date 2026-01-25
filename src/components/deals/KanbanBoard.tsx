@@ -308,12 +308,34 @@ export function KanbanBoard() {
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-10 w-32" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-10 w-10" />
+            <Skeleton className="h-10 w-32" />
+          </div>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="min-w-[300px] h-[500px] rounded-xl" />
+            <div 
+              key={i} 
+              className="min-w-[300px] h-[500px] rounded-xl kanban-column relative overflow-hidden"
+              style={{ animationDelay: `${i * 100}ms` }}
+            >
+              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+              <div className="p-4 space-y-4">
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-4 w-16" />
+                <div className="space-y-3 mt-6">
+                  <Skeleton className="h-32 w-full rounded-lg" />
+                  <Skeleton className="h-32 w-full rounded-lg" />
+                  <Skeleton className="h-32 w-full rounded-lg" />
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -321,29 +343,33 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="p-6 space-y-6 h-full">
+    <div className="p-6 space-y-6 h-full animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Briefcase className="h-6 w-6 text-primary" />
-              Negócios
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <Briefcase className="h-5 w-5" />
+              </div>
+              <span className="text-gradient">Negócios</span>
             </h1>
-            <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-3 mt-2">
               <span className="text-sm text-muted-foreground">
                 {filteredDeals.length} negócio{filteredDeals.length !== 1 ? 's' : ''} 
                 {filteredDeals.length !== deals.length && ` (de ${deals.length})`}
               </span>
-              <span className="text-sm text-muted-foreground">•</span>
-              <span className="text-sm font-medium text-primary flex items-center gap-1">
-                <TrendingUp className="h-3.5 w-3.5" />
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                  minimumFractionDigits: 0,
-                }).format(totalPipelineValue)}
-              </span>
+              <span className="text-muted-foreground/50">•</span>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                <span className="text-sm font-semibold text-primary animate-count-up">
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                    minimumFractionDigits: 0,
+                  }).format(totalPipelineValue)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -360,10 +386,11 @@ export function KanbanBoard() {
             size="icon"
             onClick={() => setIsStageManagerOpen(true)}
             title="Gerenciar etapas"
+            className="border-border/50 hover:border-primary/30 hover:bg-primary/5"
           >
             <Settings2 className="h-4 w-4" />
           </Button>
-          <Button onClick={() => handleAddDeal()} className="shadow-sm">
+          <Button onClick={() => handleAddDeal()} className="shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30">
             <Plus className="h-4 w-4 mr-2" />
             Novo Negócio
           </Button>

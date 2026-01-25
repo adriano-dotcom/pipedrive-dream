@@ -107,11 +107,22 @@ export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) 
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="flex items-center gap-2 flex-wrap">
         <CollapsibleTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className={cn(
+              "gap-2 border-border/50 bg-card/50 backdrop-blur-sm",
+              "hover:bg-card/80 hover:border-primary/30",
+              activeFiltersCount > 0 && "border-primary/30 bg-primary/5"
+            )}
+          >
             <Filter className="h-4 w-4" />
             Filtros
             {activeFiltersCount > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+              <Badge 
+                variant="secondary" 
+                className="ml-1 h-5 px-1.5 bg-primary/20 text-primary font-bold"
+              >
                 {activeFiltersCount}
               </Badge>
             )}
@@ -195,7 +206,7 @@ export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) 
       </div>
 
       <CollapsibleContent>
-        <div className="mt-4 p-4 rounded-lg border bg-card/50 space-y-4">
+        <div className="mt-4 p-5 rounded-xl border border-white/[0.08] bg-card/50 backdrop-blur-xl space-y-4 animate-fade-in">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Insurance Type Filter */}
             <div className="space-y-2">

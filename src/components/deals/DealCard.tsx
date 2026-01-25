@@ -86,11 +86,13 @@ export function DealCard({
           {...provided.dragHandleProps}
           onClick={onClick}
           className={cn(
-            'bg-card border border-border/60 rounded-xl cursor-pointer',
+            'bg-card/70 backdrop-blur-sm border border-white/[0.08] rounded-xl cursor-pointer',
             'transition-all duration-200 ease-out',
-            'hover:shadow-lg hover:-translate-y-0.5 hover:border-border',
-            'animate-slide-up',
-            snapshot.isDragging && 'shadow-2xl ring-2 ring-primary/50 rotate-1 scale-[1.02]'
+            'hover:shadow-xl hover:-translate-y-1 hover:border-white/[0.15] hover:bg-card/90',
+            snapshot.isDragging && [
+              'shadow-2xl ring-2 ring-primary/60 rotate-2 scale-[1.03]',
+              'bg-card backdrop-blur-xl z-50'
+            ]
           )}
           style={{
             ...provided.draggableProps.style,
@@ -100,8 +102,14 @@ export function DealCard({
           {/* Colored left border accent */}
           <div className="relative overflow-hidden rounded-xl">
             <div 
-              className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
-              style={{ backgroundColor: stageColor }}
+              className={cn(
+                "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl transition-all",
+                snapshot.isDragging && "w-1.5"
+              )}
+              style={{ 
+                backgroundColor: stageColor,
+                boxShadow: snapshot.isDragging ? `0 0 10px ${stageColor}` : 'none'
+              }}
             />
             
             <div className="p-3.5 pl-4">
@@ -117,7 +125,7 @@ export function DealCard({
 
               {/* Value with emphasis */}
               <div 
-                className="text-lg font-bold mb-3"
+                className="text-lg font-bold mb-3 animate-count-up"
                 style={{ color: stageColor }}
               >
                 {formatCurrency(Number(deal.value || 0))}
@@ -158,13 +166,13 @@ export function DealCard({
               )}
 
               {/* Footer: Labels, Date */}
-              <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-border/50">
+              <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/[0.05]">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {deal.label && (
                     <Badge
                       variant="outline"
                       className={cn(
-                        'text-[10px] px-2 py-0.5 font-medium',
+                        'text-[10px] px-2 py-0.5 font-medium hover-shine',
                         labelColors[deal.label]?.bg,
                         labelColors[deal.label]?.text,
                         labelColors[deal.label]?.border
@@ -176,7 +184,7 @@ export function DealCard({
                   {deal.insurance_type && (
                     <Badge 
                       variant="secondary" 
-                      className="text-[10px] px-2 py-0.5 bg-secondary/80"
+                      className="text-[10px] px-2 py-0.5 bg-secondary/60 backdrop-blur-sm"
                     >
                       {deal.insurance_type}
                     </Badge>
@@ -191,7 +199,7 @@ export function DealCard({
               </div>
 
               {/* Quick Add Activity */}
-              <div className="mt-2.5 pt-2.5 border-t border-border/50">
+              <div className="mt-2.5 pt-2.5 border-t border-white/[0.05]">
                 <QuickActivityForm dealId={deal.id} />
               </div>
             </div>

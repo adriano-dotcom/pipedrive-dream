@@ -224,6 +224,27 @@
     @apply ring-2 ring-primary/50 bg-primary/5 transition-all duration-200;
   }
 
+  /* Kanban Glassmorphism */
+  .kanban-column {
+    @apply backdrop-blur-xl;
+    @apply bg-gradient-to-b from-card/60 to-card/40;
+    @apply border border-white/[0.08];
+    @apply shadow-xl;
+  }
+
+  .kanban-dragging {
+    @apply shadow-2xl shadow-primary/30;
+    @apply ring-2 ring-primary/60;
+    @apply backdrop-blur-xl;
+    @apply z-50;
+  }
+
+  .kanban-drop-active {
+    @apply ring-2 ring-primary animate-drop-zone-pulse;
+    @apply bg-gradient-to-b from-primary/15 to-primary/5;
+    @apply shadow-2xl shadow-primary/20;
+  }
+
   /* Text gradient */
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-400;
@@ -291,4 +312,15 @@
   .stagger-children > *:nth-child(6) { animation-delay: 250ms; }
   .stagger-children > *:nth-child(7) { animation-delay: 300ms; }
   .stagger-children > *:nth-child(8) { animation-delay: 350ms; }
+
+  /* Value animation */
+  .value-glow {
+    @apply relative;
+  }
+
+  .value-glow::after {
+    content: '';
+    @apply absolute inset-0 rounded-lg bg-primary/20 blur-lg -z-10;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
 }
