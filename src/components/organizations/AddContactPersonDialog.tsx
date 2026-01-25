@@ -20,9 +20,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Search, Loader2, UserPlus, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { PatternFormat } from 'react-number-format';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -279,26 +279,18 @@ export function AddContactPersonDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="new-person-phone">Telefone</Label>
-                <PatternFormat
-                  format="(##) #####-####"
-                  mask="_"
-                  customInput={Input}
+                <PhoneInput
                   id="new-person-phone"
                   value={newPersonPhone}
-                  onValueChange={(values) => setNewPersonPhone(values.value)}
-                  placeholder="(00) 00000-0000"
+                  onValueChange={setNewPersonPhone}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="new-person-whatsapp">WhatsApp</Label>
-                <PatternFormat
-                  format="(##) #####-####"
-                  mask="_"
-                  customInput={Input}
+                <PhoneInput
                   id="new-person-whatsapp"
                   value={newPersonWhatsapp}
-                  onValueChange={(values) => setNewPersonWhatsapp(values.value)}
-                  placeholder="(00) 00000-0000"
+                  onValueChange={setNewPersonWhatsapp}
                 />
               </div>
             </div>

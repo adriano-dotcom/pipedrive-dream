@@ -2,13 +2,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PatternFormat } from 'react-number-format';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { PhoneInput } from '@/components/ui/phone-input';
+import { CpfInput } from '@/components/ui/cpf-input';
 import {
   Select,
   SelectContent,
@@ -305,16 +306,10 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="cpf">CPF</Label>
-            <PatternFormat
-              format="###.###.###-##"
-              mask="_"
-              customInput={Input}
+            <CpfInput
               id="cpf"
               value={watch('cpf') || ''}
-              onValueChange={(values) => {
-                setValue('cpf', values.value);
-              }}
-              placeholder="000.000.000-00"
+              onValueChange={(value) => setValue('cpf', value)}
             />
           </div>
           <div className="space-y-2">
@@ -366,30 +361,18 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Telefone</Label>
-            <PatternFormat
-              format="(##) #####-####"
-              mask="_"
-              customInput={Input}
+            <PhoneInput
               id="phone"
               value={watch('phone') || ''}
-              onValueChange={(values) => {
-                setValue('phone', values.value);
-              }}
-              placeholder="(00) 00000-0000"
+              onValueChange={(value) => setValue('phone', value)}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="whatsapp">WhatsApp</Label>
-            <PatternFormat
-              format="(##) #####-####"
-              mask="_"
-              customInput={Input}
+            <PhoneInput
               id="whatsapp"
               value={watch('whatsapp') || ''}
-              onValueChange={(values) => {
-                setValue('whatsapp', values.value);
-              }}
-              placeholder="(00) 00000-0000"
+              onValueChange={(value) => setValue('whatsapp', value)}
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
