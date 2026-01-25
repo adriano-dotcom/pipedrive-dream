@@ -105,6 +105,88 @@ export type Database = {
           },
         ]
       }
+      deal_history: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          deal_id: string
+          description: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          deal_id: string
+          description: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          deal_id?: string
+          description?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deal_notes: {
+        Row: {
+          content: string
+          created_at: string | null
+          created_by: string | null
+          deal_id: string
+          id: string
+          is_pinned: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          deal_id: string
+          id?: string
+          is_pinned?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          deal_id?: string
+          id?: string
+          is_pinned?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_notes_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deals: {
         Row: {
           commission_percent: number | null

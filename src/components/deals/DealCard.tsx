@@ -1,11 +1,13 @@
 import { Draggable } from '@hello-pangea/dnd';
-import { Building2, User, Calendar, ListTodo } from 'lucide-react';
+import { Building2, User, Calendar, ListTodo, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DealActivityMini } from './DealActivityMini';
 import { QuickActivityForm } from './QuickActivityForm';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface Activity {
   id: string;
@@ -74,8 +76,14 @@ export function DealCard({
   isTogglingActivity,
   stageColor = '#6366f1'
 }: DealCardProps) {
+  const navigate = useNavigate();
   const pendingActivities = activities.filter(a => !a.is_completed).slice(0, 2);
   const pendingCount = activities.filter(a => !a.is_completed).length;
+
+  const handleOpenDetails = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/deals/${deal.id}`);
+  };
 
   return (
     <Draggable draggableId={deal.id} index={index}>
@@ -198,9 +206,19 @@ export function DealCard({
                 )}
               </div>
 
-              {/* Quick Add Activity */}
-              <div className="mt-2.5 pt-2.5 border-t border-white/[0.05]">
-                <QuickActivityForm dealId={deal.id} />
+              {/* Quick Add Activity + Open Details */}
+              <div className="mt-2.5 pt-2.5 border-t border-white/[0.05] flex items-center gap-2">
+                <div className="flex-1">
+                  <QuickActivityForm dealId={deal.id} />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 flex-shrink-0"
+                  onClick={handleOpenDetails}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
               </div>
             </div>
           </div>
