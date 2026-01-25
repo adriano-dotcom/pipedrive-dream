@@ -1,1 +1,10 @@
 project_id = "yqidjdpxkzgrhneaxngn"
+
+[functions.send-mention-notification]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.generate-email]
+verify_jwt = false

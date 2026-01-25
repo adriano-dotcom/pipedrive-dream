@@ -37,6 +37,7 @@ import {
   Pencil,
   Unlink,
 } from 'lucide-react';
+import { EmailButton } from '@/components/email/EmailButton';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
@@ -209,9 +210,18 @@ export function OrganizationSidebar({
               <span className="text-muted-foreground flex items-center gap-1">
                 <Mail className="h-3 w-3" /> Email
               </span>
-              <a href={`mailto:${organization.email}`} className="font-medium text-primary hover:underline truncate max-w-[150px]">
-                {organization.email}
-              </a>
+              <div className="flex items-center gap-1">
+                <a href={`mailto:${organization.email}`} className="font-medium text-primary hover:underline truncate max-w-[120px]">
+                  {organization.email}
+                </a>
+                <EmailButton
+                  entityType="organization"
+                  entityId={organization.id}
+                  entityName={organization.name}
+                  recipientEmail={organization.email}
+                  recipientName={organization.name}
+                />
+              </div>
             </div>
           )}
           

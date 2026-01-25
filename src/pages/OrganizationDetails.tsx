@@ -11,7 +11,9 @@ import { OrganizationNotes } from '@/components/organizations/detail/Organizatio
 import { OrganizationFiles } from '@/components/organizations/detail/OrganizationFiles';
 import { OrganizationActivities } from '@/components/organizations/detail/OrganizationActivities';
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
+import { OrganizationEmails } from '@/components/organizations/detail/OrganizationEmails';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { useSentEmails } from '@/hooks/useSentEmails';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
@@ -62,6 +64,8 @@ export default function OrganizationDetails() {
     downloadFile,
     deleteFile,
   } = useOrganizationFiles(id || '');
+
+  const { emails } = useSentEmails('organization', id || '');
 
   // Fetch default pipeline for new deals
   const { data: defaultPipeline } = useQuery({
@@ -221,6 +225,9 @@ export default function OrganizationDetails() {
               <TabsTrigger value="deals" className="flex-1 sm:flex-none">
                 Negócios ({deals.length})
               </TabsTrigger>
+              <TabsTrigger value="emails" className="flex-1 sm:flex-none">
+                E-mails ({emails.length})
+              </TabsTrigger>
               <TabsTrigger value="history" className="flex-1 sm:flex-none">
                 Histórico ({history.length})
               </TabsTrigger>
@@ -256,6 +263,14 @@ export default function OrganizationDetails() {
 
             <TabsContent value="deals" className="mt-4">
               <OrganizationDeals deals={deals} />
+            </TabsContent>
+
+            <TabsContent value="emails" className="mt-4">
+              <OrganizationEmails
+                organizationId={id || ''}
+                organizationName={organization?.name || ''}
+                recipientEmail={organization?.email || ''}
+              />
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">

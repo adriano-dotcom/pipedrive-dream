@@ -347,6 +347,42 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          body: string
+          category: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_global: boolean | null
+          name: string
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body: string
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_global?: boolean | null
+          name: string
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_global?: boolean | null
+          name?: string
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -888,6 +924,57 @@ export type Database = {
         }
         Relationships: []
       }
+      sent_emails: {
+        Row: {
+          body: string
+          created_at: string | null
+          created_by: string | null
+          entity_id: string
+          entity_type: string
+          error_message: string | null
+          from_email: string
+          from_name: string | null
+          id: string
+          sent_at: string | null
+          status: string | null
+          subject: string
+          to_email: string
+          to_name: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          created_by?: string | null
+          entity_id: string
+          entity_type: string
+          error_message?: string | null
+          from_email: string
+          from_name?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+          to_email: string
+          to_name?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          created_by?: string | null
+          entity_id?: string
+          entity_type?: string
+          error_message?: string | null
+          from_email?: string
+          from_name?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+          to_email?: string
+          to_name?: string | null
+        }
+        Relationships: []
+      }
       stages: {
         Row: {
           color: string | null
@@ -946,6 +1033,33 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_signatures: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          signature_html: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          signature_html: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          signature_html?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
