@@ -125,10 +125,13 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
       header: 'Empresa',
       cell: ({ row }) => (
         row.original.organizations ? (
-          <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Link
+            to={`/organizations/${row.original.organizations.id}`}
+            className="flex items-center gap-1.5 text-muted-foreground hover:text-primary hover:underline transition-colors"
+          >
             <Building2 className="h-3.5 w-3.5" />
             {row.original.organizations.name}
-          </span>
+          </Link>
         ) : <span className="text-muted-foreground/50">-</span>
       ),
     },
