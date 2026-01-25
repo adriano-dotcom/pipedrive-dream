@@ -137,6 +137,19 @@
     @apply border-border;
   }
 
+  /* Smooth theme transition */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition: background-color 300ms ease-out,
+                border-color 300ms ease-out,
+                color 200ms ease-out,
+                fill 200ms ease-out,
+                stroke 200ms ease-out,
+                box-shadow 300ms ease-out !important;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -147,10 +160,12 @@
   /* Glassmorphism card */
   .glass {
     @apply bg-card/50 backdrop-blur-xl border border-white/[0.08] shadow-xl;
+    @apply transition-all duration-300 ease-out;
   }
 
   .glass-subtle {
     @apply bg-card/30 backdrop-blur-md border border-white/[0.05];
+    @apply transition-all duration-300 ease-out;
   }
 
   /* Glow effects */
