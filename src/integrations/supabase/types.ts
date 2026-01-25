@@ -233,17 +233,27 @@ export type Database = {
           address_state: string | null
           address_street: string | null
           address_zipcode: string | null
+          annual_premium_estimate: number | null
+          broker_notes: string | null
           cnae: string | null
           cnpj: string | null
           created_at: string
           created_by: string | null
+          current_insurer: string | null
           email: string | null
+          fleet_size: number | null
+          fleet_type: string | null
+          has_claims_history: boolean | null
           id: string
+          insurance_branches: string[] | null
           label: string | null
           name: string
           notes: string | null
           owner_id: string | null
           phone: string | null
+          policy_renewal_month: number | null
+          preferred_insurers: string[] | null
+          risk_profile: string | null
           rntrc_antt: string | null
           updated_at: string
           website: string | null
@@ -256,17 +266,27 @@ export type Database = {
           address_state?: string | null
           address_street?: string | null
           address_zipcode?: string | null
+          annual_premium_estimate?: number | null
+          broker_notes?: string | null
           cnae?: string | null
           cnpj?: string | null
           created_at?: string
           created_by?: string | null
+          current_insurer?: string | null
           email?: string | null
+          fleet_size?: number | null
+          fleet_type?: string | null
+          has_claims_history?: boolean | null
           id?: string
+          insurance_branches?: string[] | null
           label?: string | null
           name: string
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          policy_renewal_month?: number | null
+          preferred_insurers?: string[] | null
+          risk_profile?: string | null
           rntrc_antt?: string | null
           updated_at?: string
           website?: string | null
@@ -279,17 +299,27 @@ export type Database = {
           address_state?: string | null
           address_street?: string | null
           address_zipcode?: string | null
+          annual_premium_estimate?: number | null
+          broker_notes?: string | null
           cnae?: string | null
           cnpj?: string | null
           created_at?: string
           created_by?: string | null
+          current_insurer?: string | null
           email?: string | null
+          fleet_size?: number | null
+          fleet_type?: string | null
+          has_claims_history?: boolean | null
           id?: string
+          insurance_branches?: string[] | null
           label?: string | null
           name?: string
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          policy_renewal_month?: number | null
+          preferred_insurers?: string[] | null
+          risk_profile?: string | null
           rntrc_antt?: string | null
           updated_at?: string
           website?: string | null

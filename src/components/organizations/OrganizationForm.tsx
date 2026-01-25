@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { InsuranceFieldsSection } from './InsuranceFieldsSection';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -52,6 +54,28 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Insurance fields state (not part of zod schema for simplicity with arrays)
+  const [insuranceBranches, setInsuranceBranches] = useState<string[]>(
+    (organization?.insurance_branches as string[]) || []
+  );
+  const [preferredInsurers, setPreferredInsurers] = useState<string[]>(
+    (organization?.preferred_insurers as string[]) || []
+  );
+  const [fleetType, setFleetType] = useState(organization?.fleet_type || '');
+  const [fleetSize, setFleetSize] = useState(organization?.fleet_size?.toString() || '');
+  const [currentInsurer, setCurrentInsurer] = useState(organization?.current_insurer || '');
+  const [policyRenewalMonth, setPolicyRenewalMonth] = useState(
+    organization?.policy_renewal_month?.toString() || ''
+  );
+  const [annualPremiumEstimate, setAnnualPremiumEstimate] = useState(
+    organization?.annual_premium_estimate?.toString() || ''
+  );
+  const [riskProfile, setRiskProfile] = useState(organization?.risk_profile || '');
+  const [hasClaimsHistory, setHasClaimsHistory] = useState(
+    organization?.has_claims_history || false
+  );
+  const [brokerNotes, setBrokerNotes] = useState(organization?.broker_notes || '');
+
   const {
     register,
     handleSubmit,
@@ -80,6 +104,19 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     },
   });
 
+  const getInsuranceData = () => ({
+    insurance_branches: insuranceBranches.length > 0 ? insuranceBranches : null,
+    preferred_insurers: preferredInsurers.length > 0 ? preferredInsurers : null,
+    fleet_type: fleetType || null,
+    fleet_size: fleetSize ? parseInt(fleetSize, 10) : null,
+    current_insurer: currentInsurer || null,
+    policy_renewal_month: policyRenewalMonth ? parseInt(policyRenewalMonth, 10) : null,
+    annual_premium_estimate: annualPremiumEstimate ? parseFloat(annualPremiumEstimate) : null,
+    risk_profile: riskProfile || null,
+    has_claims_history: hasClaimsHistory,
+    broker_notes: brokerNotes || null,
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: OrganizationFormData) => {
       const { error } = await supabase.from('organizations').insert({
@@ -101,6 +138,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         label: data.label || null,
         owner_id: user?.id,
         created_by: user?.id,
+        ...getInsuranceData(),
       });
       if (error) throw error;
     },
@@ -119,7 +157,10 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     mutationFn: async (data: OrganizationFormData) => {
       const { error } = await supabase
         .from('organizations')
-        .update(data)
+        .update({
+          ...data,
+          ...getInsuranceData(),
+        })
         .eq('id', organization!.id);
       if (error) throw error;
     },
@@ -253,9 +294,33 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         </div>
       </div>
 
+      {/* Insurance Fields */}
+      <InsuranceFieldsSection
+        insuranceBranches={insuranceBranches}
+        preferredInsurers={preferredInsurers}
+        fleetType={fleetType}
+        fleetSize={fleetSize}
+        currentInsurer={currentInsurer}
+        policyRenewalMonth={policyRenewalMonth}
+        annualPremiumEstimate={annualPremiumEstimate}
+        riskProfile={riskProfile}
+        hasClaimsHistory={hasClaimsHistory}
+        brokerNotes={brokerNotes}
+        onInsuranceBranchesChange={setInsuranceBranches}
+        onPreferredInsurersChange={setPreferredInsurers}
+        onFleetTypeChange={setFleetType}
+        onFleetSizeChange={setFleetSize}
+        onCurrentInsurerChange={setCurrentInsurer}
+        onPolicyRenewalMonthChange={setPolicyRenewalMonth}
+        onAnnualPremiumEstimateChange={setAnnualPremiumEstimate}
+        onRiskProfileChange={setRiskProfile}
+        onHasClaimsHistoryChange={setHasClaimsHistory}
+        onBrokerNotesChange={setBrokerNotes}
+      />
+
       {/* Notes */}
       <div className="space-y-2">
-        <Label htmlFor="notes">Observações</Label>
+        <Label htmlFor="notes">Observações Gerais</Label>
         <Textarea
           id="notes"
           {...register('notes')}
