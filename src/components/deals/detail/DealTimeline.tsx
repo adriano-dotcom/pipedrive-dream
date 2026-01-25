@@ -7,7 +7,8 @@ import {
   CheckCircle2, 
   Trophy, 
   XCircle,
-  Clock
+  Clock,
+  Upload
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DealHistory } from '@/hooks/useDealDetails';
@@ -24,6 +25,7 @@ const eventIcons: Record<string, React.ElementType> = {
   activity_completed: CheckCircle2,
   deal_won: Trophy,
   deal_lost: XCircle,
+  file_uploaded: Upload,
 };
 
 const eventColors: Record<string, string> = {
@@ -33,6 +35,7 @@ const eventColors: Record<string, string> = {
   activity_completed: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   deal_won: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   deal_lost: 'bg-red-500/20 text-red-400 border-red-500/30',
+  file_uploaded: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
 };
 
 export function DealTimeline({ history, isLoading }: DealTimelineProps) {
