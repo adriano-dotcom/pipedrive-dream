@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -21,7 +24,12 @@ import {
   AlertCircle,
   DollarSign,
   MessageCircle,
+  Pencil,
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { PersonFormSheet } from '@/components/people/PersonFormSheet';
+import type { Tables } from '@/integrations/supabase/types';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { OrganizationPerson } from '@/hooks/useOrganizationDetails';
@@ -87,6 +95,35 @@ export function OrganizationSidebar({
   pendingActivities,
   overdueActivities,
 }: OrganizationSidebarProps) {
+  const queryClient = useQueryClient();
+  const [editingPerson, setEditingPerson] = useState<Tables<'people'> | null>(null);
+  const [isLoadingPerson, setIsLoadingPerson] = useState(false);
+
+  const handleEditPerson = async (e: React.MouseEvent, personId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsLoadingPerson(true);
+    try {
+      const { data, error } = await supabase
+        .from('people')
+        .select('*')
+        .eq('id', personId)
+        .single();
+      
+      if (error) throw error;
+      setEditingPerson(data);
+    } catch (error) {
+      toast.error('Erro ao carregar dados da pessoa');
+    } finally {
+      setIsLoadingPerson(false);
+    }
+  };
+
+  const handleEditSuccess = () => {
+    setEditingPerson(null);
+    queryClient.invalidateQueries({ queryKey: ['organization-people', organization.id] });
+  };
+
   const hasAddress = organization.address_street || organization.address_city;
   const hasInsuranceDetails = organization.insurance_branches?.length || 
     organization.current_insurer || 
@@ -323,7 +360,7 @@ export function OrganizationSidebar({
                   <TooltipTrigger asChild>
                     <Link 
                       to={`/people/${person.id}`}
-                      className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block"
+                      className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block group"
                     >
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
                         {person.name.charAt(0).toUpperCase()}
@@ -342,6 +379,15 @@ export function OrganizationSidebar({
                           <p className="text-xs text-muted-foreground truncate">{person.phone}</p>
                         )}
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        onClick={(e) => handleEditPerson(e, person.id)}
+                        disabled={isLoadingPerson}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                     </Link>
                   </TooltipTrigger>
                   <TooltipContent side="left" className="max-w-xs">
@@ -406,6 +452,13 @@ export function OrganizationSidebar({
           </CardContent>
         </Card>
       )}
+      {/* Person Edit Sheet */}
+      <PersonFormSheet
+        open={!!editingPerson}
+        onOpenChange={(open) => !open && setEditingPerson(null)}
+        person={editingPerson}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 }

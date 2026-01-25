@@ -14,15 +14,23 @@ interface PersonFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   person: Person | null;
+  onSuccess?: () => void;
 }
 
 export function PersonFormSheet({
   open,
   onOpenChange,
   person,
+  onSuccess,
 }: PersonFormSheetProps) {
-  const handleClose = () => onOpenChange(false);
+  const handleClose = () => {
+    onOpenChange(false);
+  };
 
+  const handleSuccess = () => {
+    onOpenChange(false);
+    onSuccess?.();
+  };
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl overflow-y-auto">
@@ -40,7 +48,7 @@ export function PersonFormSheet({
         <div className="mt-6">
           <PersonForm
             person={person}
-            onSuccess={handleClose}
+            onSuccess={handleSuccess}
             onCancel={handleClose}
           />
         </div>
