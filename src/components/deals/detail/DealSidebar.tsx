@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
+import { EmailButton } from '@/components/email/EmailButton';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -189,10 +190,19 @@ export function DealSidebar({ deal }: DealSidebarProps) {
               </a>
             )}
             {deal.person.email && (
-              <a href={`mailto:${deal.person.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors truncate">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">{deal.person.email}</span>
-              </a>
+                <a href={`mailto:${deal.person.email}`} className="hover:text-primary transition-colors truncate flex-1">
+                  {deal.person.email}
+                </a>
+                <EmailButton
+                  entityType="deal"
+                  entityId={deal.id}
+                  entityName={deal.title}
+                  recipientEmail={deal.person.email}
+                  recipientName={deal.person.name}
+                />
+              </div>
             )}
           </div>
         </SidebarSection>
@@ -243,10 +253,19 @@ export function DealSidebar({ deal }: DealSidebarProps) {
               </a>
             )}
             {deal.organization.email && (
-              <a href={`mailto:${deal.organization.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors truncate">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">{deal.organization.email}</span>
-              </a>
+                <a href={`mailto:${deal.organization.email}`} className="hover:text-primary transition-colors truncate flex-1">
+                  {deal.organization.email}
+                </a>
+                <EmailButton
+                  entityType="deal"
+                  entityId={deal.id}
+                  entityName={deal.title}
+                  recipientEmail={deal.organization.email}
+                  recipientName={deal.organization.name}
+                />
+              </div>
             )}
           </div>
         </SidebarSection>

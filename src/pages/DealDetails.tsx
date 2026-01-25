@@ -9,8 +9,10 @@ import { DealTimeline } from '@/components/deals/detail/DealTimeline';
 import { DealNotes } from '@/components/deals/detail/DealNotes';
 import { DealActivities } from '@/components/deals/detail/DealActivities';
 import { DealFiles } from '@/components/deals/detail/DealFiles';
+import { DealEmails } from '@/components/deals/detail/DealEmails';
 import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { useSentEmails } from '@/hooks/useSentEmails';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
 import { Tables } from '@/integrations/supabase/types';
@@ -52,6 +54,8 @@ export default function DealDetails() {
     downloadFile,
     deleteFile,
   } = useDealFiles(id || '');
+
+  const { emails } = useSentEmails('deal', id || '');
 
   if (isLoading) {
     return (
@@ -166,6 +170,9 @@ export default function DealDetails() {
               <TabsTrigger value="activities" className="flex-1 sm:flex-none">
                 Atividades ({activities.length})
               </TabsTrigger>
+              <TabsTrigger value="emails" className="flex-1 sm:flex-none">
+                E-mails ({emails.length})
+              </TabsTrigger>
               <TabsTrigger value="history" className="flex-1 sm:flex-none">
                 Histórico ({history.length})
               </TabsTrigger>
@@ -212,6 +219,15 @@ export default function DealDetails() {
                   setActivityFormOpen(true);
                 }}
                 isToggling={isTogglingActivity}
+              />
+            </TabsContent>
+
+            <TabsContent value="emails" className="mt-4">
+              <DealEmails
+                dealId={id || ''}
+                dealTitle={deal?.title || ''}
+                recipientEmail={deal?.person?.email || deal?.organization?.email || ''}
+                recipientName={deal?.person?.name || deal?.organization?.name}
               />
             </TabsContent>
 

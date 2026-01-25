@@ -11,7 +11,9 @@ import { PersonNotes } from '@/components/people/detail/PersonNotes';
 import { PersonFiles } from '@/components/people/detail/PersonFiles';
 import { PersonActivities } from '@/components/people/detail/PersonActivities';
 import { PersonDeals } from '@/components/people/detail/PersonDeals';
+import { PersonEmails } from '@/components/people/detail/PersonEmails';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { useSentEmails } from '@/hooks/useSentEmails';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
 import { usePersonDetails } from '@/hooks/usePersonDetails';
@@ -61,6 +63,8 @@ export default function PersonDetails() {
     downloadFile,
     deleteFile,
   } = usePersonFiles(id || '');
+
+  const { emails } = useSentEmails('person', id || '');
 
   // Fetch default pipeline for new deals
   const { data: defaultPipeline } = useQuery({
@@ -219,6 +223,9 @@ export default function PersonDetails() {
               <TabsTrigger value="deals" className="flex-1 sm:flex-none">
                 Negócios ({deals.length})
               </TabsTrigger>
+              <TabsTrigger value="emails" className="flex-1 sm:flex-none">
+                E-mails ({emails.length})
+              </TabsTrigger>
               <TabsTrigger value="history" className="flex-1 sm:flex-none">
                 Histórico ({history.length})
               </TabsTrigger>
@@ -254,6 +261,14 @@ export default function PersonDetails() {
 
             <TabsContent value="deals" className="mt-4">
               <PersonDeals deals={deals} />
+            </TabsContent>
+
+            <TabsContent value="emails" className="mt-4">
+              <PersonEmails
+                personId={id || ''}
+                personName={person?.name || ''}
+                recipientEmail={person?.email || ''}
+              />
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">

@@ -60,6 +60,7 @@ import {
   Check,
   ChevronsUpDown,
 } from 'lucide-react';
+import { EmailButton } from '@/components/email/EmailButton';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -252,9 +253,18 @@ export function PersonSidebar({
               <span className="text-muted-foreground flex items-center gap-1">
                 <Mail className="h-3 w-3" /> Email
               </span>
-              <a href={`mailto:${person.email}`} className="font-medium text-primary hover:underline truncate max-w-[150px]">
-                {person.email}
-              </a>
+              <div className="flex items-center gap-1">
+                <a href={`mailto:${person.email}`} className="font-medium text-primary hover:underline truncate max-w-[120px]">
+                  {person.email}
+                </a>
+                <EmailButton
+                  entityType="person"
+                  entityId={person.id}
+                  entityName={person.name}
+                  recipientEmail={person.email}
+                  recipientName={person.name}
+                />
+              </div>
             </div>
           )}
 
