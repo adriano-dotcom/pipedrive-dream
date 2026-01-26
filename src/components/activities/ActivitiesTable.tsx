@@ -19,7 +19,10 @@ import {
   ChevronsRight,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  Settings2,
+  Eye,
+  RotateCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -31,8 +34,17 @@ import {
   ColumnDef,
   ColumnOrderState,
   SortingState,
+  VisibilityState,
   Column,
 } from '@tanstack/react-table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
   Table,
@@ -76,6 +88,19 @@ interface ActivitiesTableProps {
 
 const COLUMN_ORDER_KEY = 'activities-table-column-order';
 const PAGE_SIZE_KEY = 'activities-table-page-size';
+const COLUMN_VISIBILITY_KEY = 'activities-table-column-visibility';
+
+const columnLabels: Record<string, string> = {
+  is_completed: 'Checkbox',
+  subject: 'Assunto',
+  created_by: 'Criado por',
+  person: 'Pessoa de contato',
+  due_date: 'Data de vencimento',
+  organization: 'Organização',
+  phone: 'Telefone',
+  email: 'E-mail',
+  linked_to: 'Vinculado a',
+};
 
 const activityTypeConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   task: { icon: CheckSquare, label: 'Tarefa', color: 'text-blue-500' },
@@ -133,6 +158,15 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
     }
   });
 
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const [pageSize, setPageSize] = useState(() => {
     try {
       return Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25;
@@ -152,6 +186,18 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
   useEffect(() => {
     localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
   }, [pageSize]);
+
+  // Persist column visibility
+  useEffect(() => {
+    localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
+
+  const handleResetColumns = () => {
+    setColumnVisibility({});
+    setColumnOrder(defaultColumnOrder);
+    localStorage.removeItem(COLUMN_VISIBILITY_KEY);
+    localStorage.removeItem(COLUMN_ORDER_KEY);
+  };
 
   const handleCheckboxChange = async (id: string, checked: boolean) => {
     setUpdatingIds(prev => new Set(prev).add(id));
@@ -420,6 +466,7 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
     columns,
     state: {
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
+      columnVisibility,
       sorting,
       pagination: {
         pageIndex: 0,
@@ -427,6 +474,7 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
       },
     },
     onColumnOrderChange: setColumnOrder,
+    onColumnVisibilityChange: setColumnVisibility,
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -453,6 +501,45 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
     <TooltipProvider>
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="rounded-lg border bg-card overflow-hidden">
+          {/* Barra de ferramentas */}
+          <div className="flex items-center justify-end px-4 py-2 border-b bg-muted/10">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                  <Settings2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Colunas</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-popover border border-border z-50">
+                <DropdownMenuLabel className="flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  Visibilidade das Colunas
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {table.getAllLeafColumns()
+                  .filter(column => column.id !== 'is_completed')
+                  .map(column => (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                      className="cursor-pointer"
+                    >
+                      {columnLabels[column.id] || column.id}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  onSelect={handleResetColumns}
+                  className="cursor-pointer text-muted-foreground"
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Restaurar padrão
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
