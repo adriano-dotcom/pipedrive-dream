@@ -17,8 +17,11 @@ interface DealsHeaderProps {
   selectedPipeline: Pipeline | null;
   onPipelineSelect: (pipeline: Pipeline) => void;
   onCreatePipeline: () => void;
+  onEditPipeline: (pipeline: Pipeline) => void;
   onOpenStageManager: () => void;
   onAddDeal: () => void;
+  onSetUserDefault: (pipelineId: string) => void;
+  userDefaultPipelineId: string | null;
   dealCount: number;
   totalDeals: number;
   totalValue: number;
@@ -31,8 +34,11 @@ export function DealsHeader({
   selectedPipeline,
   onPipelineSelect,
   onCreatePipeline,
+  onEditPipeline,
   onOpenStageManager,
   onAddDeal,
+  onSetUserDefault,
+  userDefaultPipelineId,
   dealCount,
   totalDeals,
   totalValue,
@@ -75,6 +81,9 @@ export function DealsHeader({
           selectedPipeline={selectedPipeline}
           onSelect={onPipelineSelect}
           onCreateNew={onCreatePipeline}
+          onEdit={onEditPipeline}
+          onSetUserDefault={onSetUserDefault}
+          userDefaultPipelineId={userDefaultPipelineId}
         />
         
         <Button 
