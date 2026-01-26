@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Column,
   ColumnDef,
   ColumnFiltersState,
   SortingState,
@@ -42,7 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2, Eye, Building2, User, Flame, Thermometer, Snowflake } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2, Eye, Building2, User, Flame, Thermometer, Snowflake, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -110,6 +111,28 @@ const insuranceTypes: Record<string, string> = {
   other: '📋 Outros',
 };
 
+// Sortable header component
+function SortableHeader({ column, title }: { column: Column<Deal>; title: string }) {
+  const sorted = column.getIsSorted();
+  
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => column.toggleSorting(sorted === 'asc')}
+      className="h-auto p-0 font-semibold hover:bg-transparent -ml-2 px-2"
+    >
+      {title}
+      {sorted === 'asc' ? (
+        <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : sorted === 'desc' ? (
+        <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : (
+        <ArrowUpDown className="ml-1 h-3.5 w-3.5 opacity-50" />
+      )}
+    </Button>
+  );
+}
+
 export function DealsTable({
   deals,
   stages,
@@ -129,7 +152,7 @@ export function DealsTable({
   const columns = useMemo<ColumnDef<Deal>[]>(() => [
     {
       accessorKey: 'person',
-      header: 'Pessoa de Contato',
+      header: ({ column }) => <SortableHeader column={column} title="Pessoa de Contato" />,
       cell: ({ row }) => {
         const person = row.original.person;
         if (!person) return <span className="text-muted-foreground">-</span>;
@@ -153,6 +176,11 @@ export function DealsTable({
           </TooltipProvider>
         );
       },
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.person?.name || '';
+        const b = rowB.original.person?.name || '';
+        return a.localeCompare(b, 'pt-BR');
+      },
       filterFn: (row, id, value) => {
         const person = row.original.person;
         if (!person) return false;
@@ -161,7 +189,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'stage',
-      header: 'Etapa',
+      header: ({ column }) => <SortableHeader column={column} title="Etapa" />,
       cell: ({ row }) => {
         const stage = row.original.stage;
         if (!stage) return <span className="text-muted-foreground">-</span>;
@@ -179,6 +207,11 @@ export function DealsTable({
           </Badge>
         );
       },
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.stage?.name || '';
+        const b = rowB.original.stage?.name || '';
+        return a.localeCompare(b, 'pt-BR');
+      },
       filterFn: (row, id, value) => {
         if (value === 'all') return true;
         return row.original.stage_id === value;
@@ -186,7 +219,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'title',
-      header: 'Título',
+      header: ({ column }) => <SortableHeader column={column} title="Título" />,
       cell: ({ row }) => (
         <TooltipProvider>
           <Tooltip>
@@ -208,7 +241,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'value',
-      header: 'Valor',
+      header: ({ column }) => <SortableHeader column={column} title="Valor" />,
       cell: ({ row }) => (
         <span className="font-semibold text-primary">
           {new Intl.NumberFormat('pt-BR', {
@@ -221,7 +254,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'created_at',
-      header: 'Criado em',
+      header: ({ column }) => <SortableHeader column={column} title="Criado em" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">
           {format(new Date(row.original.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -230,7 +263,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: ({ column }) => <SortableHeader column={column} title="Status" />,
       cell: ({ row }) => {
         const status = row.original.status as keyof typeof statusConfig;
         const config = statusConfig[status] || statusConfig.open;
@@ -247,7 +280,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'organization',
-      header: 'Organização',
+      header: ({ column }) => <SortableHeader column={column} title="Organização" />,
       cell: ({ row }) => {
         const org = row.original.organization;
         if (!org) return <span className="text-muted-foreground">-</span>;
@@ -271,6 +304,11 @@ export function DealsTable({
           </TooltipProvider>
         );
       },
+      sortingFn: (rowA, rowB) => {
+        const a = rowA.original.organization?.name || '';
+        const b = rowB.original.organization?.name || '';
+        return a.localeCompare(b, 'pt-BR');
+      },
       filterFn: (row, id, value) => {
         const org = row.original.organization;
         if (!org) return false;
@@ -279,7 +317,7 @@ export function DealsTable({
     },
     {
       accessorKey: 'insurance_type',
-      header: 'Tipo Seguro',
+      header: ({ column }) => <SortableHeader column={column} title="Tipo Seguro" />,
       cell: ({ row }) => {
         const type = row.original.insurance_type;
         if (!type) return <span className="text-muted-foreground">-</span>;
@@ -296,16 +334,16 @@ export function DealsTable({
     },
     {
       accessorKey: 'label',
-      header: 'Etiqueta',
+      header: ({ column }) => <SortableHeader column={column} title="Etiqueta" />,
       cell: ({ row }) => {
         const label = row.original.label as keyof typeof labelConfig;
         if (!label) return <span className="text-muted-foreground">-</span>;
         const config = labelConfig[label];
         if (!config) return <span className="text-muted-foreground">{label}</span>;
-        const Icon = config.icon;
+        const LabelIcon = config.icon;
         return (
           <Badge variant="outline" className={cn("border gap-1", config.className)}>
-            <Icon className="h-3 w-3" />
+            <LabelIcon className="h-3 w-3" />
             {config.label}
           </Badge>
         );
