@@ -9,6 +9,7 @@ import {
   ColumnDef,
   PaginationState,
   SortingState,
+  VisibilityState,
   Column,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -29,7 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -54,6 +63,20 @@ interface PeopleTableProps {
 
 const STORAGE_KEY = 'people-table-column-order';
 const PAGE_SIZE_KEY = 'people-table-page-size';
+const COLUMN_VISIBILITY_KEY = 'people-table-column-visibility';
+
+const columnLabels: Record<string, string> = {
+  name: 'Nome',
+  phone: 'Telefone',
+  email: 'Email',
+  organization: 'Empresa',
+  cnpj: 'CNPJ',
+  city: 'Cidade',
+  automotores: 'Automotores',
+  job_title: 'Cargo',
+  label: 'Status',
+  actions: 'Ações',
+};
 
 const getLabelStyles = (label: string | null) => {
   switch (label) {
@@ -94,6 +117,14 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
+  });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -252,16 +283,29 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     }
   }, [defaultColumnOrder, columnOrder.length]);
 
+  useEffect(() => {
+    localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
+
+  const handleResetColumns = () => {
+    setColumnVisibility({});
+    setColumnOrder(defaultColumnOrder);
+    localStorage.removeItem(COLUMN_VISIBILITY_KEY);
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
   const table = useReactTable({
     data: people,
     columns,
     state: {
       sorting,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
+      columnVisibility,
       pagination,
     },
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
+    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -292,6 +336,45 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
 
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
+      {/* Barra de ferramentas */}
+      <div className="flex items-center justify-end px-4 py-2 border-b bg-muted/10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5">
+              <Settings2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Colunas</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 bg-popover border border-border z-50">
+            <DropdownMenuLabel className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Visibilidade das Colunas
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {table.getAllLeafColumns()
+              .filter(column => column.id !== 'actions')
+              .map(column => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  checked={column.getIsVisible()}
+                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                  className="cursor-pointer"
+                >
+                  {columnLabels[column.id] || column.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              onSelect={handleResetColumns}
+              className="cursor-pointer text-muted-foreground"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Restaurar padrão
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <DragDropContext onDragEnd={handleDragEnd}>
         <Table>
           <TableHeader>
