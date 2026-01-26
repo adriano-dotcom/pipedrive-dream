@@ -52,15 +52,17 @@ export function AppSidebar() {
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r border-white/[0.06] bg-sidebar transition-all duration-300 relative',
+        'flex h-screen flex-col transition-all duration-300 relative',
+        'ios-glass border-r-0 rounded-none',
+        'hidden md:flex',
         collapsed ? 'w-[72px]' : 'w-64'
       )}
     >
       {/* Gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.05] via-transparent to-transparent pointer-events-none" />
       
       {/* Header */}
-      <div className="relative flex h-16 items-center justify-between border-b border-white/[0.06] px-4">
+      <div className="relative flex h-16 items-center justify-between border-b border-border/20 px-4">
         {!collapsed && (
           <div className="flex items-center gap-3">
             <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 shadow-lg shadow-primary/25">
@@ -130,7 +132,7 @@ export function AppSidebar() {
       </nav>
 
       {/* User Section */}
-      <div className="relative border-t border-white/[0.06] p-3">
+      <div className="relative border-t border-border/20 p-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

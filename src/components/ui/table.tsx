@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto scrollbar-modern rounded-xl">
+    <div className="relative w-full overflow-auto scrollbar-modern ios-glass">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),
@@ -16,8 +16,8 @@ const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttribut
     <thead 
       ref={ref} 
       className={cn(
-        "[&_tr]:border-b [&_tr]:border-border/50",
-        "bg-muted/30",
+        "[&_tr]:border-b [&_tr]:border-border/30",
+        "bg-muted/20 backdrop-blur-sm",
         className
       )} 
       {...props} 
@@ -35,7 +35,7 @@ TableBody.displayName = "TableBody";
 
 const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <tfoot ref={ref} className={cn("border-t bg-muted/50 font-medium [&>tr]:last:border-b-0", className)} {...props} />
+    <tfoot ref={ref} className={cn("border-t border-border/30 bg-muted/20 font-medium [&>tr]:last:border-b-0", className)} {...props} />
   ),
 );
 TableFooter.displayName = "TableFooter";
@@ -45,8 +45,8 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        "border-b border-border/30 transition-colors",
-        "data-[state=selected]:bg-muted",
+        "border-b border-border/20 transition-all duration-200",
+        "data-[state=selected]:bg-primary/10",
         "hover:bg-muted/30",
         className
       )}
@@ -61,7 +61,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        "h-11 px-4 text-left align-middle font-semibold text-muted-foreground",
+        "h-12 px-4 text-left align-middle font-semibold text-muted-foreground",
         "[&:has([role=checkbox])]:pr-0",
         "text-xs uppercase tracking-wider",
         className,
