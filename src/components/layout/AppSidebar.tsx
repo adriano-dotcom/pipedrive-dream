@@ -118,7 +118,7 @@ export function AppSidebar() {
               'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200',
               'group-hover:bg-accent/50'
             )}>
-              <item.icon className="h-[18px] w-[18px]" />
+              <item.icon className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
             </div>
             {!collapsed && (
               <span className="font-medium text-sm">{item.title}</span>
