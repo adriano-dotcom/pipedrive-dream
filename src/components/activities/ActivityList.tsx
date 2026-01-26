@@ -5,21 +5,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Inbox } from 'lucide-react';
+import { Plus, Inbox, List, LayoutGrid } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ActivityCard } from './ActivityCard';
 import { ActivityFilters, TimeFilter, TypeFilter } from './ActivityFilters';
 import { ActivityFormSheet } from './ActivityFormSheet';
-import { Tables } from '@/integrations/supabase/types';
+import { ActivitiesTable, Activity } from './ActivitiesTable';
 
-type Activity = Tables<'activities'> & {
-  deal?: { title: string } | null;
-  person?: { name: string } | null;
-  organization?: { name: string } | null;
-};
+type ViewMode = 'table' | 'cards';
 
 export function ActivityList() {
   const { user } = useAuth();
@@ -30,8 +27,9 @@ export function ActivityList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
-  // Fetch all activities
+  // Fetch all activities with expanded relations
   const { data: activities, isLoading } = useQuery({
     queryKey: ['activities'],
     queryFn: async () => {
@@ -39,15 +37,28 @@ export function ActivityList() {
         .from('activities')
         .select(`
           *,
-          deal:deals(title),
-          person:people(name),
-          organization:organizations(name)
+          deal:deals(id, title),
+          person:people(id, name, phone, email),
+          organization:organizations(id, name)
         `)
         .order('due_date', { ascending: true })
         .order('due_time', { ascending: true, nullsFirst: false });
       
       if (error) throw error;
-      return data as Activity[];
+      
+      // Fetch creator names separately
+      const creatorIds = [...new Set(data.map(a => a.created_by).filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', creatorIds);
+      
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
+      
+      return data.map(activity => ({
+        ...activity,
+        creator: activity.created_by ? { full_name: profileMap.get(activity.created_by) || '' } : null
+      })) as Activity[];
     },
   });
 
@@ -139,7 +150,7 @@ export function ActivityList() {
     return { filteredActivities: filtered, counts };
   }, [activities, timeFilter, typeFilter, searchQuery]);
 
-  // Group activities by date
+  // Group activities by date (for cards view)
   const groupedActivities = useMemo(() => {
     const groups: Record<string, Activity[]> = {};
     
@@ -202,15 +213,40 @@ export function ActivityList() {
             onTypeFilterChange={setTypeFilter}
             onSearchChange={setSearchQuery}
           />
-          <Button onClick={handleNewActivity} className="gap-2 ml-4">
-            <Plus className="h-4 w-4" />
-            Nova Atividade
-          </Button>
+          <div className="flex items-center gap-3 ml-4">
+            {/* View Mode Toggle */}
+            <ToggleGroup 
+              type="single" 
+              value={viewMode} 
+              onValueChange={(v) => v && setViewMode(v as ViewMode)}
+              className="bg-muted/50 p-1 rounded-lg"
+            >
+              <ToggleGroupItem 
+                value="table" 
+                aria-label="Visualização em tabela"
+                className="data-[state=on]:bg-background data-[state=on]:shadow-sm"
+              >
+                <List className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem 
+                value="cards" 
+                aria-label="Visualização em cards"
+                className="data-[state=on]:bg-background data-[state=on]:shadow-sm"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
+            
+            <Button onClick={handleNewActivity} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Atividade
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Activities list */}
-      {groupedActivities.length === 0 ? (
+      {/* Activities content */}
+      {filteredActivities.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <div className="rounded-full bg-muted p-4 mb-4">
@@ -228,6 +264,12 @@ export function ActivityList() {
             </Button>
           </CardContent>
         </Card>
+      ) : viewMode === 'table' ? (
+        <ActivitiesTable
+          activities={filteredActivities}
+          onToggleComplete={handleToggleComplete}
+          onEdit={handleOpenActivity}
+        />
       ) : (
         <div className="space-y-6">
           {groupedActivities.map(([dateKey, dayActivities]) => (
