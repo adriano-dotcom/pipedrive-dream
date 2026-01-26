@@ -16,20 +16,22 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   flexRender,
   ColumnDef,
-  ColumnFiltersState,
   ColumnOrderState,
   SortingState,
+  Column,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -43,7 +45,6 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -97,10 +98,30 @@ const defaultColumnOrder = [
   'linked_to',
 ];
 
+function SortableHeader({ column, title }: { column: Column<Activity>; title: string }) {
+  const sorted = column.getIsSorted();
+  
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => column.toggleSorting(sorted === 'asc')}
+      className="h-auto p-0 font-semibold hover:bg-transparent text-xs uppercase tracking-wider"
+    >
+      {title}
+      {sorted === 'asc' ? (
+        <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : sorted === 'desc' ? (
+        <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : (
+        <ArrowUpDown className="ml-1 h-3.5 w-3.5 opacity-50" />
+      )}
+    </Button>
+  );
+}
+
 export function ActivitiesTable({ activities, onToggleComplete, onEdit }: ActivitiesTableProps) {
   const navigate = useNavigate();
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
@@ -185,13 +206,13 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           />
         </div>
       ),
-      enableColumnFilter: false,
+      enableSorting: false,
       size: 50,
     },
     {
       id: 'subject',
       accessorKey: 'title',
-      header: 'Assunto',
+      header: ({ column }) => <SortableHeader column={column} title="Assunto" />,
       cell: ({ row }) => {
         const typeConfig = activityTypeConfig[row.original.activity_type] || activityTypeConfig.task;
         const TypeIcon = typeConfig.icon;
@@ -219,25 +240,23 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           </div>
         );
       },
-      enableColumnFilter: true,
       size: 200,
     },
     {
       id: 'created_by',
       accessorFn: (row) => row.creator?.full_name ?? '',
-      header: 'Criado por',
+      header: ({ column }) => <SortableHeader column={column} title="Criado por" />,
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground truncate">
           {row.original.creator?.full_name || '—'}
         </span>
       ),
-      enableColumnFilter: true,
       size: 150,
     },
     {
       id: 'person',
       accessorFn: (row) => row.person?.name ?? '',
-      header: 'Pessoa de contato',
+      header: ({ column }) => <SortableHeader column={column} title="Pessoa de contato" />,
       cell: ({ row }) => (
         row.original.person ? (
           <Tooltip>
@@ -262,13 +281,12 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           <span className="text-muted-foreground">—</span>
         )
       ),
-      enableColumnFilter: true,
       size: 180,
     },
     {
       id: 'due_date',
       accessorKey: 'due_date',
-      header: 'Data de vencimento',
+      header: ({ column }) => <SortableHeader column={column} title="Data de vencimento" />,
       cell: ({ row }) => {
         const { formattedDate, formattedTime } = formatDueDate(row.original.due_date, row.original.due_time);
         const overdue = isOverdue(row.original);
@@ -285,13 +303,12 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           </div>
         );
       },
-      enableColumnFilter: true,
       size: 130,
     },
     {
       id: 'organization',
       accessorFn: (row) => row.organization?.name ?? '',
-      header: 'Organização',
+      header: ({ column }) => <SortableHeader column={column} title="Organização" />,
       cell: ({ row }) => (
         row.original.organization ? (
           <Tooltip>
@@ -317,13 +334,12 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           <span className="text-muted-foreground">—</span>
         )
       ),
-      enableColumnFilter: true,
       size: 180,
     },
     {
       id: 'phone',
       accessorFn: (row) => row.person?.phone ?? '',
-      header: 'Telefone',
+      header: ({ column }) => <SortableHeader column={column} title="Telefone" />,
       cell: ({ row }) => (
         row.original.person?.phone ? (
           <a 
@@ -337,13 +353,12 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           <span className="text-muted-foreground">—</span>
         )
       ),
-      enableColumnFilter: true,
       size: 130,
     },
     {
       id: 'email',
       accessorFn: (row) => row.person?.email ?? '',
-      header: 'E-mail',
+      header: ({ column }) => <SortableHeader column={column} title="E-mail" />,
       cell: ({ row }) => (
         row.original.person?.email ? (
           <a 
@@ -357,7 +372,6 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           <span className="text-muted-foreground">—</span>
         )
       ),
-      enableColumnFilter: true,
       size: 180,
     },
     {
@@ -396,7 +410,7 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
           <span className="text-muted-foreground">—</span>
         );
       },
-      enableColumnFilter: false,
+      enableSorting: false,
       size: 100,
     },
   ], [navigate, updatingIds]);
@@ -405,7 +419,6 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
     data: activities,
     columns,
     state: {
-      columnFilters,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
       sorting,
       pagination: {
@@ -413,11 +426,9 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
         pageSize,
       },
     },
-    onColumnFiltersChange: setColumnFilters,
     onColumnOrderChange: setColumnOrder,
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
@@ -483,20 +494,8 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
                                   {header.id !== 'is_completed' && (
                                     <GripVertical className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
                                   )}
-                                  <span className="text-xs font-semibold uppercase tracking-wider">
-                                    {flexRender(header.column.columnDef.header, header.getContext())}
-                                  </span>
+                                  {flexRender(header.column.columnDef.header, header.getContext())}
                                 </div>
-                                
-                                {/* Filtro Inline */}
-                                {header.column.getCanFilter() && header.id !== 'is_completed' && header.id !== 'linked_to' && (
-                                  <Input
-                                    placeholder="Filtrar..."
-                                    value={(header.column.getFilterValue() as string) ?? ''}
-                                    onChange={(e) => header.column.setFilterValue(e.target.value)}
-                                    className="h-7 text-xs"
-                                  />
-                                )}
                               </div>
                             </TableHead>
                           )}
