@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
+  getSortedRowModel,
   getPaginationRowModel,
   flexRender,
   ColumnDef,
-  ColumnFiltersState,
   ColumnOrderState,
   PaginationState,
+  SortingState,
+  Column,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -21,7 +22,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -66,13 +66,34 @@ const getLabelColor = (label: string | null) => {
   }
 };
 
+function SortableHeader({ column, title }: { column: Column<OrganizationWithContact>; title: string }) {
+  const sorted = column.getIsSorted();
+  
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => column.toggleSorting(sorted === 'asc')}
+      className="h-auto p-0 font-semibold hover:bg-transparent text-xs uppercase tracking-wider w-full justify-center"
+    >
+      {title}
+      {sorted === 'asc' ? (
+        <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : sorted === 'desc' ? (
+        <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : (
+        <ArrowUpDown className="ml-1 h-3.5 w-3.5 opacity-50" />
+      )}
+    </Button>
+  );
+}
+
 export function OrganizationsTable({
   organizations,
   isAdmin,
   onEdit,
   onDelete,
 }: OrganizationsTableProps) {
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
     const saved = localStorage.getItem(COLUMN_ORDER_KEY);
     return saved ? JSON.parse(saved) : [];
@@ -93,7 +114,7 @@ export function OrganizationsTable({
       {
         id: 'name',
         accessorKey: 'name',
-        header: 'Nome',
+        header: ({ column }) => <SortableHeader column={column} title="Nome" />,
         cell: ({ row }) => (
           <Link 
             to={`/organizations/${row.original.id}`}
@@ -102,38 +123,29 @@ export function OrganizationsTable({
             {row.original.name}
           </Link>
         ),
-        enableColumnFilter: true,
       },
       {
         id: 'cnpj',
         accessorKey: 'cnpj',
-        header: 'CNPJ',
+        header: ({ column }) => <SortableHeader column={column} title="CNPJ" />,
         cell: ({ row }) => (
           <span className="text-muted-foreground">{row.original.cnpj || '-'}</span>
         ),
-        enableColumnFilter: true,
       },
       {
         id: 'automotores',
         accessorKey: 'automotores',
-        header: 'Automotores',
+        header: ({ column }) => <SortableHeader column={column} title="Automotores" />,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.automotores ?? '-'}
           </span>
         ),
-        enableColumnFilter: true,
-        filterFn: (row, columnId, filterValue) => {
-          if (!filterValue) return true;
-          const value = row.getValue(columnId) as number | null;
-          if (value === null) return false;
-          return value.toString().includes(filterValue);
-        },
       },
       {
         id: 'contact_name',
         accessorFn: (row) => row.primary_contact?.name ?? '',
-        header: 'Contato Principal',
+        header: ({ column }) => <SortableHeader column={column} title="Contato Principal" />,
         cell: ({ row }) => (
           row.original.primary_contact && row.original.primary_contact_id ? (
             <Link
@@ -146,12 +158,11 @@ export function OrganizationsTable({
             <span className="text-muted-foreground">-</span>
           )
         ),
-        enableColumnFilter: true,
       },
       {
         id: 'contact_phone',
         accessorFn: (row) => row.primary_contact?.phone ?? '',
-        header: 'Telefone',
+        header: ({ column }) => <SortableHeader column={column} title="Telefone" />,
         cell: ({ row }) => (
           <span className="flex items-center gap-1 text-muted-foreground">
             {row.original.primary_contact?.phone ? (
@@ -164,12 +175,11 @@ export function OrganizationsTable({
             )}
           </span>
         ),
-        enableColumnFilter: true,
       },
       {
         id: 'contact_email',
         accessorFn: (row) => row.primary_contact?.email ?? '',
-        header: 'Email',
+        header: ({ column }) => <SortableHeader column={column} title="Email" />,
         cell: ({ row }) => (
           <span className="flex items-center gap-1 text-muted-foreground">
             {row.original.primary_contact?.email ? (
@@ -184,13 +194,12 @@ export function OrganizationsTable({
             )}
           </span>
         ),
-        enableColumnFilter: true,
       },
       {
         id: 'city',
         accessorFn: (row) =>
           row.address_city ? `${row.address_city}/${row.address_state}` : '',
-        header: 'Cidade',
+        header: ({ column }) => <SortableHeader column={column} title="Cidade" />,
         cell: ({ row }) =>
           row.original.address_city ? (
             <span className="flex items-center gap-1 text-muted-foreground">
@@ -200,12 +209,11 @@ export function OrganizationsTable({
           ) : (
             <span className="text-muted-foreground">-</span>
           ),
-        enableColumnFilter: true,
       },
       {
         id: 'label',
         accessorKey: 'label',
-        header: 'Status',
+        header: ({ column }) => <SortableHeader column={column} title="Status" />,
         cell: ({ row }) =>
           row.original.label ? (
             <Badge variant="secondary" className={getLabelColor(row.original.label)}>
@@ -214,17 +222,12 @@ export function OrganizationsTable({
           ) : (
             <span className="text-muted-foreground">-</span>
           ),
-        enableColumnFilter: true,
-        filterFn: (row, columnId, filterValue) => {
-          if (!filterValue || filterValue === 'all') return true;
-          return row.getValue(columnId) === filterValue;
-        },
       },
       {
         id: 'actions',
         header: 'Ações',
         cell: ({ row }) => (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -244,7 +247,6 @@ export function OrganizationsTable({
             )}
           </div>
         ),
-        enableColumnFilter: false,
       },
     ],
     [isAdmin, onEdit, onDelete]
@@ -254,15 +256,15 @@ export function OrganizationsTable({
     data: organizations,
     columns,
     state: {
-      columnFilters,
+      sorting,
       columnOrder: columnOrder.length > 0 ? columnOrder : columns.map((c) => c.id as string),
       pagination,
     },
-    onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
 
@@ -273,19 +275,6 @@ export function OrganizationsTable({
     const [removed] = newOrder.splice(result.source.index, 1);
     newOrder.splice(result.destination.index, 0, removed);
     setColumnOrder(newOrder);
-  };
-
-  const getFilterValue = (columnId: string): string => {
-    const filter = columnFilters.find((f) => f.id === columnId);
-    return (filter?.value as string) ?? '';
-  };
-
-  const setFilterValue = (columnId: string, value: string) => {
-    setColumnFilters((prev) => {
-      const existing = prev.filter((f) => f.id !== columnId);
-      if (!value) return existing;
-      return [...existing, { id: columnId, value }];
-    });
   };
 
   return (
@@ -310,51 +299,20 @@ export function OrganizationsTable({
                         <TableHead
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className={`${snapshot.isDragging ? 'bg-muted' : ''} ${
+                          className={`text-center ${snapshot.isDragging ? 'bg-muted' : ''} ${
                             header.id === 'actions' ? 'w-[100px]' : ''
                           }`}
                         >
-                          <div className="space-y-2">
-                            <div
-                              className="flex items-center gap-1 cursor-grab"
-                              {...provided.dragHandleProps}
-                            >
-                              {header.id !== 'actions' && (
-                                <GripVertical className="h-3 w-3 text-muted-foreground" />
-                              )}
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                            </div>
-                            {header.column.getCanFilter() && header.id !== 'actions' && (
-                              header.id === 'label' ? (
-                                <Select
-                                  value={getFilterValue(header.id) || 'all'}
-                                  onValueChange={(value) =>
-                                    setFilterValue(header.id, value === 'all' ? '' : value)
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder="Todos" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="all">Todos</SelectItem>
-                                    <SelectItem value="Quente">Quente</SelectItem>
-                                    <SelectItem value="Morno">Morno</SelectItem>
-                                    <SelectItem value="Frio">Frio</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <Input
-                                  placeholder="Filtrar..."
-                                  value={getFilterValue(header.id)}
-                                  onChange={(e) =>
-                                    setFilterValue(header.id, e.target.value)
-                                  }
-                                  className="h-8 text-xs"
-                                />
-                              )
+                          <div
+                            className="flex items-center justify-center gap-1 cursor-grab"
+                            {...provided.dragHandleProps}
+                          >
+                            {header.id !== 'actions' && (
+                              <GripVertical className="h-3 w-3 text-muted-foreground" />
+                            )}
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
                             )}
                           </div>
                         </TableHead>
@@ -396,15 +354,15 @@ export function OrganizationsTable({
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <span className="text-sm text-muted-foreground">
             Mostrando{' '}
-            {table.getFilteredRowModel().rows.length === 0
+            {table.getRowModel().rows.length === 0
               ? 0
               : table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}{' '}
             a{' '}
             {Math.min(
               (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-              table.getFilteredRowModel().rows.length
+              table.getRowModel().rows.length + table.getState().pagination.pageIndex * table.getState().pagination.pageSize
             )}{' '}
-            de {table.getFilteredRowModel().rows.length} registros
+            de {organizations.length} registros
           </span>
 
           <div className="flex items-center gap-2">

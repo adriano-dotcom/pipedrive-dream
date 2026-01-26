@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
+  getSortedRowModel,
   getPaginationRowModel,
   flexRender,
   ColumnDef,
-  ColumnFiltersState,
   PaginationState,
+  SortingState,
+  Column,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -19,7 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -68,8 +68,29 @@ const getLabelStyles = (label: string | null) => {
   }
 };
 
+function SortableHeader({ column, title }: { column: Column<PersonWithOrg>; title: string }) {
+  const sorted = column.getIsSorted();
+  
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => column.toggleSorting(sorted === 'asc')}
+      className="h-auto p-0 font-semibold hover:bg-transparent text-xs uppercase tracking-wider w-full justify-center"
+    >
+      {title}
+      {sorted === 'asc' ? (
+        <ArrowUp className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : sorted === 'desc' ? (
+        <ArrowDown className="ml-1 h-3.5 w-3.5 text-primary" />
+      ) : (
+        <ArrowUpDown className="ml-1 h-3.5 w-3.5 opacity-50" />
+      )}
+    </Button>
+  );
+}
+
 export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTableProps) {
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
@@ -83,7 +104,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'name',
       accessorKey: 'name',
-      header: 'Nome',
+      header: ({ column }) => <SortableHeader column={column} title="Nome" />,
       cell: ({ row }) => (
         <Link
           to={`/people/${row.original.id}`}
@@ -96,7 +117,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'phone',
       accessorKey: 'phone',
-      header: 'Telefone',
+      header: ({ column }) => <SortableHeader column={column} title="Telefone" />,
       cell: ({ row }) => (
         row.original.phone ? (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -109,7 +130,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'email',
       accessorKey: 'email',
-      header: 'Email',
+      header: ({ column }) => <SortableHeader column={column} title="Email" />,
       cell: ({ row }) => (
         row.original.email ? (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -122,7 +143,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'organization',
       accessorFn: (row) => row.organizations?.name ?? '',
-      header: 'Empresa',
+      header: ({ column }) => <SortableHeader column={column} title="Empresa" />,
       cell: ({ row }) => (
         row.original.organizations ? (
           <Link
@@ -138,7 +159,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'cnpj',
       accessorFn: (row) => row.organizations?.cnpj ?? '',
-      header: 'CNPJ',
+      header: ({ column }) => <SortableHeader column={column} title="CNPJ" />,
       cell: ({ row }) => (
         row.original.organizations?.cnpj ? (
           <span className="text-muted-foreground font-mono text-xs">
@@ -152,7 +173,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
       accessorFn: (row) => row.organizations?.address_city
         ? `${row.organizations.address_city}/${row.organizations.address_state || ''}`
         : '',
-      header: 'Cidade',
+      header: ({ column }) => <SortableHeader column={column} title="Cidade" />,
       cell: ({ row }) => (
         row.original.organizations?.address_city ? (
           <span className="text-muted-foreground">
@@ -164,7 +185,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'automotores',
       accessorFn: (row) => row.organizations?.automotores ?? null,
-      header: 'Automotores',
+      header: ({ column }) => <SortableHeader column={column} title="Automotores" />,
       cell: ({ row }) => (
         row.original.organizations?.automotores != null ? (
           <span className="text-muted-foreground text-center block">
@@ -176,7 +197,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'job_title',
       accessorKey: 'job_title',
-      header: 'Cargo',
+      header: ({ column }) => <SortableHeader column={column} title="Cargo" />,
       cell: ({ row }) => (
         row.original.job_title ? (
           <span className="text-muted-foreground">{row.original.job_title}</span>
@@ -186,7 +207,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     {
       id: 'label',
       accessorKey: 'label',
-      header: 'Status',
+      header: ({ column }) => <SortableHeader column={column} title="Status" />,
       cell: ({ row }) => (
         row.original.label ? (
           <Badge variant="outline" className={getLabelStyles(row.original.label)}>
@@ -194,16 +215,12 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
           </Badge>
         ) : null
       ),
-      filterFn: (row, id, value) => {
-        if (value === 'all') return true;
-        return row.getValue(id) === value;
-      },
     },
     {
       id: 'actions',
       header: 'Ações',
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           <Button
             variant="ghost"
             size="icon"
@@ -224,7 +241,6 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
           )}
         </div>
       ),
-      enableColumnFilter: false,
     },
   ], [isAdmin, onEdit, onDelete]);
 
@@ -240,15 +256,15 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     data: people,
     columns,
     state: {
-      columnFilters,
+      sorting,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
       pagination,
     },
-    onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
 
@@ -274,39 +290,6 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     localStorage.setItem(STORAGE_KEY, JSON.stringify(currentOrder));
   };
 
-  const renderColumnFilter = (columnId: string) => {
-    const column = table.getColumn(columnId);
-    if (!column || columnId === 'actions') return null;
-
-    if (columnId === 'label') {
-      return (
-        <Select
-          value={(column.getFilterValue() as string) ?? 'all'}
-          onValueChange={(value) => column.setFilterValue(value === 'all' ? undefined : value)}
-        >
-          <SelectTrigger className="h-8 text-xs bg-background">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover border border-border z-50">
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="Quente">Quente</SelectItem>
-            <SelectItem value="Morno">Morno</SelectItem>
-            <SelectItem value="Frio">Frio</SelectItem>
-          </SelectContent>
-        </Select>
-      );
-    }
-
-    return (
-      <Input
-        placeholder="Filtrar..."
-        value={(column.getFilterValue() as string) ?? ''}
-        onChange={(e) => column.setFilterValue(e.target.value)}
-        className="h-8 text-xs bg-background"
-      />
-    );
-  };
-
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
       <DragDropContext onDragEnd={handleDragEnd}>
@@ -330,22 +313,19 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
                         <TableHead
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className={`${snapshot.isDragging ? 'bg-muted/50' : ''} ${
+                          className={`text-center ${snapshot.isDragging ? 'bg-muted/50' : ''} ${
                             header.id === 'automotores' ? 'text-center' : ''
                           }`}
                           style={provided.draggableProps.style}
                         >
-                          <div className="space-y-2">
-                            <div
-                              {...provided.dragHandleProps}
-                              className="flex items-center gap-1 cursor-grab active:cursor-grabbing"
-                            >
-                              {header.id !== 'actions' && (
-                                <GripVertical className="h-3 w-3 text-muted-foreground/50" />
-                              )}
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                            </div>
-                            {renderColumnFilter(header.id)}
+                          <div
+                            {...provided.dragHandleProps}
+                            className="flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing"
+                          >
+                            {header.id !== 'actions' && (
+                              <GripVertical className="h-3 w-3 text-muted-foreground/50" />
+                            )}
+                            {flexRender(header.column.columnDef.header, header.getContext())}
                           </div>
                         </TableHead>
                       )}
@@ -390,9 +370,9 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
             {" "}a{" "}
             {Math.min(
               (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-              table.getFilteredRowModel().rows.length
+              people.length
             )}
-            {" "}de {table.getFilteredRowModel().rows.length} registros
+            {" "}de {people.length} registros
           </span>
           
           <div className="flex items-center gap-2">
