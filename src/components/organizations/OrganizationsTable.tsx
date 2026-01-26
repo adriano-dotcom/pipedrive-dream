@@ -10,6 +10,7 @@ import {
   ColumnOrderState,
   PaginationState,
   SortingState,
+  VisibilityState,
   Column,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -30,7 +31,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -52,6 +61,31 @@ interface OrganizationsTableProps {
 
 const COLUMN_ORDER_KEY = 'org-table-column-order';
 const PAGE_SIZE_KEY = 'organizations-table-page-size';
+const COLUMN_VISIBILITY_KEY = 'org-table-column-visibility';
+
+const defaultColumnOrder = [
+  'name',
+  'cnpj',
+  'automotores',
+  'contact_name',
+  'contact_phone',
+  'contact_email',
+  'city',
+  'label',
+  'actions',
+];
+
+const columnLabels: Record<string, string> = {
+  name: 'Nome',
+  cnpj: 'CNPJ',
+  automotores: 'Automotores',
+  contact_name: 'Contato Principal',
+  contact_phone: 'Telefone',
+  contact_email: 'Email',
+  city: 'Cidade',
+  label: 'Status',
+  actions: 'Ações',
+};
 
 const getLabelColor = (label: string | null) => {
   switch (label) {
@@ -96,7 +130,15 @@ export function OrganizationsTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
     const saved = localStorage.getItem(COLUMN_ORDER_KEY);
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : defaultColumnOrder;
+  });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
   });
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -108,6 +150,17 @@ export function OrganizationsTable({
       localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(columnOrder));
     }
   }, [columnOrder]);
+
+  useEffect(() => {
+    localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
+
+  const handleResetColumns = () => {
+    setColumnVisibility({});
+    setColumnOrder(defaultColumnOrder);
+    localStorage.removeItem(COLUMN_VISIBILITY_KEY);
+    localStorage.removeItem(COLUMN_ORDER_KEY);
+  };
 
   const columns = useMemo<ColumnDef<OrganizationWithContact>[]>(
     () => [
@@ -257,11 +310,13 @@ export function OrganizationsTable({
     columns,
     state: {
       sorting,
-      columnOrder: columnOrder.length > 0 ? columnOrder : columns.map((c) => c.id as string),
+      columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
+      columnVisibility,
       pagination,
     },
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
+    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -278,7 +333,46 @@ export function OrganizationsTable({
   };
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border overflow-hidden">
+      {/* Barra de ferramentas */}
+      <div className="flex items-center justify-end px-4 py-2 border-b bg-muted/10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5">
+              <Settings2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Colunas</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 bg-popover border border-border z-50">
+            <DropdownMenuLabel className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Visibilidade das Colunas
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {table.getAllLeafColumns()
+              .filter(column => column.id !== 'actions')
+              .map(column => (
+                <DropdownMenuCheckboxItem
+                  key={column.id}
+                  checked={column.getIsVisible()}
+                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                  className="cursor-pointer"
+                >
+                  {columnLabels[column.id] || column.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              onSelect={handleResetColumns}
+              className="cursor-pointer text-muted-foreground"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Restaurar padrão
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <DragDropContext onDragEnd={handleDragEnd}>
         <Table>
           <TableHeader>
