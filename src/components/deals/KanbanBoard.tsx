@@ -56,7 +56,7 @@ interface KanbanBoardProps {
   stagesLoading?: boolean;
 }
 
-export function KanbanBoard({ selectedPipeline, stages, stagesLoading }: KanbanBoardProps) {
+export function KanbanBoard({ selectedPipeline, stages = [], stagesLoading }: KanbanBoardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
