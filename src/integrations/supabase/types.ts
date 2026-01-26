@@ -898,6 +898,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          default_pipeline_id: string | null
           full_name: string
           id: string
           phone: string | null
@@ -907,6 +908,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          default_pipeline_id?: string | null
           full_name: string
           id?: string
           phone?: string | null
@@ -916,13 +918,22 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          default_pipeline_id?: string | null
           full_name?: string
           id?: string
           phone?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_default_pipeline_id_fkey"
+            columns: ["default_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sent_emails: {
         Row: {

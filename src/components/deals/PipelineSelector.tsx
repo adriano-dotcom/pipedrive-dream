@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, ChevronDown, Plus, Search, Settings } from 'lucide-react';
+import { Check, ChevronDown, Plus, Pencil, Star, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -15,6 +15,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface Pipeline {
@@ -30,6 +35,9 @@ interface PipelineSelectorProps {
   onSelect: (pipeline: Pipeline) => void;
   onCreateNew: () => void;
   onManage?: () => void;
+  onEdit?: (pipeline: Pipeline) => void;
+  onSetUserDefault?: (pipelineId: string) => void;
+  userDefaultPipelineId?: string | null;
   isLoading?: boolean;
 }
 
@@ -39,9 +47,23 @@ export function PipelineSelector({
   onSelect,
   onCreateNew,
   onManage,
+  onEdit,
+  onSetUserDefault,
+  userDefaultPipelineId,
   isLoading,
 }: PipelineSelectorProps) {
   const [open, setOpen] = useState(false);
+
+  const handleSetDefault = (e: React.MouseEvent, pipelineId: string) => {
+    e.stopPropagation();
+    onSetUserDefault?.(pipelineId);
+  };
+
+  const handleEdit = (e: React.MouseEvent, pipeline: Pipeline) => {
+    e.stopPropagation();
+    setOpen(false);
+    onEdit?.(pipeline);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -73,34 +95,71 @@ export function PipelineSelector({
           <CommandList>
             <CommandEmpty>Nenhum funil encontrado.</CommandEmpty>
             <CommandGroup heading="Funis de Vendas">
-              {pipelines.map((pipeline) => (
-                <CommandItem
-                  key={pipeline.id}
-                  value={pipeline.name}
-                  onSelect={() => {
-                    onSelect(pipeline);
-                    setOpen(false);
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <Check
-                    className={cn(
-                      'h-4 w-4',
-                      selectedPipeline?.id === pipeline.id
-                        ? 'opacity-100'
-                        : 'opacity-0'
-                    )}
-                  />
-                  <div className="flex-1">
-                    <span className="font-medium">{pipeline.name}</span>
-                    {pipeline.is_default && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        (Padrão)
-                      </span>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
+              {pipelines.map((pipeline) => {
+                const isUserDefault = pipeline.id === userDefaultPipelineId;
+                
+                return (
+                  <CommandItem
+                    key={pipeline.id}
+                    value={pipeline.name}
+                    onSelect={() => {
+                      onSelect(pipeline);
+                      setOpen(false);
+                    }}
+                    className="flex items-center gap-2 group"
+                  >
+                    <Check
+                      className={cn(
+                        'h-4 w-4 shrink-0',
+                        selectedPipeline?.id === pipeline.id
+                          ? 'opacity-100'
+                          : 'opacity-0'
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium truncate">{pipeline.name}</span>
+                      {isUserDefault && (
+                        <span className="ml-2 text-xs text-primary">
+                          (Meu Padrão)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={(e) => handleSetDefault(e, pipeline.id)}
+                            className={cn(
+                              "p-1 rounded hover:bg-accent transition-colors",
+                              isUserDefault && "text-primary"
+                            )}
+                          >
+                            <Star className={cn("h-3.5 w-3.5", isUserDefault && "fill-current")} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {isUserDefault ? 'Funil padrão atual' : 'Definir como meu padrão'}
+                        </TooltipContent>
+                      </Tooltip>
+                      {onEdit && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={(e) => handleEdit(e, pipeline)}
+                              className="p-1 rounded hover:bg-accent transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            Editar funil
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup>

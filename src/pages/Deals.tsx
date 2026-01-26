@@ -9,6 +9,7 @@ import { StageManagerSheet } from '@/components/deals/StageManagerSheet';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { ViewMode } from '@/components/deals/ViewModeSelector';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useUserDefaultPipeline } from '@/hooks/useUserDefaultPipeline';
 
 interface Pipeline {
   id: string;
@@ -32,9 +33,12 @@ export default function Deals() {
   });
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
   const [isPipelineFormOpen, setIsPipelineFormOpen] = useState(false);
+  const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
   const [isStageManagerOpen, setIsStageManagerOpen] = useState(false);
   const [isDealFormOpen, setIsDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<any>(null);
+
+  const { userDefaultPipelineId, setDefaultPipeline } = useUserDefaultPipeline();
 
   // Persist view mode
   useEffect(() => {
@@ -54,13 +58,15 @@ export default function Deals() {
     },
   });
 
-  // Set default pipeline on load
+  // Set default pipeline on load - prioritize user's default
   useEffect(() => {
     if (pipelines.length > 0 && !selectedPipeline) {
-      const defaultPipeline = pipelines.find(p => p.is_default) || pipelines[0];
-      setSelectedPipeline(defaultPipeline);
+      // Priority: 1) User's default, 2) Global default, 3) First pipeline
+      const userDefault = pipelines.find(p => p.id === userDefaultPipelineId);
+      const globalDefault = pipelines.find(p => p.is_default);
+      setSelectedPipeline(userDefault || globalDefault || pipelines[0]);
     }
-  }, [pipelines, selectedPipeline]);
+  }, [pipelines, selectedPipeline, userDefaultPipelineId]);
 
   // Fetch stages for the selected pipeline
   const { data: stages = [], isLoading: stagesLoading } = useQuery({
@@ -101,6 +107,16 @@ export default function Deals() {
     setIsDealFormOpen(true);
   };
 
+  const handleEditPipeline = (pipeline: Pipeline) => {
+    setEditingPipeline(pipeline);
+    setIsPipelineFormOpen(true);
+  };
+
+  const handleCreatePipeline = () => {
+    setEditingPipeline(null);
+    setIsPipelineFormOpen(true);
+  };
+
   if (pipelinesLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -129,9 +145,12 @@ export default function Deals() {
         pipelines={pipelines}
         selectedPipeline={selectedPipeline}
         onPipelineSelect={setSelectedPipeline}
-        onCreatePipeline={() => setIsPipelineFormOpen(true)}
+        onCreatePipeline={handleCreatePipeline}
+        onEditPipeline={handleEditPipeline}
         onOpenStageManager={() => setIsStageManagerOpen(true)}
         onAddDeal={handleAddDeal}
+        onSetUserDefault={setDefaultPipeline}
+        userDefaultPipelineId={userDefaultPipelineId || null}
         dealCount={openDeals.length}
         totalDeals={deals.length}
         totalValue={totalValue}
@@ -154,8 +173,11 @@ export default function Deals() {
       {/* Pipeline Form Sheet */}
       <PipelineFormSheet
         open={isPipelineFormOpen}
-        onOpenChange={setIsPipelineFormOpen}
-        pipeline={null}
+        onOpenChange={(open) => {
+          setIsPipelineFormOpen(open);
+          if (!open) setEditingPipeline(null);
+        }}
+        pipeline={editingPipeline}
       />
 
       {/* Stage Manager Sheet */}
