@@ -5,12 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { KanbanColumn } from './KanbanColumn';
 import { DealFormSheet } from './DealFormSheet';
-import { PipelineSelector } from './PipelineSelector';
-import { PipelineFormSheet } from './PipelineFormSheet';
-import { StageManagerSheet } from './StageManagerSheet';
 import { KanbanFilters, KanbanFiltersState } from './KanbanFilters';
-import { Button } from '@/components/ui/button';
-import { Plus, Briefcase, TrendingUp, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NextActivityDialog } from './detail/NextActivityDialog';
@@ -55,16 +50,18 @@ interface Activity {
   deal_id: string;
 }
 
-export function KanbanBoard() {
+interface KanbanBoardProps {
+  selectedPipeline: Pipeline | null;
+  stages: Stage[];
+  stagesLoading?: boolean;
+}
+
+export function KanbanBoard({ selectedPipeline, stages, stagesLoading }: KanbanBoardProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
-  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
-  const [isPipelineFormOpen, setIsPipelineFormOpen] = useState(false);
-  const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
-  const [isStageManagerOpen, setIsStageManagerOpen] = useState(false);
   const [showNextActivityDialog, setShowNextActivityDialog] = useState(false);
   const [completedActivityDealId, setCompletedActivityDealId] = useState<string | null>(null);
   const [filters, setFilters] = useState<KanbanFiltersState>(() => {
@@ -90,43 +87,6 @@ export function KanbanBoard() {
   useEffect(() => {
     localStorage.setItem('kanban-filters', JSON.stringify(filters));
   }, [filters]);
-
-  // Fetch all pipelines
-  const { data: pipelines = [], isLoading: pipelinesLoading } = useQuery({
-    queryKey: ['pipelines'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('pipelines')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data as Pipeline[];
-    },
-  });
-
-  // Set default pipeline on load
-  useEffect(() => {
-    if (pipelines.length > 0 && !selectedPipeline) {
-      const defaultPipeline = pipelines.find(p => p.is_default) || pipelines[0];
-      setSelectedPipeline(defaultPipeline);
-    }
-  }, [pipelines, selectedPipeline]);
-
-  // Fetch stages for the selected pipeline
-  const { data: stages = [], isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages', selectedPipeline?.id],
-    queryFn: async () => {
-      if (!selectedPipeline?.id) return [];
-      const { data, error } = await supabase
-        .from('stages')
-        .select('*')
-        .eq('pipeline_id', selectedPipeline.id)
-        .order('position');
-      if (error) throw error;
-      return data as Stage[];
-    },
-    enabled: !!selectedPipeline?.id,
-  });
 
   // Fetch deals for the selected pipeline
   const { data: deals = [], isLoading: dealsLoading } = useQuery({
@@ -266,11 +226,6 @@ export function KanbanBoard() {
     setEditingDeal(null);
   };
 
-  const handleCreatePipeline = () => {
-    setEditingPipeline(null);
-    setIsPipelineFormOpen(true);
-  };
-
   // Filter deals based on active filters
   const filteredDeals = deals.filter((deal) => {
     // Insurance type filter
@@ -292,11 +247,6 @@ export function KanbanBoard() {
       const dealDate = new Date(deal.expected_close_date);
       if (dealDate > filters.dateRange.to) return false;
     }
-    // Owner filter
-    if (filters.ownerId && deal.organization_id !== filters.ownerId) {
-      // Note: We're checking owner_id on the deal if available
-      // For now, skip if the field doesn't match
-    }
     return true;
   });
 
@@ -313,23 +263,9 @@ export function KanbanBoard() {
     return acc;
   }, {} as Record<string, number>);
 
-  // Calculate total pipeline value (filtered)
-  const totalPipelineValue = filteredDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
-
-  if (pipelinesLoading || stagesLoading || dealsLoading) {
+  if (stagesLoading || dealsLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <div className="flex gap-3">
-            <Skeleton className="h-10 w-48" />
-            <Skeleton className="h-10 w-10" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </div>
+      <div className="space-y-6">
         <div className="flex gap-4 overflow-x-auto pb-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div 
@@ -355,66 +291,13 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="p-6 space-y-6 h-full animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                <Briefcase className="h-5 w-5" />
-              </div>
-              <span className="text-gradient">Negócios</span>
-            </h1>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-sm text-muted-foreground">
-                {filteredDeals.length} negócio{filteredDeals.length !== 1 ? 's' : ''} 
-                {filteredDeals.length !== deals.length && ` (de ${deals.length})`}
-              </span>
-              <span className="text-muted-foreground/50">•</span>
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
-                <TrendingUp className="h-3.5 w-3.5 text-primary" />
-                <span className="text-sm font-semibold text-primary animate-count-up">
-                  {new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                    minimumFractionDigits: 0,
-                  }).format(totalPipelineValue)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <PipelineSelector
-            pipelines={pipelines}
-            selectedPipeline={selectedPipeline}
-            onSelect={setSelectedPipeline}
-            onCreateNew={handleCreatePipeline}
-          />
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => setIsStageManagerOpen(true)}
-            title="Gerenciar etapas"
-            className="border-border/50 hover:border-primary/30 hover:bg-primary/5"
-          >
-            <Settings2 className="h-4 w-4" />
-          </Button>
-          <Button onClick={() => handleAddDeal()} className="shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Negócio
-          </Button>
-        </div>
-      </div>
-
+    <div className="space-y-6 animate-fade-in">
       {/* Filters */}
       <KanbanFilters filters={filters} onFiltersChange={setFilters} />
 
       {/* Kanban Board */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)]">
+        <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-280px)]">
           {stages.map((stage) => (
             <Droppable key={stage.id} droppableId={stage.id}>
               {(provided, snapshot) => (
@@ -445,14 +328,6 @@ export function KanbanBoard() {
         stages={stages}
       />
 
-      {/* Pipeline Form Sheet */}
-      <PipelineFormSheet
-        open={isPipelineFormOpen}
-        onOpenChange={setIsPipelineFormOpen}
-        pipeline={editingPipeline}
-      />
-
-      {/* Stage Manager Sheet */}
       {/* Next Activity Dialog */}
       {completedActivityDealId && (
         <NextActivityDialog
@@ -462,15 +337,6 @@ export function KanbanBoard() {
             if (!open) setCompletedActivityDealId(null);
           }}
           dealId={completedActivityDealId}
-        />
-      )}
-
-      {selectedPipeline && (
-        <StageManagerSheet
-          open={isStageManagerOpen}
-          onOpenChange={setIsStageManagerOpen}
-          pipelineId={selectedPipeline.id}
-          pipelineName={selectedPipeline.name}
         />
       )}
     </div>
