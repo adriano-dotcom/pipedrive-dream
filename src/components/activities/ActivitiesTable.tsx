@@ -474,7 +474,7 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               className={cn(
-                                "align-top",
+                                "align-top text-center",
                                 snapshot.isDragging && "bg-muted shadow-lg"
                               )}
                               style={{
@@ -486,7 +486,7 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
                                 {/* Header com Grip para arrastar */}
                                 <div 
                                   className={cn(
-                                    "flex items-center gap-1",
+                                    "flex items-center justify-center gap-1",
                                     header.id !== 'is_completed' && "cursor-grab active:cursor-grabbing"
                                   )}
                                   {...provided.dragHandleProps}
