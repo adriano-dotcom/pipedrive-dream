@@ -105,7 +105,7 @@ function SortableHeader({ column, title }: { column: Column<Activity>; title: st
     <Button
       variant="ghost"
       onClick={() => column.toggleSorting(sorted === 'asc')}
-      className="h-auto p-0 font-semibold hover:bg-transparent text-xs uppercase tracking-wider"
+      className="h-auto p-0 font-semibold hover:bg-transparent text-xs uppercase tracking-wider w-full justify-center"
     >
       {title}
       {sorted === 'asc' ? (
