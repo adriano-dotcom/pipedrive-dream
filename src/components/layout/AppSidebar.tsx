@@ -1,9 +1,9 @@
 import { 
-  Building2, 
-  Users, 
-  Briefcase, 
-  CheckSquare, 
-  LayoutDashboard, 
+  Building, 
+  UsersRound, 
+  Handshake, 
+  ListTodo, 
+  LayoutGrid, 
   Settings, 
   LogOut, 
   ChevronLeft, 
@@ -29,11 +29,11 @@ import { Separator } from '@/components/ui/separator';
 import { GlobalSearch } from './GlobalSearch';
 
 const menuItems = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Organizações', url: '/organizations', icon: Building2 },
-  { title: 'Pessoas', url: '/people', icon: Users },
-  { title: 'Negócios', url: '/deals', icon: Briefcase },
-  { title: 'Atividades', url: '/activities', icon: CheckSquare },
+  { title: 'Dashboard', url: '/', icon: LayoutGrid },
+  { title: 'Organizações', url: '/organizations', icon: Building },
+  { title: 'Pessoas', url: '/people', icon: UsersRound },
+  { title: 'Negócios', url: '/deals', icon: Handshake },
+  { title: 'Atividades', url: '/activities', icon: ListTodo },
 ];
 
 export function AppSidebar() {
