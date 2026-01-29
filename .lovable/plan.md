@@ -69,24 +69,29 @@ Após análise detalhada do código-fonte, identifiquei que o sistema já está 
 
 ---
 
-### SPRINT 2: Melhorias UX (8-12h)
+### SPRINT 2: Melhorias UX (8-12h) ✅ CONCLUÍDO
 
-#### 2.1 Breadcrumbs
+#### 2.1 Breadcrumbs ✅
 
-Criar componente de breadcrumbs e adicionar em todas as páginas de detalhes:
+Componente de breadcrumbs criado e adicionado em todas as páginas de detalhes:
 
 ```text
 📍 Dashboard > Pessoas > João Silva
 📍 Dashboard > Negócios > Proposta ABC
+📍 Dashboard > Organizações > Empresa XYZ
 ```
 
-**Arquivos a criar/modificar:**
-- Criar: `src/components/layout/PageBreadcrumbs.tsx`
-- Modificar: `PersonDetails.tsx`, `DealDetails.tsx`, `OrganizationDetails.tsx`
+**Arquivos criados:**
+- `src/components/layout/PageBreadcrumbs.tsx`
 
-#### 2.2 Modal de Confirmação para Exclusão
+**Arquivos modificados:**
+- `src/pages/PersonDetails.tsx` - Breadcrumbs adicionados
+- `src/pages/DealDetails.tsx` - Breadcrumbs adicionados
+- `src/pages/OrganizationDetails.tsx` - Breadcrumbs adicionados
 
-Substituir `confirm()` nativo por AlertDialog do shadcn/ui:
+#### 2.2 Modal de Confirmação para Exclusão ✅
+
+`confirm()` nativo substituído por AlertDialog estilizado:
 
 ```text
 ┌─────────────────────────────────────┐
@@ -101,14 +106,16 @@ Substituir `confirm()` nativo por AlertDialog do shadcn/ui:
 └─────────────────────────────────────┘
 ```
 
-**Arquivos a modificar:**
-- `src/pages/People.tsx`
-- `src/pages/Organizations.tsx`
-- `src/pages/Deals.tsx`
+**Arquivos criados:**
+- `src/components/shared/DeleteConfirmDialog.tsx`
+
+**Arquivos modificados:**
+- `src/pages/People.tsx` - Dialog integrado
+- `src/pages/Organizations.tsx` - Dialog integrado
 
 #### 2.3 Navegação Próximo/Anterior em Detalhes
 
-Adicionar setas para navegar entre registros:
+Adicionar setas para navegar entre registros (pendente):
 
 ```text
 [← Anterior]  João Silva (3 de 50)  [Próximo →]
