@@ -1,291 +1,106 @@
+# CRM Jacometo - Plano de Melhorias
 
-# Sprint 3: Funcionalidade de Exportação de Dados (CSV/Excel)
+## Status Geral
 
-## Objetivo
-Adicionar botões de exportação em todas as tabelas de listagem, permitindo exportar os dados filtrados e visíveis para CSV e Excel.
-
----
-
-## Arquitetura da Solução
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                        BARRA DE FERRAMENTAS                         │
-├─────────────────────────────────────────────────────────────────────┤
-│  [📥 CSV] [📥 Excel]                              [⚙️ Colunas]      │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                     src/lib/export.ts                               │
-├─────────────────────────────────────────────────────────────────────┤
-│ - exportToCSV(data, columns, filename)                              │
-│ - exportToExcel(data, columns, filename)                            │
-│ - downloadFile(content, filename, mimeType)                         │
-│ - formatValue(value, type)                                          │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| Sprint | Status | Descrição |
+|--------|--------|-----------|
+| Sprint 1 | ✅ CONCLUÍDO | Responsividade Mobile |
+| Sprint 2 | ✅ CONCLUÍDO | Melhorias UX (Breadcrumbs + Modal) |
+| Sprint 3 | ✅ CONCLUÍDO | Exportação de Dados |
+| Sprint 4 | 🔲 PENDENTE | Gráficos e Relatórios |
 
 ---
 
-## Arquivos a Criar
+## SPRINT 1: Responsividade Mobile ✅ CONCLUÍDO
 
-### 1. `src/lib/export.ts` - Utilitário de Exportação
+### 1.1 MobileDrawer ✅
+- Criado `src/components/layout/MobileDrawer.tsx`
+- Menu deslizante para navegação mobile
+- Integrado no `AppLayout.tsx`
 
-Funções principais:
+### 1.2 Tabelas Adaptadas para Mobile ✅
+- `PeopleMobileList.tsx` - Lista de pessoas em cards
+- `OrganizationsMobileList.tsx` - Lista de organizações em cards
+- `ActivitiesMobileList.tsx` - Lista de atividades em cards
+- Componente genérico `MobileCardView.tsx` para reutilização
 
-```typescript
-interface ExportColumn {
-  id: string;
-  label: string;
-  accessor: (row: any) => string | number | null;
-}
-
-// Exportar para CSV
-export function exportToCSV(
-  data: any[],
-  columns: ExportColumn[],
-  filename: string
-): void;
-
-// Exportar para Excel (formato XLSX simplificado ou HTML)
-export function exportToExcel(
-  data: any[],
-  columns: ExportColumn[],
-  filename: string
-): void;
-
-// Utilitário para formatar valores
-function formatValue(value: any): string;
-
-// Utilitário para download
-function downloadFile(content: string, filename: string, mimeType: string): void;
-```
-
-**Características:**
-- Sem dependências externas (não precisa instalar xlsx)
-- CSV com encoding UTF-8 BOM para suporte a acentos
-- Excel gerado como HTML com extensão .xls (compatível com Excel/LibreOffice)
-- Formatação automática de datas, valores monetários e telefones
+### 1.3 IOSTabBar ✅
+- Tab bar inferior integrada no layout mobile
 
 ---
 
-## Arquivos a Modificar
+## SPRINT 2: Melhorias UX ✅ CONCLUÍDO
 
-### 2. `src/components/people/PeopleTable.tsx`
+### 2.1 Breadcrumbs ✅
+- Criado `src/components/layout/PageBreadcrumbs.tsx`
+- Integrado em `PersonDetails.tsx`, `OrganizationDetails.tsx`, `DealDetails.tsx`
+- Navegação contextual clara
 
-**Mudanças:**
-- Adicionar imports de `exportToCSV` e `exportToExcel`
-- Definir `exportColumns` com mapeamento de dados
-- Adicionar botões de exportação na barra de ferramentas
-
-```text
-┌────────────────────────────────────────────────────────┐
-│ [📥 CSV] [📥 Excel]                     [⚙️ Colunas]  │
-├────────────────────────────────────────────────────────┤
-│ Nome  │ Telefone │ Email │ Empresa │ CNPJ │ Cidade   │
-```
-
-**Colunas exportáveis:**
-| Coluna | Valor Exportado |
-|--------|-----------------|
-| Nome | `person.name` |
-| CPF | `person.cpf` |
-| Telefone | `person.phone` |
-| WhatsApp | `person.whatsapp` |
-| Email | `person.email` |
-| Empresa | `person.organizations?.name` |
-| CNPJ | `person.organizations?.cnpj` |
-| Cargo | `person.job_title` |
-| Cidade | `organizations?.address_city/address_state` |
-| Automotores | `organizations?.automotores` |
-| Status | `person.label` |
+### 2.2 Modal de Confirmação ✅
+- Criado `src/components/shared/DeleteConfirmDialog.tsx`
+- Substitui `window.confirm()` nativo
+- Integrado em `People.tsx` e `Organizations.tsx`
+- Feedback visual durante exclusão
 
 ---
 
-### 3. `src/components/organizations/OrganizationsTable.tsx`
+## SPRINT 3: Exportação de Dados ✅ CONCLUÍDO
 
-**Mudanças similares ao PeopleTable**
+### 3.1 Utilitário de Exportação ✅
+- Criado `src/lib/export.ts` com funções:
+  - `exportToCSV()` - UTF-8 com BOM, separador `;`
+  - `exportToExcel()` - HTML table com extensão .xls
+- Sem dependências externas
 
-**Colunas exportáveis:**
-| Coluna | Valor Exportado |
-|--------|-----------------|
-| Nome | `organization.name` |
-| CNPJ | `organization.cnpj` |
-| Automotores | `organization.automotores` |
-| Contato Principal | `primary_contact?.name` |
-| Telefone Contato | `primary_contact?.phone` |
-| Email Contato | `primary_contact?.email` |
-| Cidade | `address_city/address_state` |
-| Status | `organization.label` |
+### 3.2 Componente ExportButtons ✅
+- Criado `src/components/shared/ExportButtons.tsx`
+- Botões reutilizáveis para CSV e Excel
 
----
+### 3.3 Integração nas Tabelas ✅
+- `PeopleTable.tsx` - Exporta pessoas com dados da organização
+- `OrganizationsTable.tsx` - Exporta organizações com contato principal
+- `ActivitiesTable.tsx` - Exporta atividades com traduções
+- `DealsTable.tsx` - Exporta negócios com valores formatados
 
-### 4. `src/components/activities/ActivitiesTable.tsx`
+**Colunas exportadas por tabela:**
 
-**Colunas exportáveis:**
-| Coluna | Valor Exportado |
-|--------|-----------------|
-| Assunto | `activity.title` |
-| Tipo | `activity.activity_type` (traduzido) |
-| Data de Vencimento | `activity.due_date` (formatada) |
-| Hora | `activity.due_time` |
-| Pessoa | `activity.person?.name` |
-| Organização | `activity.organization?.name` |
-| Telefone | `activity.person?.phone` |
-| Email | `activity.person?.email` |
-| Vinculado a | Deal/Person/Organization name |
-| Criado por | `activity.creator?.full_name` |
-| Status | Concluída/Pendente |
-| Prioridade | `activity.priority` (traduzido) |
+| Pessoas | Organizações | Atividades | Negócios |
+|---------|--------------|------------|----------|
+| Nome | Nome | Assunto | Título |
+| CPF | CNPJ | Tipo | Valor |
+| Telefone | Automotores | Data/Hora | Etapa |
+| WhatsApp | Contato Principal | Pessoa | Status |
+| Email | Telefone Contato | Organização | Pessoa |
+| Empresa | Email Contato | Telefone | Organização |
+| CNPJ | Cidade | Email | Tipo Seguro |
+| Cargo | Status | Vinculado a | Etiqueta |
+| Cidade | | Criado por | Data Criação |
+| Automotores | | Status | Previsão |
+| Status | | Prioridade | |
 
 ---
 
-### 5. `src/components/deals/DealsTable.tsx`
+## SPRINT 4: Gráficos e Relatórios 🔲 PENDENTE
 
-**Colunas exportáveis:**
-| Coluna | Valor Exportado |
-|--------|-----------------|
-| Título | `deal.title` |
-| Valor | `deal.value` (formatado R$) |
-| Etapa | `deal.stage?.name` |
-| Status | `deal.status` (traduzido) |
-| Pessoa | `deal.person?.name` |
-| Organização | `deal.organization?.name` |
-| Tipo de Seguro | `deal.insurance_type` (traduzido) |
-| Etiqueta | `deal.label` (traduzido) |
-| Data Criação | `deal.created_at` (formatada) |
-| Previsão Fechamento | `deal.expected_close_date` (formatada) |
+### 4.1 Pipeline Visual no Dashboard
+- Gráfico de barras mostrando valor por etapa
+- Componente: `src/components/dashboard/PipelineChart.tsx`
 
----
+### 4.2 Forecast Chart
+- Gráfico de previsão de fechamentos
+- Componente: `src/components/dashboard/ForecastChart.tsx`
 
-## Componente Reutilizável (Opcional)
+### 4.3 Cards de Resumo
+- Total de negócios por status
+- Valor total do pipeline
+- Atividades pendentes
 
-### 6. `src/components/shared/ExportButtons.tsx`
-
-Componente para encapsular os botões de exportação:
-
-```tsx
-interface ExportButtonsProps {
-  data: any[];
-  columns: ExportColumn[];
-  filename: string;
-}
-
-export function ExportButtons({ data, columns, filename }: ExportButtonsProps) {
-  return (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={() => exportToCSV(data, columns, filename)}>
-        <Download className="h-4 w-4 mr-2" />
-        CSV
-      </Button>
-      <Button variant="outline" size="sm" onClick={() => exportToExcel(data, columns, filename)}>
-        <FileSpreadsheet className="h-4 w-4 mr-2" />
-        Excel
-      </Button>
-    </div>
-  );
-}
-```
+**Estimativa:** 16-20h
 
 ---
 
-## Fluxo de Exportação
+## Próximos Passos
 
-```text
-Usuário clica "Exportar CSV"
-         │
-         ▼
-┌────────────────────────────┐
-│ 1. Pegar dados filtrados   │  (respeitando filtros e busca ativos)
-│    da tabela atual         │
-└────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────┐
-│ 2. Mapear colunas visíveis │  (respeitando columnVisibility)
-│    para exportColumns      │
-└────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────┐
-│ 3. Formatar valores        │  (datas, moedas, telefones)
-└────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────┐
-│ 4. Gerar arquivo           │  (CSV com BOM ou HTML table)
-└────────────────────────────┘
-         │
-         ▼
-┌────────────────────────────┐
-│ 5. Trigger download        │  (Blob + link.click())
-└────────────────────────────┘
-```
-
----
-
-## Detalhes de Implementação
-
-### Formato CSV
-- Encoding: UTF-8 com BOM (`\uFEFF`) para compatibilidade com Excel
-- Separador: `;` (padrão brasileiro, melhor suporte a valores com vírgulas)
-- Aspas: Valores com quebra de linha ou `;` são envolvidos em aspas
-- Nome do arquivo: `{entidade}_{data_hora}.csv`
-
-### Formato Excel
-- Formato: HTML Table com extensão `.xls`
-- Vantagens: Sem dependências, funciona em Excel/LibreOffice/Google Sheets
-- Estilo: Headers em negrito, bordas simples
-- Nome do arquivo: `{entidade}_{data_hora}.xls`
-
----
-
-## Exemplo de Arquivo CSV Gerado
-
-```csv
-Nome;CPF;Telefone;Email;Empresa;CNPJ;Cargo;Cidade;Status
-João Silva;123.456.789-00;(11) 99999-9999;joao@email.com;Empresa ABC;12.345.678/0001-99;Gerente;São Paulo/SP;Quente
-Maria Santos;;(21) 88888-8888;maria@email.com;XYZ Ltda;;Diretora;Rio de Janeiro/RJ;Morno
-```
-
----
-
-## Estimativa de Tempo
-
-| Tarefa | Tempo |
-|--------|-------|
-| Criar `src/lib/export.ts` | 1-2h |
-| Integrar em PeopleTable | 1h |
-| Integrar em OrganizationsTable | 1h |
-| Integrar em ActivitiesTable | 1h |
-| Integrar em DealsTable | 1h |
-| Criar ExportButtons (opcional) | 0.5h |
-| Testes e ajustes | 1-2h |
-| **Total** | **6-9h** |
-
----
-
-## Atualização do plan.md
-
-Após implementação, marcar Sprint 3 como concluído:
-
-```markdown
-### SPRINT 3: Exportação de Dados (8-10h) ✅ CONCLUÍDO
-
-#### 3.1 Implementar Exportação CSV/Excel ✅
-- `src/lib/export.ts` criado com funções `exportToCSV` e `exportToExcel`
-- Botões de exportação adicionados em todas as tabelas
-- Suporte a encoding UTF-8 com BOM para acentos
-- Respeita filtros e colunas visíveis ao exportar
-
-**Arquivos criados:**
-- `src/lib/export.ts`
-- `src/components/shared/ExportButtons.tsx` (opcional)
-
-**Arquivos modificados:**
-- `src/components/people/PeopleTable.tsx`
-- `src/components/organizations/OrganizationsTable.tsx`
-- `src/components/activities/ActivitiesTable.tsx`
-- `src/components/deals/DealsTable.tsx`
-```
+1. **Sprint 4**: Implementar gráficos de Pipeline e Forecast no Dashboard
+2. **Navegação Anterior/Próximo**: Adicionar setas para navegar entre registros nas páginas de detalhes
+3. **Melhorias de Performance**: Lazy loading de componentes, virtualização de listas longas
