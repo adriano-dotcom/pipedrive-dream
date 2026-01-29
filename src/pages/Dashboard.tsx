@@ -1,21 +1,27 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Building2, Users, Briefcase, CheckSquare, Clock, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Building2, Users, Briefcase, CheckSquare, Clock, ArrowUpRight, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfDay, parseISO, isBefore, isToday } from 'date-fns';
+import { format, startOfDay, parseISO, isBefore, isToday, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 
+interface TrendData {
+  value: number;
+  percentage: number;
+  direction: 'up' | 'down' | 'neutral';
+}
+
 interface StatCardProps {
   title: string;
   value: number | string;
   subtitle: string;
   icon: React.ElementType;
-  trend?: string;
+  trend?: TrendData;
   href?: string;
   variant?: 'default' | 'warning' | 'success';
   loading?: boolean;
@@ -51,10 +57,27 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, href, variant = '
           <>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold tracking-tight">{value}</span>
-              {trend && (
-                <Badge variant="secondary" className="text-xs bg-success/10 text-success border-0">
-                  <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                  {trend}
+              {trend && trend.direction !== 'neutral' && (
+                <Badge 
+                  variant="secondary" 
+                  className={cn(
+                    "text-xs border-0",
+                    trend.direction === 'up' && "bg-success/10 text-success",
+                    trend.direction === 'down' && "bg-destructive/10 text-destructive"
+                  )}
+                >
+                  {trend.direction === 'up' ? (
+                    <TrendingUp className="h-3 w-3 mr-0.5" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 mr-0.5" />
+                  )}
+                  {trend.percentage > 0 ? '+' : ''}{trend.percentage.toFixed(0)}%
+                </Badge>
+              )}
+              {trend && trend.direction === 'neutral' && (
+                <Badge variant="secondary" className="text-xs border-0 bg-muted text-muted-foreground">
+                  <Minus className="h-3 w-3 mr-0.5" />
+                  0%
                 </Badge>
               )}
             </div>
@@ -77,22 +100,99 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, href, variant = '
   return content;
 }
 
+function calculateTrend(current: number, previous: number): TrendData {
+  if (previous === 0) {
+    return {
+      value: current,
+      percentage: current > 0 ? 100 : 0,
+      direction: current > 0 ? 'up' : 'neutral'
+    };
+  }
+  const percentage = ((current - previous) / previous) * 100;
+  return {
+    value: current - previous,
+    percentage,
+    direction: percentage > 0 ? 'up' : percentage < 0 ? 'down' : 'neutral'
+  };
+}
+
 export default function Dashboard() {
   const { profile, isAdmin } = useAuth();
 
+  // Get current and previous month date ranges
+  const now = new Date();
+  const currentMonthStart = startOfMonth(now);
+  const currentMonthEnd = endOfMonth(now);
+  const previousMonth = subMonths(now, 1);
+  const previousMonthStart = startOfMonth(previousMonth);
+  const previousMonthEnd = endOfMonth(previousMonth);
+
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['dashboard-stats'],
+    queryKey: ['dashboard-stats-comparison'],
     queryFn: async () => {
+      // Current counts (total)
       const [orgsResult, peopleResult, dealsResult] = await Promise.all([
         supabase.from('organizations').select('id', { count: 'exact', head: true }),
         supabase.from('people').select('id', { count: 'exact', head: true }),
         supabase.from('deals').select('id', { count: 'exact', head: true }).eq('status', 'open'),
       ]);
 
+      // Current month new additions
+      const [orgsCurrentMonth, peopleCurrentMonth, dealsCurrentMonth] = await Promise.all([
+        supabase
+          .from('organizations')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', currentMonthStart.toISOString())
+          .lte('created_at', currentMonthEnd.toISOString()),
+        supabase
+          .from('people')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', currentMonthStart.toISOString())
+          .lte('created_at', currentMonthEnd.toISOString()),
+        supabase
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open')
+          .gte('created_at', currentMonthStart.toISOString())
+          .lte('created_at', currentMonthEnd.toISOString()),
+      ]);
+
+      // Previous month new additions
+      const [orgsPrevMonth, peoplePrevMonth, dealsPrevMonth] = await Promise.all([
+        supabase
+          .from('organizations')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', previousMonthStart.toISOString())
+          .lte('created_at', previousMonthEnd.toISOString()),
+        supabase
+          .from('people')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', previousMonthStart.toISOString())
+          .lte('created_at', previousMonthEnd.toISOString()),
+        supabase
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open')
+          .gte('created_at', previousMonthStart.toISOString())
+          .lte('created_at', previousMonthEnd.toISOString()),
+      ]);
+
       return {
-        organizations: orgsResult.count || 0,
-        people: peopleResult.count || 0,
-        deals: dealsResult.count || 0,
+        organizations: {
+          total: orgsResult.count || 0,
+          current: orgsCurrentMonth.count || 0,
+          previous: orgsPrevMonth.count || 0,
+        },
+        people: {
+          total: peopleResult.count || 0,
+          current: peopleCurrentMonth.count || 0,
+          previous: peoplePrevMonth.count || 0,
+        },
+        deals: {
+          total: dealsResult.count || 0,
+          current: dealsCurrentMonth.count || 0,
+          previous: dealsPrevMonth.count || 0,
+        },
       };
     },
   });
@@ -144,27 +244,30 @@ export default function Dashboard() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 stagger-children">
           <StatCard
             title="Organizações"
-            value={stats?.organizations || 0}
+            value={stats?.organizations.total || 0}
             subtitle="empresas cadastradas"
             icon={Building2}
             href="/organizations"
             loading={statsLoading}
+            trend={stats ? calculateTrend(stats.organizations.current, stats.organizations.previous) : undefined}
           />
           <StatCard
             title="Pessoas"
-            value={stats?.people || 0}
+            value={stats?.people.total || 0}
             subtitle="contatos cadastrados"
             icon={Users}
             href="/people"
             loading={statsLoading}
+            trend={stats ? calculateTrend(stats.people.current, stats.people.previous) : undefined}
           />
           <StatCard
             title="Negócios"
-            value={stats?.deals || 0}
+            value={stats?.deals.total || 0}
             subtitle="em andamento"
             icon={Briefcase}
             href="/deals"
             loading={statsLoading}
+            trend={stats ? calculateTrend(stats.deals.current, stats.deals.previous) : undefined}
           />
           <StatCard
             title="Atividades"
