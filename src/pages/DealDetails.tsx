@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trophy, XCircle, Pencil } from 'lucide-react';
+import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DealStageProgress } from '@/components/deals/detail/DealStageProgress';
@@ -108,6 +109,10 @@ export default function DealDetails() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          
+          {/* Record Navigation */}
+          <RecordNavigation entityType="deals" currentId={id || ''} />
+          
           <div>
             <h1 className="text-2xl font-bold">{deal.title}</h1>
             <p className="text-sm text-muted-foreground">
