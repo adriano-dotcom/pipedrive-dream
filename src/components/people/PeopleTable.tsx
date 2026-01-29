@@ -39,6 +39,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { PeopleMobileList } from './PeopleMobileList';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -113,6 +115,7 @@ function SortableHeader({ column, title }: { column: Column<PersonWithOrg>; titl
 }
 
 export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTableProps) {
+  const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -333,6 +336,11 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     setColumnOrder(currentOrder);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(currentOrder));
   };
+
+  // Mobile view
+  if (isMobile) {
+    return <PeopleMobileList people={people} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />;
+  }
 
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">

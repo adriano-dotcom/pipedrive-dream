@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { OrganizationsMobileList } from './OrganizationsMobileList';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -127,6 +129,7 @@ export function OrganizationsTable({
   onEdit,
   onDelete,
 }: OrganizationsTableProps) {
+  const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
     const saved = localStorage.getItem(COLUMN_ORDER_KEY);
@@ -331,6 +334,11 @@ export function OrganizationsTable({
     newOrder.splice(result.destination.index, 0, removed);
     setColumnOrder(newOrder);
   };
+
+  // Mobile view
+  if (isMobile) {
+    return <OrganizationsMobileList organizations={organizations} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />;
+  }
 
   return (
     <div className="rounded-md border overflow-hidden">
