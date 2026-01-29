@@ -42,6 +42,12 @@
 - Integrado em `People.tsx` e `Organizations.tsx`
 - Feedback visual durante exclusão
 
+### 2.3 Navegação Anterior/Próximo ✅
+- Criado `src/components/shared/RecordNavigation.tsx`
+- Navegação entre registros nas páginas de detalhes
+- Integrado em `PersonDetails.tsx`, `OrganizationDetails.tsx`, `DealDetails.tsx`
+- Mostra posição atual (ex: "3 / 50") e tooltips com nome do registro
+
 ---
 
 ## SPRINT 3: Exportação de Dados ✅ CONCLUÍDO

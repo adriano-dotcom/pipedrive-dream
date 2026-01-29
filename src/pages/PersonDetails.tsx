@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Pencil, Plus, User, Calendar } from 'lucide-react';
+import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -160,6 +161,9 @@ export default function PersonDetails() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          
+          {/* Record Navigation */}
+          <RecordNavigation entityType="people" currentId={id || ''} />
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 text-primary text-lg font-semibold">
             {person.name.charAt(0).toUpperCase()}
           </div>

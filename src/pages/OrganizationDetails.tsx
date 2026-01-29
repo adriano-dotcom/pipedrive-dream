@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Pencil, Plus, Building2, Calendar } from 'lucide-react';
+import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -161,6 +162,10 @@ export default function OrganizationDetails() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
+          
+          {/* Record Navigation */}
+          <RecordNavigation entityType="organizations" currentId={id || ''} />
+          
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
             <Building2 className="h-6 w-6 text-primary" />
           </div>
