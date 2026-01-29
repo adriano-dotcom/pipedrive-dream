@@ -71,6 +71,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ActivitiesMobileList } from './ActivitiesMobileList';
 import { Tables } from '@/integrations/supabase/types';
 
 export type Activity = Tables<'activities'> & {
@@ -146,6 +148,7 @@ function SortableHeader({ column, title }: { column: Column<Activity>; title: st
 
 export function ActivitiesTable({ activities, onToggleComplete, onEdit }: ActivitiesTableProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [sorting, setSorting] = useState<SortingState>([]);
   
@@ -493,6 +496,11 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
 
   if (activities.length === 0) {
     return null;
+  }
+
+  // Mobile view
+  if (isMobile) {
+    return <ActivitiesMobileList activities={activities} onToggleComplete={onToggleComplete} onEdit={onEdit} />;
   }
 
   const headerGroup = table.getHeaderGroups()[0];
