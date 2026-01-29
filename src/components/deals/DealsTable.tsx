@@ -47,6 +47,8 @@ import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2, Eye, Buildin
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ExportButtons } from '@/components/shared/ExportButtons';
+import type { ExportColumn } from '@/lib/export';
 
 interface Deal {
   id: string;
@@ -148,6 +150,38 @@ export function DealsTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState('');
+
+  // Export columns configuration
+  const statusLabels: Record<string, string> = {
+    open: 'Aberto',
+    won: 'Ganho',
+    lost: 'Perdido',
+  };
+
+  const labelLabels: Record<string, string> = {
+    hot: 'Quente',
+    warm: 'Morno',
+    cold: 'Frio',
+  };
+
+  const exportColumns: ExportColumn[] = useMemo(() => [
+    { id: 'title', label: 'Título', accessor: (row: Deal) => row.title },
+    { id: 'value', label: 'Valor', accessor: (row: Deal) => 
+      row.value ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.value) : null
+    },
+    { id: 'stage', label: 'Etapa', accessor: (row: Deal) => row.stage?.name },
+    { id: 'status', label: 'Status', accessor: (row: Deal) => statusLabels[row.status] || row.status },
+    { id: 'person', label: 'Pessoa', accessor: (row: Deal) => row.person?.name },
+    { id: 'organization', label: 'Organização', accessor: (row: Deal) => row.organization?.name },
+    { id: 'insurance_type', label: 'Tipo de Seguro', accessor: (row: Deal) => insuranceTypes[row.insurance_type || ''] || row.insurance_type },
+    { id: 'label', label: 'Etiqueta', accessor: (row: Deal) => labelLabels[row.label || ''] || row.label },
+    { id: 'created_at', label: 'Data Criação', accessor: (row: Deal) => 
+      format(new Date(row.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })
+    },
+    { id: 'expected_close_date', label: 'Previsão Fechamento', accessor: (row: Deal) => 
+      row.expected_close_date ? format(new Date(row.expected_close_date), 'dd/MM/yyyy', { locale: ptBR }) : null
+    },
+  ], []);
 
   const columns = useMemo<ColumnDef<Deal>[]>(() => [
     {
@@ -415,118 +449,126 @@ export function DealsTable({
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          placeholder="Buscar negócios..."
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          className="max-w-xs"
-        />
+      {/* Filters and Export */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            placeholder="Buscar negócios..."
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            className="max-w-xs"
+          />
         
-        <Select
-          value={stageFilter}
-          onValueChange={(value) => {
-            if (value === 'all') {
-              setColumnFilters(prev => prev.filter(f => f.id !== 'stage'));
-            } else {
-              setColumnFilters(prev => [
-                ...prev.filter(f => f.id !== 'stage'),
-                { id: 'stage', value }
-              ]);
-            }
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Etapa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas etapas</SelectItem>
-            {stages.map((stage) => (
-              <SelectItem key={stage.id} value={stage.id}>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: stage.color }}
-                  />
-                  {stage.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select
+            value={stageFilter}
+            onValueChange={(value) => {
+              if (value === 'all') {
+                setColumnFilters(prev => prev.filter(f => f.id !== 'stage'));
+              } else {
+                setColumnFilters(prev => [
+                  ...prev.filter(f => f.id !== 'stage'),
+                  { id: 'stage', value }
+                ]);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Etapa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas etapas</SelectItem>
+              {stages.map((stage) => (
+                <SelectItem key={stage.id} value={stage.id}>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: stage.color }}
+                    />
+                    {stage.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select
-          value={statusFilter}
-          onValueChange={(value) => {
-            if (value === 'all') {
-              setColumnFilters(prev => prev.filter(f => f.id !== 'status'));
-            } else {
-              setColumnFilters(prev => [
-                ...prev.filter(f => f.id !== 'status'),
-                { id: 'status', value }
-              ]);
-            }
-          }}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos status</SelectItem>
-            <SelectItem value="open">Aberto</SelectItem>
-            <SelectItem value="won">Ganho</SelectItem>
-            <SelectItem value="lost">Perdido</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              if (value === 'all') {
+                setColumnFilters(prev => prev.filter(f => f.id !== 'status'));
+              } else {
+                setColumnFilters(prev => [
+                  ...prev.filter(f => f.id !== 'status'),
+                  { id: 'status', value }
+                ]);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="open">Aberto</SelectItem>
+              <SelectItem value="won">Ganho</SelectItem>
+              <SelectItem value="lost">Perdido</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select
-          value={labelFilter}
-          onValueChange={(value) => {
-            if (value === 'all') {
-              setColumnFilters(prev => prev.filter(f => f.id !== 'label'));
-            } else {
-              setColumnFilters(prev => [
-                ...prev.filter(f => f.id !== 'label'),
-                { id: 'label', value }
-              ]);
-            }
-          }}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Etiqueta" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas etiquetas</SelectItem>
-            <SelectItem value="hot">🔥 Quente</SelectItem>
-            <SelectItem value="warm">🌡️ Morno</SelectItem>
-            <SelectItem value="cold">❄️ Frio</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select
+            value={labelFilter}
+            onValueChange={(value) => {
+              if (value === 'all') {
+                setColumnFilters(prev => prev.filter(f => f.id !== 'label'));
+              } else {
+                setColumnFilters(prev => [
+                  ...prev.filter(f => f.id !== 'label'),
+                  { id: 'label', value }
+                ]);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Etiqueta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas etiquetas</SelectItem>
+              <SelectItem value="hot">🔥 Quente</SelectItem>
+              <SelectItem value="warm">🌡️ Morno</SelectItem>
+              <SelectItem value="cold">❄️ Frio</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select
-          value={insuranceFilter}
-          onValueChange={(value) => {
-            if (value === 'all') {
-              setColumnFilters(prev => prev.filter(f => f.id !== 'insurance_type'));
-            } else {
-              setColumnFilters(prev => [
-                ...prev.filter(f => f.id !== 'insurance_type'),
-                { id: 'insurance_type', value }
-              ]);
-            }
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Tipo Seguro" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos tipos</SelectItem>
-            {Object.entries(insuranceTypes).map(([key, label]) => (
-              <SelectItem key={key} value={key}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select
+            value={insuranceFilter}
+            onValueChange={(value) => {
+              if (value === 'all') {
+                setColumnFilters(prev => prev.filter(f => f.id !== 'insurance_type'));
+              } else {
+                setColumnFilters(prev => [
+                  ...prev.filter(f => f.id !== 'insurance_type'),
+                  { id: 'insurance_type', value }
+                ]);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Tipo Seguro" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos tipos</SelectItem>
+              {Object.entries(insuranceTypes).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <ExportButtons 
+          data={deals} 
+          columns={exportColumns} 
+          filenamePrefix="negocios" 
+        />
       </div>
 
       {/* Table */}

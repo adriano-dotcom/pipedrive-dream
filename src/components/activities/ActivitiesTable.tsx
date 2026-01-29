@@ -73,6 +73,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ActivitiesMobileList } from './ActivitiesMobileList';
+import { ExportButtons } from '@/components/shared/ExportButtons';
+import type { ExportColumn } from '@/lib/export';
 import { Tables } from '@/integrations/supabase/types';
 
 export type Activity = Tables<'activities'> & {
@@ -177,6 +179,48 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
       return 25;
     }
   });
+
+  // Export columns configuration
+  const activityTypeLabels: Record<string, string> = {
+    task: 'Tarefa',
+    call: 'Ligação',
+    whatsapp: 'WhatsApp',
+    meeting: 'Reunião',
+    email: 'Email',
+    deadline: 'Prazo',
+  };
+
+  const priorityLabels: Record<string, string> = {
+    high: 'Alta',
+    normal: 'Normal',
+    low: 'Baixa',
+  };
+
+  const exportColumns: ExportColumn[] = useMemo(() => [
+    { id: 'title', label: 'Assunto', accessor: (row: Activity) => row.title },
+    { id: 'activity_type', label: 'Tipo', accessor: (row: Activity) => activityTypeLabels[row.activity_type] || row.activity_type },
+    { id: 'due_date', label: 'Data de Vencimento', accessor: (row: Activity) => {
+      try {
+        return format(parseISO(row.due_date), 'dd/MM/yyyy', { locale: ptBR });
+      } catch {
+        return row.due_date;
+      }
+    }},
+    { id: 'due_time', label: 'Hora', accessor: (row: Activity) => row.due_time?.slice(0, 5) },
+    { id: 'person_name', label: 'Pessoa', accessor: (row: Activity) => row.person?.name },
+    { id: 'organization_name', label: 'Organização', accessor: (row: Activity) => row.organization?.name },
+    { id: 'person_phone', label: 'Telefone', accessor: (row: Activity) => row.person?.phone },
+    { id: 'person_email', label: 'Email', accessor: (row: Activity) => row.person?.email },
+    { id: 'linked_to', label: 'Vinculado a', accessor: (row: Activity) => {
+      if (row.deal) return `Negócio: ${row.deal.title}`;
+      if (row.person) return `Pessoa: ${row.person.name}`;
+      if (row.organization) return `Org: ${row.organization.name}`;
+      return null;
+    }},
+    { id: 'creator', label: 'Criado por', accessor: (row: Activity) => row.creator?.full_name },
+    { id: 'is_completed', label: 'Status', accessor: (row: Activity) => row.is_completed ? 'Concluída' : 'Pendente' },
+    { id: 'priority', label: 'Prioridade', accessor: (row: Activity) => priorityLabels[row.priority || 'normal'] || row.priority },
+  ], []);
 
   // Persist column order
   useEffect(() => {
@@ -510,7 +554,12 @@ export function ActivitiesTable({ activities, onToggleComplete, onEdit }: Activi
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="rounded-lg border bg-card overflow-hidden">
           {/* Barra de ferramentas */}
-          <div className="flex items-center justify-end px-4 py-2 border-b bg-muted/10">
+          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
+            <ExportButtons 
+              data={activities} 
+              columns={exportColumns} 
+              filenamePrefix="atividades" 
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 gap-1.5">

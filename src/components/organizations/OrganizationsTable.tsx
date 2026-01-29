@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { ExportButtons } from '@/components/shared/ExportButtons';
+import type { ExportColumn } from '@/lib/export';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationsMobileList } from './OrganizationsMobileList';
 import type { Tables } from '@/integrations/supabase/types';
@@ -164,6 +166,20 @@ export function OrganizationsTable({
     localStorage.removeItem(COLUMN_VISIBILITY_KEY);
     localStorage.removeItem(COLUMN_ORDER_KEY);
   };
+
+  // Export columns configuration
+  const exportColumns: ExportColumn[] = useMemo(() => [
+    { id: 'name', label: 'Nome', accessor: (row: OrganizationWithContact) => row.name },
+    { id: 'cnpj', label: 'CNPJ', accessor: (row: OrganizationWithContact) => row.cnpj },
+    { id: 'automotores', label: 'Automotores', accessor: (row: OrganizationWithContact) => row.automotores },
+    { id: 'contact_name', label: 'Contato Principal', accessor: (row: OrganizationWithContact) => row.primary_contact?.name },
+    { id: 'contact_phone', label: 'Telefone Contato', accessor: (row: OrganizationWithContact) => row.primary_contact?.phone },
+    { id: 'contact_email', label: 'Email Contato', accessor: (row: OrganizationWithContact) => row.primary_contact?.email },
+    { id: 'city', label: 'Cidade', accessor: (row: OrganizationWithContact) => 
+      row.address_city ? `${row.address_city}/${row.address_state || ''}` : null
+    },
+    { id: 'label', label: 'Status', accessor: (row: OrganizationWithContact) => row.label },
+  ], []);
 
   const columns = useMemo<ColumnDef<OrganizationWithContact>[]>(
     () => [
@@ -343,7 +359,12 @@ export function OrganizationsTable({
   return (
     <div className="rounded-md border overflow-hidden">
       {/* Barra de ferramentas */}
-      <div className="flex items-center justify-end px-4 py-2 border-b bg-muted/10">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
+        <ExportButtons 
+          data={organizations} 
+          columns={exportColumns} 
+          filenamePrefix="organizacoes" 
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-1.5">

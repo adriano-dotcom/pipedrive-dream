@@ -39,6 +39,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { ExportButtons } from '@/components/shared/ExportButtons';
+import type { ExportColumn } from '@/lib/export';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { PeopleMobileList } from './PeopleMobileList';
 import type { Tables } from '@/integrations/supabase/types';
@@ -133,6 +135,25 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     pageIndex: 0,
     pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
   });
+
+  // Export columns configuration
+  const exportColumns: ExportColumn[] = useMemo(() => [
+    { id: 'name', label: 'Nome', accessor: (row: PersonWithOrg) => row.name },
+    { id: 'cpf', label: 'CPF', accessor: (row: PersonWithOrg) => row.cpf },
+    { id: 'phone', label: 'Telefone', accessor: (row: PersonWithOrg) => row.phone },
+    { id: 'whatsapp', label: 'WhatsApp', accessor: (row: PersonWithOrg) => row.whatsapp },
+    { id: 'email', label: 'Email', accessor: (row: PersonWithOrg) => row.email },
+    { id: 'organization', label: 'Empresa', accessor: (row: PersonWithOrg) => row.organizations?.name },
+    { id: 'cnpj', label: 'CNPJ', accessor: (row: PersonWithOrg) => row.organizations?.cnpj },
+    { id: 'job_title', label: 'Cargo', accessor: (row: PersonWithOrg) => row.job_title },
+    { id: 'city', label: 'Cidade', accessor: (row: PersonWithOrg) => 
+      row.organizations?.address_city 
+        ? `${row.organizations.address_city}/${row.organizations.address_state || ''}`
+        : null
+    },
+    { id: 'automotores', label: 'Automotores', accessor: (row: PersonWithOrg) => row.organizations?.automotores },
+    { id: 'label', label: 'Status', accessor: (row: PersonWithOrg) => row.label },
+  ], []);
 
   const columns = useMemo<ColumnDef<PersonWithOrg>[]>(() => [
     {
@@ -345,7 +366,12 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
       {/* Barra de ferramentas */}
-      <div className="flex items-center justify-end px-4 py-2 border-b bg-muted/10">
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
+        <ExportButtons 
+          data={people} 
+          columns={exportColumns} 
+          filenamePrefix="pessoas" 
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-1.5">
