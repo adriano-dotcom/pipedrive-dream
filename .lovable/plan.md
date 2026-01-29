@@ -1,241 +1,291 @@
 
-# Análise Completa do CRM Jacometo - Status Atual e Plano de Melhorias
+# Sprint 3: Funcionalidade de Exportação de Dados (CSV/Excel)
 
-## Resumo Executivo
-
-Após análise detalhada do código-fonte, identifiquei que o sistema já está mais avançado do que o documento sugere, mas ainda há melhorias importantes a serem feitas. Vários itens mencionados como "faltando" já estão implementados.
-
----
-
-## Status Atual vs. Documento Apresentado
-
-### Já Implementado (Não Precisa Fazer)
-
-| Item | Status | Evidência |
-|------|--------|-----------|
-| Páginas de Detalhes | Funcionando | PersonDetails, DealDetails, OrganizationDetails com loading states, skeleton loaders e tratamento de erro 404 |
-| Autenticação | Completa | Login/Signup com Zod validation, roles (admin/corretor), RLS policies |
-| Row Level Security (RLS) | Ativo | Todas as tabelas com RLS habilitado (verificado via linter) |
-| Histórico de Alterações | Parcial | Tabelas people_history, organization_history, deal_history existem |
-| Dark Mode Toggle | Sim | ThemeToggle implementado, next-themes configurado |
-| Skeleton Loaders | Sim | Implementados em Dashboard, PersonDetails, DealDetails |
-| React Query Cache | Sim | Já usando @tanstack/react-query em todo o projeto |
-| Validação de Duplicatas | Parcial | CNPJ com constraint unique, busca automática via BrasilAPI |
-
-### Problemas Reais Identificados
-
-| Item | Severidade | Descrição |
-|------|------------|-----------|
-| Responsividade Mobile | CRÍTICO | Sidebar não tem versão mobile, tabelas não adaptam |
-| Navegação Mobile | CRÍTICO | Não há drawer/hamburger menu, IOSTabBar existe mas não é usado |
-| Breadcrumbs | MÉDIA | Não implementados nas páginas de detalhes |
-| Exportação de Dados | MÉDIA | Não implementado |
-| Modal de Confirmação | BAIXA | Usando `confirm()` nativo, não modal estilizado |
-| Forecast/Pipeline Visual | MÉDIA | Dashboard básico, sem gráficos de previsão |
+## Objetivo
+Adicionar botões de exportação em todas as tabelas de listagem, permitindo exportar os dados filtrados e visíveis para CSV e Excel.
 
 ---
 
-## Plano de Implementação Priorizado
+## Arquitetura da Solução
 
-### SPRINT 1: Responsividade Mobile (16-24h) ✅ CONCLUÍDO
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                        BARRA DE FERRAMENTAS                         │
+├─────────────────────────────────────────────────────────────────────┤
+│  [📥 CSV] [📥 Excel]                              [⚙️ Colunas]      │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     src/lib/export.ts                               │
+├─────────────────────────────────────────────────────────────────────┤
+│ - exportToCSV(data, columns, filename)                              │
+│ - exportToExcel(data, columns, filename)                            │
+│ - downloadFile(content, filename, mimeType)                         │
+│ - formatValue(value, type)                                          │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-#### 1.1 Criar MobileNavigation Component ✅
-- `MobileDrawer.tsx` criado com menu lateral deslizante
-- Integrado no `AppLayout.tsx`
-- Botão hamburger visível apenas em mobile
+---
 
-#### 1.2 Integrar IOSTabBar ✅
-- Tab bar fixa no rodapé para navegação rápida
-- Detecta rota ativa automaticamente
+## Arquivos a Criar
 
-#### 1.3 Adaptar Tabelas para Mobile ✅
-- `PeopleMobileList.tsx` - Layout de cards para pessoas
-- `OrganizationsMobileList.tsx` - Layout de cards para organizações  
-- `ActivitiesMobileList.tsx` - Layout de cards para atividades
-- Tabelas detectam viewport e alternam automaticamente entre desktop/mobile
+### 1. `src/lib/export.ts` - Utilitário de Exportação
+
+Funções principais:
+
+```typescript
+interface ExportColumn {
+  id: string;
+  label: string;
+  accessor: (row: any) => string | number | null;
+}
+
+// Exportar para CSV
+export function exportToCSV(
+  data: any[],
+  columns: ExportColumn[],
+  filename: string
+): void;
+
+// Exportar para Excel (formato XLSX simplificado ou HTML)
+export function exportToExcel(
+  data: any[],
+  columns: ExportColumn[],
+  filename: string
+): void;
+
+// Utilitário para formatar valores
+function formatValue(value: any): string;
+
+// Utilitário para download
+function downloadFile(content: string, filename: string, mimeType: string): void;
+```
+
+**Características:**
+- Sem dependências externas (não precisa instalar xlsx)
+- CSV com encoding UTF-8 BOM para suporte a acentos
+- Excel gerado como HTML com extensão .xls (compatível com Excel/LibreOffice)
+- Formatação automática de datas, valores monetários e telefones
+
+---
+
+## Arquivos a Modificar
+
+### 2. `src/components/people/PeopleTable.tsx`
+
+**Mudanças:**
+- Adicionar imports de `exportToCSV` e `exportToExcel`
+- Definir `exportColumns` com mapeamento de dados
+- Adicionar botões de exportação na barra de ferramentas
+
+```text
+┌────────────────────────────────────────────────────────┐
+│ [📥 CSV] [📥 Excel]                     [⚙️ Colunas]  │
+├────────────────────────────────────────────────────────┤
+│ Nome  │ Telefone │ Email │ Empresa │ CNPJ │ Cidade   │
+```
+
+**Colunas exportáveis:**
+| Coluna | Valor Exportado |
+|--------|-----------------|
+| Nome | `person.name` |
+| CPF | `person.cpf` |
+| Telefone | `person.phone` |
+| WhatsApp | `person.whatsapp` |
+| Email | `person.email` |
+| Empresa | `person.organizations?.name` |
+| CNPJ | `person.organizations?.cnpj` |
+| Cargo | `person.job_title` |
+| Cidade | `organizations?.address_city/address_state` |
+| Automotores | `organizations?.automotores` |
+| Status | `person.label` |
+
+---
+
+### 3. `src/components/organizations/OrganizationsTable.tsx`
+
+**Mudanças similares ao PeopleTable**
+
+**Colunas exportáveis:**
+| Coluna | Valor Exportado |
+|--------|-----------------|
+| Nome | `organization.name` |
+| CNPJ | `organization.cnpj` |
+| Automotores | `organization.automotores` |
+| Contato Principal | `primary_contact?.name` |
+| Telefone Contato | `primary_contact?.phone` |
+| Email Contato | `primary_contact?.email` |
+| Cidade | `address_city/address_state` |
+| Status | `organization.label` |
+
+---
+
+### 4. `src/components/activities/ActivitiesTable.tsx`
+
+**Colunas exportáveis:**
+| Coluna | Valor Exportado |
+|--------|-----------------|
+| Assunto | `activity.title` |
+| Tipo | `activity.activity_type` (traduzido) |
+| Data de Vencimento | `activity.due_date` (formatada) |
+| Hora | `activity.due_time` |
+| Pessoa | `activity.person?.name` |
+| Organização | `activity.organization?.name` |
+| Telefone | `activity.person?.phone` |
+| Email | `activity.person?.email` |
+| Vinculado a | Deal/Person/Organization name |
+| Criado por | `activity.creator?.full_name` |
+| Status | Concluída/Pendente |
+| Prioridade | `activity.priority` (traduzido) |
+
+---
+
+### 5. `src/components/deals/DealsTable.tsx`
+
+**Colunas exportáveis:**
+| Coluna | Valor Exportado |
+|--------|-----------------|
+| Título | `deal.title` |
+| Valor | `deal.value` (formatado R$) |
+| Etapa | `deal.stage?.name` |
+| Status | `deal.status` (traduzido) |
+| Pessoa | `deal.person?.name` |
+| Organização | `deal.organization?.name` |
+| Tipo de Seguro | `deal.insurance_type` (traduzido) |
+| Etiqueta | `deal.label` (traduzido) |
+| Data Criação | `deal.created_at` (formatada) |
+| Previsão Fechamento | `deal.expected_close_date` (formatada) |
+
+---
+
+## Componente Reutilizável (Opcional)
+
+### 6. `src/components/shared/ExportButtons.tsx`
+
+Componente para encapsular os botões de exportação:
+
+```tsx
+interface ExportButtonsProps {
+  data: any[];
+  columns: ExportColumn[];
+  filename: string;
+}
+
+export function ExportButtons({ data, columns, filename }: ExportButtonsProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => exportToCSV(data, columns, filename)}>
+        <Download className="h-4 w-4 mr-2" />
+        CSV
+      </Button>
+      <Button variant="outline" size="sm" onClick={() => exportToExcel(data, columns, filename)}>
+        <FileSpreadsheet className="h-4 w-4 mr-2" />
+        Excel
+      </Button>
+    </div>
+  );
+}
+```
+
+---
+
+## Fluxo de Exportação
+
+```text
+Usuário clica "Exportar CSV"
+         │
+         ▼
+┌────────────────────────────┐
+│ 1. Pegar dados filtrados   │  (respeitando filtros e busca ativos)
+│    da tabela atual         │
+└────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────┐
+│ 2. Mapear colunas visíveis │  (respeitando columnVisibility)
+│    para exportColumns      │
+└────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────┐
+│ 3. Formatar valores        │  (datas, moedas, telefones)
+└────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────┐
+│ 4. Gerar arquivo           │  (CSV com BOM ou HTML table)
+└────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────┐
+│ 5. Trigger download        │  (Blob + link.click())
+└────────────────────────────┘
+```
+
+---
+
+## Detalhes de Implementação
+
+### Formato CSV
+- Encoding: UTF-8 com BOM (`\uFEFF`) para compatibilidade com Excel
+- Separador: `;` (padrão brasileiro, melhor suporte a valores com vírgulas)
+- Aspas: Valores com quebra de linha ou `;` são envolvidos em aspas
+- Nome do arquivo: `{entidade}_{data_hora}.csv`
+
+### Formato Excel
+- Formato: HTML Table com extensão `.xls`
+- Vantagens: Sem dependências, funciona em Excel/LibreOffice/Google Sheets
+- Estilo: Headers em negrito, bordas simples
+- Nome do arquivo: `{entidade}_{data_hora}.xls`
+
+---
+
+## Exemplo de Arquivo CSV Gerado
+
+```csv
+Nome;CPF;Telefone;Email;Empresa;CNPJ;Cargo;Cidade;Status
+João Silva;123.456.789-00;(11) 99999-9999;joao@email.com;Empresa ABC;12.345.678/0001-99;Gerente;São Paulo/SP;Quente
+Maria Santos;;(21) 88888-8888;maria@email.com;XYZ Ltda;;Diretora;Rio de Janeiro/RJ;Morno
+```
+
+---
+
+## Estimativa de Tempo
+
+| Tarefa | Tempo |
+|--------|-------|
+| Criar `src/lib/export.ts` | 1-2h |
+| Integrar em PeopleTable | 1h |
+| Integrar em OrganizationsTable | 1h |
+| Integrar em ActivitiesTable | 1h |
+| Integrar em DealsTable | 1h |
+| Criar ExportButtons (opcional) | 0.5h |
+| Testes e ajustes | 1-2h |
+| **Total** | **6-9h** |
+
+---
+
+## Atualização do plan.md
+
+Após implementação, marcar Sprint 3 como concluído:
+
+```markdown
+### SPRINT 3: Exportação de Dados (8-10h) ✅ CONCLUÍDO
+
+#### 3.1 Implementar Exportação CSV/Excel ✅
+- `src/lib/export.ts` criado com funções `exportToCSV` e `exportToExcel`
+- Botões de exportação adicionados em todas as tabelas
+- Suporte a encoding UTF-8 com BOM para acentos
+- Respeita filtros e colunas visíveis ao exportar
 
 **Arquivos criados:**
-- `src/components/layout/MobileDrawer.tsx`
-- `src/components/people/PeopleMobileList.tsx`
-- `src/components/organizations/OrganizationsMobileList.tsx`
-- `src/components/activities/ActivitiesMobileList.tsx`
-- `src/components/shared/MobileCardView.tsx`
+- `src/lib/export.ts`
+- `src/components/shared/ExportButtons.tsx` (opcional)
 
 **Arquivos modificados:**
-- `src/components/layout/AppLayout.tsx`
 - `src/components/people/PeopleTable.tsx`
 - `src/components/organizations/OrganizationsTable.tsx`
 - `src/components/activities/ActivitiesTable.tsx`
-
----
-
-### SPRINT 2: Melhorias UX (8-12h) ✅ CONCLUÍDO
-
-#### 2.1 Breadcrumbs ✅
-
-Componente de breadcrumbs criado e adicionado em todas as páginas de detalhes:
-
-```text
-📍 Dashboard > Pessoas > João Silva
-📍 Dashboard > Negócios > Proposta ABC
-📍 Dashboard > Organizações > Empresa XYZ
+- `src/components/deals/DealsTable.tsx`
 ```
-
-**Arquivos criados:**
-- `src/components/layout/PageBreadcrumbs.tsx`
-
-**Arquivos modificados:**
-- `src/pages/PersonDetails.tsx` - Breadcrumbs adicionados
-- `src/pages/DealDetails.tsx` - Breadcrumbs adicionados
-- `src/pages/OrganizationDetails.tsx` - Breadcrumbs adicionados
-
-#### 2.2 Modal de Confirmação para Exclusão ✅
-
-`confirm()` nativo substituído por AlertDialog estilizado:
-
-```text
-┌─────────────────────────────────────┐
-│ ⚠️ Confirmar Exclusão              │
-├─────────────────────────────────────┤
-│ Tem certeza que deseja excluir     │
-│ "João Silva"?                       │
-│                                     │
-│ Esta ação não pode ser desfeita.   │
-├─────────────────────────────────────┤
-│        [Cancelar]  [Excluir]       │
-└─────────────────────────────────────┘
-```
-
-**Arquivos criados:**
-- `src/components/shared/DeleteConfirmDialog.tsx`
-
-**Arquivos modificados:**
-- `src/pages/People.tsx` - Dialog integrado
-- `src/pages/Organizations.tsx` - Dialog integrado
-
-#### 2.3 Navegação Próximo/Anterior em Detalhes
-
-Adicionar setas para navegar entre registros (pendente):
-
-```text
-[← Anterior]  João Silva (3 de 50)  [Próximo →]
-```
-
----
-
-### SPRINT 3: Exportação de Dados (8-10h)
-
-#### 3.1 Implementar Exportação CSV/Excel
-
-Criar utilitário de exportação e botões nas tabelas:
-
-**Arquivos a criar:**
-- `src/lib/export.ts` - Funções de exportação
-- Modificar todas as tabelas para incluir botão de exportação
-
-```typescript
-// Exemplo de estrutura
-export const exportToCSV = (data: any[], columns: string[], filename: string) => {
-  // Gerar CSV
-  // Trigger download
-};
-
-export const exportToExcel = (data: any[], columns: string[], filename: string) => {
-  // Usar biblioteca como xlsx ou gerar manualmente
-};
-```
-
----
-
-### SPRINT 4: Gráficos e Relatórios (16-24h)
-
-#### 4.1 Pipeline Visual no Dashboard
-
-Adicionar gráfico de barras mostrando valor por etapa:
-
-```text
-┌─────────────────────────────────────────────┐
-│ Pipeline de Negócios                        │
-├─────────────────────────────────────────────┤
-│ Em Cotação   ████████████ R$ 50.000        │
-│ Retorno      ████████████████████ R$ 120k  │
-│ Proposta     ██████████████████████ R$ 212k│
-│ Apresentador │                    R$ 0     │
-└─────────────────────────────────────────────┘
-```
-
-**Arquivos a criar:**
-- `src/components/dashboard/PipelineChart.tsx`
-- `src/components/dashboard/ForecastChart.tsx`
-- Modificar: `src/pages/Dashboard.tsx`
-
-Nota: Recharts já está instalado no projeto.
-
----
-
-## Problemas de Segurança (Linter)
-
-O linter identificou 2 warnings que devem ser corrigidos:
-
-### 1. RLS Policy "Always True" 
-Há políticas INSERT na tabela `notifications` usando `WITH CHECK (true)`, o que é necessário para o service role inserir notificações.
-
-**Ação**: Verificar se está correto ou restringir.
-
-### 2. Leaked Password Protection Disabled
-Proteção contra senhas vazadas está desabilitada.
-
-**Ação**: Habilitar nas configurações de autenticação do backend.
-
----
-
-## Estimativas Revisadas
-
-| Sprint | Escopo | Estimativa |
-|--------|--------|------------|
-| 1 - Mobile | Navegação, tabelas responsivas, drawer | 16-20h |
-| 2 - UX | Breadcrumbs, modais, navegação | 8-12h |
-| 3 - Exportação | CSV/Excel para todas as tabelas | 8-10h |
-| 4 - Gráficos | Pipeline chart, forecast | 16-20h |
-| **Total** | | **48-62h** |
-
----
-
-## Arquivos Principais a Serem Modificados
-
-### Layout e Navegação
-- `src/components/layout/AppLayout.tsx` - Integrar mobile navigation
-- `src/components/layout/AppSidebar.tsx` - Já está hidden em mobile
-- Criar: `src/components/layout/MobileDrawer.tsx`
-- Criar: `src/components/layout/PageBreadcrumbs.tsx`
-
-### Tabelas
-- `src/components/people/PeopleTable.tsx` - Responsive + Export
-- `src/components/organizations/OrganizationsTable.tsx` - Responsive + Export
-- `src/components/activities/ActivitiesTable.tsx` - Responsive + Export
-- `src/components/deals/DealsTable.tsx` - Responsive + Export
-
-### Páginas de Detalhes
-- `src/pages/PersonDetails.tsx` - Breadcrumbs + Nav
-- `src/pages/DealDetails.tsx` - Breadcrumbs + Nav
-- `src/pages/OrganizationDetails.tsx` - Breadcrumbs + Nav
-
-### Dashboard
-- `src/pages/Dashboard.tsx` - Adicionar gráficos
-- Criar: `src/components/dashboard/PipelineChart.tsx`
-- Criar: `src/components/dashboard/ForecastChart.tsx`
-
-### Utilitários
-- Criar: `src/lib/export.ts` - Funções de exportação
-- Criar: `src/components/shared/DeleteConfirmDialog.tsx`
-
----
-
-## Ordem de Implementação Recomendada
-
-1. **Primeiro**: Responsividade Mobile (maior impacto para usuários)
-2. **Segundo**: Breadcrumbs e Modal de Confirmação (UX básica)
-3. **Terceiro**: Exportação de Dados (funcionalidade solicitada)
-4. **Quarto**: Gráficos de Pipeline (diferencial visual)
-
-O sistema já tem uma base sólida com autenticação, RLS, React Query e páginas de detalhes funcionando. As melhorias propostas focarão em responsividade e features de produtividade.
