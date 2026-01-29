@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Plus, Search, Building2, Loader2, Sparkles } from 'lucide-react';
+import { ImportButton } from '@/components/import/ImportButton';
 import { toast } from 'sonner';
 import { OrganizationForm } from '@/components/organizations/OrganizationForm';
 import { OrganizationsTable } from '@/components/organizations/OrganizationsTable';
@@ -112,13 +113,15 @@ export default function Organizations() {
               </p>
             </div>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingOrg(null)} className="shadow-lg shadow-primary/20">
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Organização
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <ImportButton defaultType="organizations" />
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setEditingOrg(null)} className="shadow-lg shadow-primary/20">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Organização
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
               <DialogHeader>
                 <DialogTitle>
@@ -130,8 +133,9 @@ export default function Organizations() {
                 onSuccess={handleCloseDialog}
                 onCancel={handleCloseDialog}
               />
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Search */}
