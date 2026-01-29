@@ -15,6 +15,7 @@ import { Plus, Search, Users, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
 import { PeopleTable } from '@/components/people/PeopleTable';
+import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -36,6 +37,7 @@ export default function People() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<PersonWithOrg | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PersonWithOrg | null>(null);
 
   const { data: people, isLoading } = useQuery({
     queryKey: ['people', search],
@@ -64,6 +66,7 @@ export default function People() {
       queryClient.invalidateQueries({ queryKey: ['people'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast.success('Pessoa excluída com sucesso!');
+      setDeleteTarget(null);
     },
     onError: (error) => {
       toast.error('Erro ao excluir pessoa: ' + error.message);
@@ -76,8 +79,12 @@ export default function People() {
   };
 
   const handleDelete = (person: PersonWithOrg) => {
-    if (confirm(`Tem certeza que deseja excluir "${person.name}"?`)) {
-      deleteMutation.mutate(person.id);
+    setDeleteTarget(person);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget.id);
     }
   };
 
@@ -170,6 +177,16 @@ export default function People() {
           onDelete={handleDelete}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Excluir Pessoa"
+        itemName={deleteTarget?.name}
+        onConfirm={confirmDelete}
+        isDeleting={deleteMutation.isPending}
+      />
     </div>
   );
 }

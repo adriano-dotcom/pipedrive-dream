@@ -15,6 +15,7 @@ import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
+import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { Tables } from '@/integrations/supabase/types';
 
 type Activity = Tables<'activities'>;
@@ -89,6 +90,14 @@ export default function DealDetails() {
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
+      {/* Breadcrumbs */}
+      <PageBreadcrumbs
+        items={[
+          { label: 'Negócios', href: '/deals' },
+          { label: deal.title },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">

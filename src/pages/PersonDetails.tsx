@@ -18,6 +18,7 @@ import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
 import { usePersonDetails } from '@/hooks/usePersonDetails';
 import { usePersonFiles } from '@/hooks/usePersonFiles';
+import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
 
@@ -141,6 +142,14 @@ export default function PersonDetails() {
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto animate-fade-in">
+      {/* Breadcrumbs */}
+      <PageBreadcrumbs
+        items={[
+          { label: 'Pessoas', href: '/people' },
+          { label: person.name },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">

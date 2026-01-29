@@ -18,6 +18,7 @@ import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
 import { useOrganizationFiles } from '@/hooks/useOrganizationFiles';
+import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
 
@@ -142,6 +143,14 @@ export default function OrganizationDetails() {
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto animate-fade-in">
+      {/* Breadcrumbs */}
+      <PageBreadcrumbs
+        items={[
+          { label: 'Organizações', href: '/organizations' },
+          { label: organization.name },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">

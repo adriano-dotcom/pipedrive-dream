@@ -15,6 +15,7 @@ import { Plus, Search, Building2, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { OrganizationForm } from '@/components/organizations/OrganizationForm';
 import { OrganizationsTable } from '@/components/organizations/OrganizationsTable';
+import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -33,6 +34,7 @@ export default function Organizations() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrganizationWithContact | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OrganizationWithContact | null>(null);
 
   const { data: organizations, isLoading } = useQuery({
     queryKey: ['organizations', search],
@@ -68,6 +70,7 @@ export default function Organizations() {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       toast.success('Organização excluída com sucesso!');
+      setDeleteTarget(null);
     },
     onError: (error) => {
       toast.error('Erro ao excluir organização: ' + error.message);
@@ -80,8 +83,12 @@ export default function Organizations() {
   };
 
   const handleDelete = (org: OrganizationWithContact) => {
-    if (confirm(`Tem certeza que deseja excluir "${org.name}"?`)) {
-      deleteMutation.mutate(org.id);
+    setDeleteTarget(org);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget.id);
     }
   };
 
@@ -176,6 +183,16 @@ export default function Organizations() {
             />
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <DeleteConfirmDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => !open && setDeleteTarget(null)}
+          title="Excluir Organização"
+          itemName={deleteTarget?.name}
+          onConfirm={confirmDelete}
+          isDeleting={deleteMutation.isPending}
+        />
     </div>
   );
 }
