@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Plus, Search, Users, Loader2, Sparkles } from 'lucide-react';
+import { ImportButton } from '@/components/import/ImportButton';
 import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
 import { PeopleTable } from '@/components/people/PeopleTable';
@@ -108,13 +109,15 @@ export default function People() {
             </p>
           </div>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingPerson(null)} className="shadow-lg shadow-primary/20">
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Pessoa
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <ImportButton defaultType="people" />
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingPerson(null)} className="shadow-lg shadow-primary/20">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Pessoa
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
             <DialogHeader>
               <DialogTitle>
@@ -126,8 +129,9 @@ export default function People() {
               onSuccess={handleCloseDialog}
               onCancel={handleCloseDialog}
             />
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Search */}
