@@ -16,6 +16,7 @@ import PersonDetails from "./pages/PersonDetails";
 import Deals from "./pages/Deals";
 import DealDetails from "./pages/DealDetails";
 import Activities from "./pages/Activities";
+import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -92,6 +93,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Activities />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <Reports />
                   </ProtectedRoute>
                 }
               />

@@ -8,7 +8,8 @@ import {
   LogOut, 
   ChevronLeft, 
   ChevronRight,
-  Sparkles
+  Sparkles,
+  BarChart3
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +35,7 @@ const menuItems = [
   { title: 'Pessoas', url: '/people', icon: UsersRound },
   { title: 'Negócios', url: '/deals', icon: Handshake },
   { title: 'Atividades', url: '/activities', icon: ListTodo },
+  { title: 'Relatórios', url: '/reports', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
