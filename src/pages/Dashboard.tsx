@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Building2, Users, Briefcase, CheckSquare, TrendingUp, Clock, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Building2, Users, Briefcase, CheckSquare, Clock, ArrowUpRight, Sparkles } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfDay, parseISO, isBefore, isToday } from 'date-fns';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 
 interface StatCardProps {
   title: string;
@@ -175,6 +176,9 @@ export default function Dashboard() {
             loading={activitiesLoading}
           />
         </div>
+
+        {/* Charts Section */}
+        <DashboardCharts />
 
         {/* Upcoming Activities */}
         <Card className="overflow-hidden">
