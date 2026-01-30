@@ -1,117 +1,76 @@
 
+# Mover QuickNoteCard para Dentro da Aba Notas
 
-# Adicionar Dropdown "Mais Ações" na OrganizationDetails
+## Situacao Atual
 
-## Objetivo
+O layout atual esta assim:
 
-Substituir o botão de Editar solto por um dropdown "Mais Ações" contendo Editar e Excluir.
+```
+Header
+QuickNoteCard (sempre visivel)
+Grid [Sidebar | Tabs(Notas, Arquivos...)]
+```
+
+## Layout Desejado
+
+```
+Header
+Grid [Sidebar | Tabs(Notas, Arquivos...)]
+                 |-> TabsContent(notes): QuickNoteCard + Lista de Notas
+```
+
+O QuickNoteCard deve aparecer apenas quando a aba "Notas" esta selecionada.
 
 ---
 
-## Modificações
+## Modificacao
 
-### 1. Novos Imports
+### Arquivo: `src/pages/OrganizationDetails.tsx`
 
-```typescript
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MoreVertical, Trash2 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
-import { useToast } from '@/hooks/use-toast';
-```
+**1. Remover o QuickNoteCard da posicao atual (linhas 283-289)**
 
-### 2. Novo Estado e Mutation
+Remover este bloco que esta antes do grid:
 
 ```typescript
-const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-const { toast } = useToast();
-const queryClient = useQueryClient();
-
-const deleteOrganizationMutation = useMutation({
-  mutationFn: async () => {
-    const { error } = await supabase
-      .from('organizations')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['organizations'] });
-    toast({ title: 'Organização excluída com sucesso!' });
-    navigate('/organizations');
-  },
-  onError: (error: Error) => {
-    toast({
-      variant: 'destructive',
-      title: 'Erro ao excluir',
-      description: error.message,
-    });
-  },
-});
-```
-
-### 3. Substituir Botão Editar por Dropdown
-
-De:
-```typescript
-<Button 
-  variant="outline" 
-  size="icon"
-  onClick={() => setEditSheetOpen(true)}
->
-  <Pencil className="h-4 w-4" />
-</Button>
-```
-
-Para:
-```typescript
-<DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button variant="outline" size="icon">
-      <MoreVertical className="h-4 w-4" />
-    </Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent align="end">
-    <DropdownMenuItem onClick={() => setEditSheetOpen(true)}>
-      <Pencil className="h-4 w-4 mr-2" />
-      Editar
-    </DropdownMenuItem>
-    <DropdownMenuSeparator />
-    <DropdownMenuItem 
-      onClick={() => setDeleteDialogOpen(true)}
-      className="text-destructive focus:text-destructive"
-    >
-      <Trash2 className="h-4 w-4 mr-2" />
-      Excluir
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
-```
-
-### 4. Adicionar DeleteConfirmDialog
-
-```typescript
-<DeleteConfirmDialog
-  open={deleteDialogOpen}
-  onOpenChange={setDeleteDialogOpen}
-  title="Excluir Organização"
-  itemName={organization?.name}
-  onConfirm={() => deleteOrganizationMutation.mutate()}
-  isDeleting={deleteOrganizationMutation.isPending}
+{/* Quick Note Card */}
+<QuickNoteCard
+  organizationId={id || ''}
+  organizationName={organization.name}
+  onAddNote={addNote}
+  isAdding={isAddingNote}
 />
 ```
 
+**2. Adicionar o QuickNoteCard dentro do TabsContent de "notes"**
+
+Modificar o TabsContent de notes (linha 327-338) para incluir o QuickNoteCard antes do OrganizationNotes:
+
+```typescript
+<TabsContent value="notes" className="mt-4 space-y-4">
+  <QuickNoteCard
+    organizationId={id || ''}
+    organizationName={organization.name}
+    onAddNote={addNote}
+    isAdding={isAddingNote}
+  />
+  <OrganizationNotes
+    notes={notes}
+    onAddNote={addNote}
+    onTogglePin={togglePin}
+    onDeleteNote={deleteNote}
+    onEditNote={updateNote}
+    isAdding={isAddingNote}
+    organizationId={id || ''}
+    organizationName={organization.name}
+  />
+</TabsContent>
+```
+
 ---
 
-## Arquivo a Modificar
+## Resultado
 
-| Arquivo | Ação |
-|---------|------|
-| `src/pages/OrganizationDetails.tsx` | Adicionar dropdown com Editar/Excluir |
-
+| Antes | Depois |
+|-------|--------|
+| QuickNoteCard sempre visivel acima do grid | QuickNoteCard visivel apenas na aba Notas |
+| Tabs aparecem abaixo do card | Tabs aparecem primeiro, card dentro do conteudo |
