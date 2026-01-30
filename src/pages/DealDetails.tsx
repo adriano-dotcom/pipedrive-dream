@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trophy, XCircle, Pencil } from 'lucide-react';
+import { ArrowLeft, Trophy, XCircle, Pencil, AlertCircle, RefreshCw } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,7 @@ import { DealFiles } from '@/components/deals/detail/DealFiles';
 import { DealEmails } from '@/components/deals/detail/DealEmails';
 import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
@@ -36,6 +37,7 @@ export default function DealDetails() {
     notes,
     activities,
     isLoading,
+    isError,
     addNote,
     isAddingNote,
     togglePin,
@@ -74,6 +76,22 @@ export default function DealDetails() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Erro ao carregar dados</h2>
+        <p className="text-muted-foreground mb-4">
+          Ocorreu um erro ao buscar os dados do negócio. Tente novamente.
+        </p>
+        <Button onClick={() => window.location.reload()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Recarregar
+        </Button>
+      </div>
+    );
+  }
+
   if (!deal) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
@@ -90,7 +108,8 @@ export default function DealDetails() {
   const isOpen = deal.status === 'open';
 
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto">
+    <ErrorBoundary>
+      <div className="space-y-6 p-6 max-w-7xl mx-auto">
       {/* Breadcrumbs */}
       <PageBreadcrumbs
         items={[
@@ -272,6 +291,7 @@ export default function DealDetails() {
         defaultPersonId={deal?.person_id}
         defaultOrganizationId={deal?.organization_id}
       />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

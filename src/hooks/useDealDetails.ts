@@ -33,7 +33,7 @@ export function useDealDetails(dealId: string) {
   const { user } = useAuth();
 
   // Fetch deal with all relations
-  const { data: deal, isLoading: isLoadingDeal } = useQuery({
+  const { data: deal, isLoading: isLoadingDeal, isError: isDealError, error: dealError } = useQuery({
     queryKey: ['deal', dealId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -72,7 +72,7 @@ export function useDealDetails(dealId: string) {
   });
 
   // Fetch deal history
-  const { data: history = [], isLoading: isLoadingHistory } = useQuery({
+  const { data: history = [], isLoading: isLoadingHistory, isError: isHistoryError } = useQuery({
     queryKey: ['deal-history', dealId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -104,7 +104,7 @@ export function useDealDetails(dealId: string) {
   });
 
   // Fetch deal notes
-  const { data: notes = [], isLoading: isLoadingNotes } = useQuery({
+  const { data: notes = [], isLoading: isLoadingNotes, isError: isNotesError } = useQuery({
     queryKey: ['deal-notes', dealId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -137,7 +137,7 @@ export function useDealDetails(dealId: string) {
   });
 
   // Fetch deal activities
-  const { data: activities = [], isLoading: isLoadingActivities } = useQuery({
+  const { data: activities = [], isLoading: isLoadingActivities, isError: isActivitiesError } = useQuery({
     queryKey: ['deal-activities', dealId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -325,6 +325,8 @@ export function useDealDetails(dealId: string) {
     notes,
     activities,
     isLoading: isLoadingDeal || isLoadingHistory || isLoadingNotes || isLoadingActivities,
+    isError: isDealError || isHistoryError || isNotesError || isActivitiesError,
+    error: dealError,
     addNote: addNoteMutation.mutate,
     isAddingNote: addNoteMutation.isPending,
     togglePin: togglePinMutation.mutate,
