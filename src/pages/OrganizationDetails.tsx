@@ -280,14 +280,6 @@ export default function OrganizationDetails() {
         </div>
       </div>
 
-      {/* Quick Note Card */}
-      <QuickNoteCard
-        organizationId={id || ''}
-        organizationName={organization.name}
-        onAddNote={addNote}
-        isAdding={isAddingNote}
-      />
-
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sidebar */}
@@ -324,7 +316,13 @@ export default function OrganizationDetails() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="notes" className="mt-4">
+            <TabsContent value="notes" className="mt-4 space-y-4">
+              <QuickNoteCard
+                organizationId={id || ''}
+                organizationName={organization.name}
+                onAddNote={addNote}
+                isAdding={isAddingNote}
+              />
               <OrganizationNotes
                 notes={notes}
                 onAddNote={addNote}
