@@ -1,219 +1,164 @@
 
 
-# Validacao de WhatsApp Duplicado em Tempo Real (onBlur)
+# Validacao de CNPJ Duplicado em Tempo Real (onBlur)
 
 ## Objetivo
 
-Implementar validacao inline do campo de WhatsApp quando o usuario sai do campo, verificando se o WhatsApp ja existe no banco de dados e mostrando erro visual antes do submit.
+Implementar validacao inline do campo de CNPJ quando o usuario sai do campo, verificando se o CNPJ ja existe no banco de dados e mostrando erro visual antes do submit.
 
 ---
 
-## Componentes Afetados
+## Componente Afetado
 
-1. **PersonForm.tsx** - formulario principal
-2. **AddContactPersonDialog.tsx** - dialog de criacao rapida
+**OrganizationForm.tsx** - formulario de organizacoes
+
+---
+
+## Situacao Atual
+
+O componente ja possui a funcao `checkCnpjExists` (linhas 60-75) que e usada durante o submit. Precisamos adicionar a validacao no blur do campo CNPJ.
 
 ---
 
 ## Modificacoes Detalhadas
 
-### PersonForm.tsx
+### OrganizationForm.tsx
 
-**1. Adicionar estados para WhatsApp (junto aos estados de email, linha 56-57):**
+**1. Adicionar estados para CNPJ (apos linha 80):**
 
 ```typescript
-const [whatsappError, setWhatsappError] = useState<string | null>(null);
-const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
+const [cnpjError, setCnpjError] = useState<string | null>(null);
+const [isCheckingCnpj, setIsCheckingCnpj] = useState(false);
 ```
 
-**2. Adicionar handler onBlur para WhatsApp (apos handleEmailBlur, linha 318):**
+**2. Adicionar import do AlertCircle (linha 23):**
 
 ```typescript
-const handleWhatsappBlur = async () => {
-  const whatsapp = watch('whatsapp');
-  if (!whatsapp || whatsapp.trim() === '') {
-    setWhatsappError(null);
+import { Loader2, AlertCircle } from 'lucide-react';
+```
+
+**3. Adicionar handler onBlur para CNPJ (apos fetchCnpjData, linha 173):**
+
+```typescript
+const handleCnpjBlur = async () => {
+  const cnpj = watch('cnpj');
+  if (!cnpj || cnpj.trim() === '') {
+    setCnpjError(null);
     return;
   }
   
-  setIsCheckingWhatsapp(true);
+  // Precisa ter 14 digitos para validar
+  const cleanCnpj = cnpj.replace(/\D/g, '');
+  if (cleanCnpj.length !== 14) {
+    return;
+  }
+  
+  setIsCheckingCnpj(true);
   try {
-    const exists = await checkWhatsappExists(whatsapp, person?.id);
+    const exists = await checkCnpjExists(cnpj, organization?.id);
     if (exists) {
-      setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
+      setCnpjError('Este CNPJ ja esta cadastrado no sistema');
     } else {
-      setWhatsappError(null);
+      setCnpjError(null);
     }
   } finally {
-    setIsCheckingWhatsapp(false);
+    setIsCheckingCnpj(false);
   }
 };
 ```
 
-**3. Atualizar o campo WhatsApp (linhas 396-402):**
+**4. Atualizar o campo CNPJ (linhas 331-352):**
 
 ```tsx
 <div className="space-y-2">
-  <Label htmlFor="whatsapp">WhatsApp</Label>
-  <PhoneInput
-    id="whatsapp"
-    value={watch('whatsapp') || ''}
-    onValueChange={(value) => {
-      setValue('whatsapp', value);
-      if (whatsappError) setWhatsappError(null);
-    }}
-    onBlur={handleWhatsappBlur}
-    className={whatsappError ? 'border-destructive' : ''}
-  />
-  {isCheckingWhatsapp && (
+  <Label htmlFor="cnpj">CNPJ</Label>
+  <div className="relative">
+    <CnpjInput
+      id="cnpj"
+      value={watch('cnpj') || ''}
+      onValueChange={(value) => {
+        setValue('cnpj', value);
+        if (cnpjError) setCnpjError(null); // Limpa erro ao digitar
+        // Fetch company data when CNPJ has 14 digits
+        if (value.length === 14 && !organization) {
+          fetchCnpjData(value);
+        }
+      }}
+      onBlur={handleCnpjBlur}
+      disabled={isFetchingCnpj}
+      className={cn(
+        isFetchingCnpj ? 'pr-10' : '',
+        cnpjError ? 'border-destructive' : ''
+      )}
+    />
+    {isFetchingCnpj && (
+      <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+    )}
+  </div>
+  {isCheckingCnpj && (
     <p className="text-sm text-muted-foreground flex items-center gap-1">
       <Loader2 className="h-3 w-3 animate-spin" />
       Verificando...
     </p>
   )}
-  {whatsappError && (
+  {cnpjError && (
     <p className="text-sm text-destructive flex items-center gap-1">
       <AlertCircle className="h-3 w-3" />
-      {whatsappError}
+      {cnpjError}
     </p>
   )}
+  {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj.message}</p>}
 </div>
 ```
 
-**4. Atualizar o botao de submit (linha 476):**
+**5. Adicionar import do cn (linha 6 ou existente):**
+
+Verificar se `cn` ja esta importado, caso contrario adicionar:
+
+```typescript
+import { cn } from '@/lib/utils';
+```
+
+**6. Atualizar o botao de submit (linha ~509):**
 
 ```tsx
-<Button type="submit" disabled={isLoading || !!emailError || !!whatsappError}>
+<Button type="submit" disabled={isLoading || !!cnpjError}>
 ```
-
----
-
-### AddContactPersonDialog.tsx
-
-**1. Adicionar estados para WhatsApp (junto aos estados de email, linha 60-61):**
-
-```typescript
-const [whatsappError, setWhatsappError] = useState<string | null>(null);
-const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
-```
-
-**2. Adicionar funcao de verificacao de WhatsApp (apos checkEmailExists, linha 74):**
-
-```typescript
-const checkWhatsappExists = async (whatsapp: string): Promise<boolean> => {
-  if (!whatsapp || whatsapp.trim() === '') return false;
-  
-  const { data } = await supabase
-    .from('people')
-    .select('id')
-    .eq('whatsapp', whatsapp.trim())
-    .maybeSingle();
-  
-  return !!data;
-};
-```
-
-**3. Adicionar handler onBlur para WhatsApp (apos handleEmailBlur, linha 94):**
-
-```typescript
-const handleWhatsappBlur = async () => {
-  if (!newPersonWhatsapp || newPersonWhatsapp.trim() === '') {
-    setWhatsappError(null);
-    return;
-  }
-  
-  setIsCheckingWhatsapp(true);
-  try {
-    const exists = await checkWhatsappExists(newPersonWhatsapp);
-    if (exists) {
-      setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
-    } else {
-      setWhatsappError(null);
-    }
-  } finally {
-    setIsCheckingWhatsapp(false);
-  }
-};
-```
-
-**4. Atualizar o campo WhatsApp (linhas 326-333):**
-
-```tsx
-<div className="space-y-2">
-  <Label htmlFor="new-person-whatsapp">WhatsApp</Label>
-  <PhoneInput
-    id="new-person-whatsapp"
-    value={newPersonWhatsapp}
-    onValueChange={(value) => {
-      setNewPersonWhatsapp(value);
-      if (whatsappError) setWhatsappError(null);
-    }}
-    onBlur={handleWhatsappBlur}
-    className={whatsappError ? 'border-destructive' : ''}
-  />
-  {isCheckingWhatsapp && (
-    <p className="text-sm text-muted-foreground flex items-center gap-1">
-      <Loader2 className="h-3 w-3 animate-spin" />
-      Verificando...
-    </p>
-  )}
-  {whatsappError && (
-    <p className="text-sm text-destructive flex items-center gap-1">
-      <AlertCircle className="h-3 w-3" />
-      {whatsappError}
-    </p>
-  )}
-</div>
-```
-
-**5. Atualizar resetForm (linha 179-188):**
-
-```typescript
-const resetForm = () => {
-  // ... campos existentes
-  setWhatsappError(null);
-};
-```
-
-**6. Atualizar o botao de submit (linha 364-367):**
-
-```tsx
-<Button
-  className="w-full"
-  onClick={handleCreatePerson}
-  disabled={isCreating || !newPersonName.trim() || !!emailError || !!whatsappError}
->
-```
-
----
-
-## Nota sobre PhoneInput
-
-O componente PhoneInput precisa suportar `onBlur` e `className`. Verificarei se precisa de ajustes para aceitar essas props, passando-as ao Input interno.
 
 ---
 
 ## Fluxo Visual
 
 ```text
-Usuario digita WhatsApp
+Usuario digita CNPJ
        |
        v
 Sai do campo (blur)
        |
        v
-Mostra "Verificando..."
-       |
-       v
-   Existe?
-   /     \
- Sim     Nao
-  |       |
-  v       v
-Mostra   Limpa
-erro     erro
-  |
-  v
+CNPJ tem 14 digitos?
+   /        \
+ Nao        Sim
+  |          |
+  v          v
+Ignora    Mostra "Verificando..."
+             |
+             v
+         Existe?
+         /     \
+       Sim     Nao
+        |       |
+        v       v
+     Mostra   Limpa
+     erro     erro
+        |
+        v
 Botao DESABILITADO
 ```
+
+---
+
+## Nota sobre CnpjInput
+
+O componente CnpjInput ja suporta `className` e passa `{...props}` ao PatternFormat, portanto `onBlur` sera passado automaticamente.
 
