@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,6 +21,8 @@ import {
 import { toast } from 'sonner';
 import { Loader2, AlertCircle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { PersonTagsSelector } from './PersonTagsSelector';
+import { usePersonTagAssignments, useAssignPersonTags } from '@/hooks/usePersonTags';
 
 type Person = Tables<'people'>;
 
@@ -59,6 +61,18 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   // Estado para validação inline de WhatsApp
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
+  
+  // Estado para etiquetas
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const { data: personTags } = usePersonTagAssignments(person?.id);
+  const assignTagsMutation = useAssignPersonTags();
+  
+  // Carregar tags existentes ao editar
+  useEffect(() => {
+    if (personTags) {
+      setSelectedTagIds(personTags.map(pt => pt.tag_id));
+    }
+  }, [personTags]);
 
   // Função para verificar se email já existe
   const checkEmailExists = async (email: string, excludeId?: string): Promise<boolean> => {
@@ -178,7 +192,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         }
       }
 
-      const { error } = await supabase.from('people').insert({
+      const { data: insertedPerson, error } = await supabase.from('people').insert({
         name: data.name,
         cpf: data.cpf || null,
         email: data.email?.toLowerCase() || null,
@@ -194,8 +208,18 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         utm_campaign: data.utm_campaign || null,
         owner_id: user?.id,
         created_by: user?.id,
-      });
+      }).select().single();
       if (error) throw error;
+      
+      // Salvar etiquetas se houver
+      if (selectedTagIds.length > 0 && insertedPerson) {
+        await assignTagsMutation.mutateAsync({ 
+          personId: insertedPerson.id, 
+          tagIds: selectedTagIds 
+        });
+      }
+      
+      return insertedPerson;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['people'] });
@@ -269,9 +293,16 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         .update(updateData)
         .eq('id', person!.id);
       if (error) throw error;
+      
+      // Atualizar etiquetas
+      await assignTagsMutation.mutateAsync({ 
+        personId: person!.id, 
+        tagIds: selectedTagIds 
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['people'] });
+      queryClient.invalidateQueries({ queryKey: ['person', person!.id] });
       toast.success('Pessoa atualizada com sucesso!', {
         description: 'As alterações foram salvas.',
         icon: '✅',
@@ -422,6 +453,14 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
                 <SelectItem value="Frio">❄️ Frio</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          
+          {/* Etiquetas */}
+          <div className="sm:col-span-2">
+            <PersonTagsSelector
+              selectedTagIds={selectedTagIds}
+              onTagsChange={setSelectedTagIds}
+            />
           </div>
         </div>
       </div>

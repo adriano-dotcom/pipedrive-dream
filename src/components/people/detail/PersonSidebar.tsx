@@ -54,6 +54,7 @@ import {
   MapPin,
   MessageCircle,
   Tag,
+  Tags,
   Unlink,
   Link2,
   Plus,
@@ -66,6 +67,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { usePersonTagAssignments } from '@/hooks/usePersonTags';
+import { PersonTagBadge } from '@/components/people/PersonTagBadge';
 
 interface PersonSidebarProps {
   person: {
@@ -123,6 +126,9 @@ export function PersonSidebar({
   const [orgSearchOpen, setOrgSearchOpen] = useState(false);
   
   const hasLeadSource = person.lead_source || person.utm_source || person.utm_medium || person.utm_campaign;
+  
+  // Query para buscar etiquetas da pessoa
+  const { data: personTags = [] } = usePersonTagAssignments(person.id);
 
   // Query para buscar organizações disponíveis
   const { data: organizations = [], refetch: refetchOrganizations } = useQuery({
@@ -283,6 +289,25 @@ export function PersonSidebar({
               <Badge variant="secondary" className={getLabelColor(person.label)}>
                 {person.label}
               </Badge>
+            </div>
+          )}
+          
+          {/* Etiquetas */}
+          {personTags.length > 0 && (
+            <div className="pt-2 border-t border-border/50">
+              <div className="flex items-center gap-1 text-muted-foreground mb-2">
+                <Tags className="h-3 w-3" />
+                <span className="text-xs">Etiquetas</span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {personTags.map((pt) => (
+                  <PersonTagBadge
+                    key={pt.id}
+                    name={pt.tag.name}
+                    color={pt.tag.color}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
