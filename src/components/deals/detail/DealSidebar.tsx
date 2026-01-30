@@ -1,4 +1,4 @@
-import { Building2, User, Phone, Mail, Briefcase, Calendar, Percent, DollarSign, Shield, FileText, ChevronDown, Pencil } from 'lucide-react';
+import { Building2, User, Phone, Mail, Briefcase, Calendar, Percent, DollarSign, Shield, FileText, ChevronDown, Pencil, Clock } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,9 @@ import { OrganizationFormSheet } from '@/components/organizations/OrganizationFo
 import { EmailButton } from '@/components/email/EmailButton';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -28,12 +29,25 @@ interface DealSidebarProps {
     start_date: string | null;
     end_date: string | null;
     notes: string | null;
+    created_at: string;
+    status: string;
     organization?: { id: string; name: string; phone: string | null; email: string | null } | null;
     person?: { id: string; name: string; phone: string | null; email: string | null; job_title: string | null } | null;
-    stage?: { name: string; probability: number | null } | null;
+    stage?: { name: string; probability: number | null; color?: string | null } | null;
     pipeline?: { name: string } | null;
   };
 }
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'won':
+      return { label: 'Ganho', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' };
+    case 'lost':
+      return { label: 'Perdido', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' };
+    default:
+      return { label: 'Aberto', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' };
+  }
+};
 
 function formatCurrency(value: number | null) {
   if (!value) return 'R$ 0';
@@ -270,6 +284,28 @@ export function DealSidebar({ deal }: DealSidebarProps) {
           </div>
         </SidebarSection>
       )}
+
+      {/* Overview Section - NEW */}
+      <SidebarSection title="Visão Geral" icon={Clock}>
+        <div className="space-y-0.5">
+          <div className="flex items-center justify-between py-1.5 text-sm">
+            <span className="text-muted-foreground">Status</span>
+            <Badge variant="secondary" className={getStatusBadge(deal.status).className}>
+              {getStatusBadge(deal.status).label}
+            </Badge>
+          </div>
+          <InfoRow 
+            label="Criado em" 
+            value={format(new Date(deal.created_at), 'dd/MM/yyyy')} 
+            icon={Calendar} 
+          />
+          <InfoRow 
+            label="Tempo no pipeline" 
+            value={formatDistanceToNow(new Date(deal.created_at), { locale: ptBR, addSuffix: false })} 
+            icon={Clock} 
+          />
+        </div>
+      </SidebarSection>
 
       {/* Deal Summary */}
       <SidebarSection title="Resumo" icon={DollarSign}>
