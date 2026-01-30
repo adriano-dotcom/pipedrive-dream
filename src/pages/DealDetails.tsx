@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trophy, XCircle, Pencil, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trophy, XCircle, AlertCircle, RefreshCw, Calendar, MoreVertical, Trash2, Handshake } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { DealStageProgress } from '@/components/deals/detail/DealStageProgress';
 import { DealSidebar } from '@/components/deals/detail/DealSidebar';
 import { DealTimeline } from '@/components/deals/detail/DealTimeline';
@@ -13,22 +22,43 @@ import { DealFiles } from '@/components/deals/detail/DealFiles';
 import { DealEmails } from '@/components/deals/detail/DealEmails';
 import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { DealFormSheet } from '@/components/deals/DealFormSheet';
+import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
 import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Tables } from '@/integrations/supabase/types';
 
 type Activity = Tables<'activities'>;
 
+const getLabelColor = (label: string | null) => {
+  switch (label) {
+    case 'Quente':
+      return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+    case 'Morno':
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+    case 'Frio':
+      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+    default:
+      return '';
+  }
+};
+
 export default function DealDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const [showLostDialog, setShowLostDialog] = useState(false);
   const [activityFormOpen, setActivityFormOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const {
     deal,
@@ -60,6 +90,29 @@ export default function DealDetails() {
   } = useDealFiles(id || '');
 
   const { emails } = useSentEmails('deal', id || '');
+
+  // Mutation para deletar deal
+  const deleteDealMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('deals')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      toast({ title: 'Negócio excluído com sucesso!' });
+      navigate('/deals');
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir',
+        description: error.message,
+      });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -132,8 +185,29 @@ export default function DealDetails() {
           {/* Record Navigation */}
           <RecordNavigation entityType="deals" currentId={id || ''} />
           
+          {/* Avatar with stage color */}
+          <div 
+            className="flex h-12 w-12 items-center justify-center rounded-xl border"
+            style={{ 
+              backgroundColor: `${deal.stage?.color || '#6366f1'}20`, 
+              borderColor: `${deal.stage?.color || '#6366f1'}40` 
+            }}
+          >
+            <Handshake 
+              className="h-6 w-6" 
+              style={{ color: deal.stage?.color || '#6366f1' }} 
+            />
+          </div>
+          
           <div>
-            <h1 className="text-2xl font-bold">{deal.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{deal.title}</h1>
+              {deal.label && (
+                <Badge variant="secondary" className={getLabelColor(deal.label)}>
+                  {deal.label}
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               {deal.pipeline?.name} • {deal.stage?.name}
             </p>
@@ -149,6 +223,19 @@ export default function DealDetails() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Nova Atividade button */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              setEditingActivity(null);
+              setActivityFormOpen(true);
+            }}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Nova Atividade
+          </Button>
+          
           {isOpen && (
             <>
               <Button
@@ -169,9 +256,29 @@ export default function DealDetails() {
               </Button>
             </>
           )}
-          <Button variant="outline" size="icon">
-            <Pencil className="h-4 w-4" />
-          </Button>
+          
+          {/* Dropdown menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditSheetOpen(true)}>
+                <Handshake className="h-4 w-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => setDeleteDialogOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -290,6 +397,25 @@ export default function DealDetails() {
         defaultDealId={id}
         defaultPersonId={deal?.person_id}
         defaultOrganizationId={deal?.organization_id}
+      />
+
+      {/* Delete Confirm Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Excluir Negócio"
+        itemName={deal?.title}
+        onConfirm={() => deleteDealMutation.mutate()}
+        isDeleting={deleteDealMutation.isPending}
+      />
+
+      {/* Deal Edit Sheet */}
+      <DealFormSheet
+        open={editSheetOpen}
+        onOpenChange={setEditSheetOpen}
+        deal={deal}
+        pipelineId={deal?.pipeline_id}
+        stages={stages}
       />
       </div>
     </ErrorBoundary>
