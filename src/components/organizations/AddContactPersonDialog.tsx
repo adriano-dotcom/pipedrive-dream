@@ -59,6 +59,10 @@ export function AddContactPersonDialog({
   // Estado para validação inline de email
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  
+  // Estado para validação inline de WhatsApp
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
 
   // Função para verificar se email já existe
   const checkEmailExists = async (email: string): Promise<boolean> => {
@@ -68,6 +72,19 @@ export function AddContactPersonDialog({
       .from('people')
       .select('id')
       .eq('email', email.trim().toLowerCase())
+      .maybeSingle();
+    
+    return !!data;
+  };
+
+  // Função para verificar se WhatsApp já existe
+  const checkWhatsappExists = async (whatsapp: string): Promise<boolean> => {
+    if (!whatsapp || whatsapp.trim() === '') return false;
+    
+    const { data } = await supabase
+      .from('people')
+      .select('id')
+      .eq('whatsapp', whatsapp.trim())
       .maybeSingle();
     
     return !!data;
@@ -90,6 +107,26 @@ export function AddContactPersonDialog({
       }
     } finally {
       setIsCheckingEmail(false);
+    }
+  };
+
+  // Handler para validação de WhatsApp no blur
+  const handleWhatsappBlur = async () => {
+    if (!newPersonWhatsapp || newPersonWhatsapp.trim() === '') {
+      setWhatsappError(null);
+      return;
+    }
+    
+    setIsCheckingWhatsapp(true);
+    try {
+      const exists = await checkWhatsappExists(newPersonWhatsapp);
+      if (exists) {
+        setWhatsappError('Este WhatsApp já está cadastrado no sistema');
+      } else {
+        setWhatsappError(null);
+      }
+    } finally {
+      setIsCheckingWhatsapp(false);
     }
   };
 
@@ -185,6 +222,7 @@ export function AddContactPersonDialog({
     setNewPersonWhatsapp('');
     setActiveTab('search');
     setEmailError(null);
+    setWhatsappError(null);
   };
 
   const handleCreatePerson = () => {
@@ -328,8 +366,25 @@ export function AddContactPersonDialog({
                 <PhoneInput
                   id="new-person-whatsapp"
                   value={newPersonWhatsapp}
-                  onValueChange={setNewPersonWhatsapp}
+                  onValueChange={(value) => {
+                    setNewPersonWhatsapp(value);
+                    if (whatsappError) setWhatsappError(null);
+                  }}
+                  onBlur={handleWhatsappBlur}
+                  className={whatsappError ? 'border-destructive' : ''}
                 />
+                {isCheckingWhatsapp && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Verificando...
+                  </p>
+                )}
+                {whatsappError && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {whatsappError}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -364,7 +419,7 @@ export function AddContactPersonDialog({
             <Button
               className="w-full"
               onClick={handleCreatePerson}
-              disabled={isCreating || !newPersonName.trim() || !!emailError}
+              disabled={isCreating || !newPersonName.trim() || !!emailError || !!whatsappError}
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

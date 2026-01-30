@@ -55,6 +55,10 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   // Estado para validação inline de email
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  
+  // Estado para validação inline de WhatsApp
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
 
   // Função para verificar se email já existe
   const checkEmailExists = async (email: string, excludeId?: string): Promise<boolean> => {
@@ -317,6 +321,27 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     }
   };
 
+  // Handler para validação de WhatsApp no blur
+  const handleWhatsappBlur = async () => {
+    const whatsapp = watch('whatsapp');
+    if (!whatsapp || whatsapp.trim() === '') {
+      setWhatsappError(null);
+      return;
+    }
+    
+    setIsCheckingWhatsapp(true);
+    try {
+      const exists = await checkWhatsappExists(whatsapp, person?.id);
+      if (exists) {
+        setWhatsappError('Este WhatsApp já está cadastrado no sistema');
+      } else {
+        setWhatsappError(null);
+      }
+    } finally {
+      setIsCheckingWhatsapp(false);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Basic Info */}
@@ -398,8 +423,25 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
             <PhoneInput
               id="whatsapp"
               value={watch('whatsapp') || ''}
-              onValueChange={(value) => setValue('whatsapp', value)}
+              onValueChange={(value) => {
+                setValue('whatsapp', value);
+                if (whatsappError) setWhatsappError(null);
+              }}
+              onBlur={handleWhatsappBlur}
+              className={whatsappError ? 'border-destructive' : ''}
             />
+            {isCheckingWhatsapp && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Verificando...
+              </p>
+            )}
+            {whatsappError && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {whatsappError}
+              </p>
+            )}
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="email">Email</Label>
@@ -473,7 +515,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading || !!emailError}>
+        <Button type="submit" disabled={isLoading || !!emailError || !!whatsappError}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {person ? 'Salvar Alterações' : 'Criar Pessoa'}
         </Button>
