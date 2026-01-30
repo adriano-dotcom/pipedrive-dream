@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Building2, Calendar } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { OrganizationActivities } from '@/components/organizations/detail/Organi
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
 import { OrganizationEmails } from '@/components/organizations/detail/OrganizationEmails';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
@@ -51,6 +52,7 @@ export default function OrganizationDetails() {
     activities,
     deals,
     isLoading,
+    isError,
     addNote,
     isAddingNote,
     togglePin,
@@ -129,6 +131,22 @@ export default function OrganizationDetails() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Erro ao carregar dados</h2>
+        <p className="text-muted-foreground mb-4">
+          Ocorreu um erro ao buscar os dados da organização. Tente novamente.
+        </p>
+        <Button onClick={() => window.location.reload()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Recarregar
+        </Button>
+      </div>
+    );
+  }
+
   if (!organization) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
@@ -143,7 +161,8 @@ export default function OrganizationDetails() {
   }
 
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto animate-fade-in">
+    <ErrorBoundary>
+      <div className="space-y-6 p-6 max-w-7xl mx-auto animate-fade-in">
       {/* Breadcrumbs */}
       <PageBreadcrumbs
         items={[
@@ -319,6 +338,7 @@ export default function OrganizationDetails() {
         onOpenChange={setEditSheetOpen}
         organization={organization}
       />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

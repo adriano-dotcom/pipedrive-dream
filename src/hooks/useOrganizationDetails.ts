@@ -64,7 +64,7 @@ export function useOrganizationDetails(organizationId: string) {
   const { user } = useAuth();
 
   // Fetch organization with related data
-  const { data: organization, isLoading } = useQuery({
+  const { data: organization, isLoading, isError: isOrgError, error: orgError } = useQuery({
     queryKey: ['organization', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -85,7 +85,7 @@ export function useOrganizationDetails(organizationId: string) {
   });
 
   // Fetch people linked to this organization
-  const { data: people = [] } = useQuery({
+  const { data: people = [], isError: isPeopleError } = useQuery({
     queryKey: ['organization-people', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -105,7 +105,7 @@ export function useOrganizationDetails(organizationId: string) {
   });
 
   // Fetch organization history
-  const { data: history = [] } = useQuery({
+  const { data: history = [], isError: isHistoryError } = useQuery({
     queryKey: ['organization-history', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -137,7 +137,7 @@ export function useOrganizationDetails(organizationId: string) {
   });
 
   // Fetch organization notes
-  const { data: notes = [] } = useQuery({
+  const { data: notes = [], isError: isNotesError } = useQuery({
     queryKey: ['organization-notes', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -171,7 +171,7 @@ export function useOrganizationDetails(organizationId: string) {
   });
 
   // Fetch activities linked to this organization
-  const { data: activities = [] } = useQuery({
+  const { data: activities = [], isError: isActivitiesError } = useQuery({
     queryKey: ['organization-activities', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -187,7 +187,7 @@ export function useOrganizationDetails(organizationId: string) {
   });
 
   // Fetch deals linked to this organization
-  const { data: deals = [] } = useQuery({
+  const { data: deals = [], isError: isDealsError } = useQuery({
     queryKey: ['organization-deals', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -301,6 +301,8 @@ export function useOrganizationDetails(organizationId: string) {
     activities,
     deals,
     isLoading,
+    isError: isOrgError || isPeopleError || isHistoryError || isNotesError || isActivitiesError || isDealsError,
+    error: orgError,
     addNote: addNoteMutation.mutate,
     isAddingNote: addNoteMutation.isPending,
     togglePin: (noteId: string, isPinned: boolean) => togglePinMutation.mutate({ noteId, isPinned }),
