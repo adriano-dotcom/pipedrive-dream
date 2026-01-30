@@ -83,34 +83,6 @@ export function OrganizationNotes({
 
   return (
     <div className="space-y-4">
-      {/* Add Note Form */}
-      <Card className="glass border-border/50">
-        <CardContent className="pt-4">
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <RichTextEditor
-              content={newNote}
-              onChange={setNewNote}
-              placeholder="Adicione uma nota sobre esta organização..."
-              minHeight="100px"
-            />
-            <div className="flex justify-end">
-              <Button 
-                type="submit" 
-                disabled={!newNote.replace(/<[^>]*>/g, '').trim() || isAdding}
-                size="sm"
-              >
-                {isAdding ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Adicionar Nota
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
       {/* Notes List */}
       {notes.length === 0 ? (
         <Card className="glass border-border/50">
