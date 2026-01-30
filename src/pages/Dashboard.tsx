@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Building2, Users, Briefcase, CheckSquare, Clock, ArrowUpRight, Sparkles, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfDay, parseISO, isBefore, isToday, startOfMonth, endOfMonth, subMonths } from 'date-fns';
@@ -58,27 +59,41 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, href, variant = '
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold tracking-tight">{value}</span>
               {trend && trend.direction !== 'neutral' && (
-                <Badge 
-                  variant="secondary" 
-                  className={cn(
-                    "text-xs border-0",
-                    trend.direction === 'up' && "bg-success/10 text-success",
-                    trend.direction === 'down' && "bg-destructive/10 text-destructive"
-                  )}
-                >
-                  {trend.direction === 'up' ? (
-                    <TrendingUp className="h-3 w-3 mr-0.5" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 mr-0.5" />
-                  )}
-                  {trend.percentage > 0 ? '+' : ''}{trend.percentage.toFixed(0)}%
-                </Badge>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge 
+                      variant="secondary" 
+                      className={cn(
+                        "text-xs border-0 cursor-help",
+                        trend.direction === 'up' && "bg-success/10 text-success",
+                        trend.direction === 'down' && "bg-destructive/10 text-destructive"
+                      )}
+                    >
+                      {trend.direction === 'up' ? (
+                        <TrendingUp className="h-3 w-3 mr-0.5" />
+                      ) : (
+                        <TrendingDown className="h-3 w-3 mr-0.5" />
+                      )}
+                      {trend.percentage > 0 ? '+' : ''}{trend.percentage.toFixed(0)}%
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Comparado ao mês anterior</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
               {trend && trend.direction === 'neutral' && (
-                <Badge variant="secondary" className="text-xs border-0 bg-muted text-muted-foreground">
-                  <Minus className="h-3 w-3 mr-0.5" />
-                  0%
-                </Badge>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="secondary" className="text-xs border-0 bg-muted text-muted-foreground cursor-help">
+                      <Minus className="h-3 w-3 mr-0.5" />
+                      0%
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Comparado ao mês anterior</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
@@ -226,6 +241,7 @@ export default function Dashboard() {
   });
 
   return (
+    <TooltipProvider>
     <div className="p-6 lg:p-8 space-y-8 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col gap-1">
@@ -405,5 +421,6 @@ export default function Dashboard() {
           </p>
         )}
     </div>
+    </TooltipProvider>
   );
 }
