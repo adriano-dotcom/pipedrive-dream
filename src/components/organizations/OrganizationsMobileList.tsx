@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Phone, Mail, MapPin, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, formatCnpj } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -75,7 +75,7 @@ export function OrganizationsMobileList({
           <div className="space-y-1.5 text-sm">
             {org.cnpj && (
               <div className="text-muted-foreground font-mono text-xs">
-                CNPJ: {org.cnpj}
+                CNPJ: {formatCnpj(org.cnpj)}
               </div>
             )}
             {org.automotores != null && (
