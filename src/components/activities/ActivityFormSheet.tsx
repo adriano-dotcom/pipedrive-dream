@@ -219,6 +219,20 @@ export function ActivityFormSheet({
             assigned_to: user?.id,
           });
         if (error) throw error;
+
+        // Log activity creation in deal history if linked to a deal
+        if (data.deal_id) {
+          await supabase.from('deal_history').insert({
+            deal_id: data.deal_id,
+            event_type: 'activity_created',
+            description: `Atividade criada: ${data.title}`,
+            metadata: { 
+              activity_type: data.activity_type,
+              due_date: format(data.due_date, 'yyyy-MM-dd'),
+            },
+            created_by: user?.id,
+          });
+        }
       }
     },
     onSuccess: () => {
