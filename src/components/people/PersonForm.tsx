@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -50,6 +51,10 @@ interface PersonFormProps {
 export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // Estado para validação inline de email
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
   // Função para verificar se email já existe
   const checkEmailExists = async (email: string, excludeId?: string): Promise<boolean> => {
@@ -291,6 +296,27 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   const labelValue = watch('label');
   const organizationValue = watch('organization_id');
 
+  // Handler para validação de email no blur
+  const handleEmailBlur = async () => {
+    const email = watch('email');
+    if (!email || email.trim() === '') {
+      setEmailError(null);
+      return;
+    }
+    
+    setIsCheckingEmail(true);
+    try {
+      const exists = await checkEmailExists(email, person?.id);
+      if (exists) {
+        setEmailError('Este e-mail já está cadastrado no sistema');
+      } else {
+        setEmailError(null);
+      }
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       {/* Basic Info */}
@@ -377,7 +403,30 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" {...register('email')} placeholder="joao@email.com" />
+            <Input 
+              id="email" 
+              type="email" 
+              {...register('email', {
+                onChange: () => {
+                  if (emailError) setEmailError(null);
+                }
+              })} 
+              placeholder="joao@email.com"
+              onBlur={handleEmailBlur}
+              className={emailError ? 'border-destructive' : ''}
+            />
+            {isCheckingEmail && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Verificando...
+              </p>
+            )}
+            {emailError && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {emailError}
+              </p>
+            )}
             {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
           </div>
         </div>
@@ -424,7 +473,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || !!emailError}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {person ? 'Salvar Alterações' : 'Criar Pessoa'}
         </Button>

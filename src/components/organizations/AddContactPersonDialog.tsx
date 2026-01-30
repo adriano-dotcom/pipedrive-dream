@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { Search, Loader2, UserPlus, Link2 } from 'lucide-react';
+import { Search, Loader2, UserPlus, Link2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -55,6 +55,43 @@ export function AddContactPersonDialog({
   const [newPersonPhone, setNewPersonPhone] = useState('');
   const [newPersonEmail, setNewPersonEmail] = useState('');
   const [newPersonWhatsapp, setNewPersonWhatsapp] = useState('');
+  
+  // Estado para validação inline de email
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
+  // Função para verificar se email já existe
+  const checkEmailExists = async (email: string): Promise<boolean> => {
+    if (!email || email.trim() === '') return false;
+    
+    const { data } = await supabase
+      .from('people')
+      .select('id')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle();
+    
+    return !!data;
+  };
+
+  // Handler para validação de email no blur
+  const handleEmailBlur = async () => {
+    if (!newPersonEmail || newPersonEmail.trim() === '') {
+      setEmailError(null);
+      return;
+    }
+    
+    setIsCheckingEmail(true);
+    try {
+      const exists = await checkEmailExists(newPersonEmail);
+      if (exists) {
+        setEmailError('Este e-mail já está cadastrado no sistema');
+      } else {
+        setEmailError(null);
+      }
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
 
   // Search existing people
   const { data: searchResults, isLoading: isSearching } = useQuery({
@@ -147,6 +184,7 @@ export function AddContactPersonDialog({
     setNewPersonEmail('');
     setNewPersonWhatsapp('');
     setActiveTab('search');
+    setEmailError(null);
   };
 
   const handleCreatePerson = () => {
@@ -301,15 +339,32 @@ export function AddContactPersonDialog({
                 id="new-person-email"
                 type="email"
                 value={newPersonEmail}
-                onChange={(e) => setNewPersonEmail(e.target.value)}
+                onChange={(e) => {
+                  setNewPersonEmail(e.target.value);
+                  if (emailError) setEmailError(null);
+                }}
+                onBlur={handleEmailBlur}
                 placeholder="email@empresa.com"
+                className={emailError ? 'border-destructive' : ''}
               />
+              {isCheckingEmail && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Verificando...
+                </p>
+              )}
+              {emailError && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {emailError}
+                </p>
+              )}
             </div>
 
             <Button
               className="w-full"
               onClick={handleCreatePerson}
-              disabled={isCreating || !newPersonName.trim()}
+              disabled={isCreating || !newPersonName.trim() || !!emailError}
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
