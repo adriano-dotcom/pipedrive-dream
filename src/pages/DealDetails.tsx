@@ -20,6 +20,7 @@ import { DealNotes } from '@/components/deals/detail/DealNotes';
 import { DealActivities } from '@/components/deals/detail/DealActivities';
 import { DealFiles } from '@/components/deals/detail/DealFiles';
 import { DealEmails } from '@/components/deals/detail/DealEmails';
+import { DealSummary } from '@/components/deals/detail/DealSummary';
 import { LostReasonDialog } from '@/components/deals/detail/LostReasonDialog';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
@@ -59,6 +60,7 @@ export default function DealDetails() {
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('summary');
 
   const {
     deal,
@@ -299,46 +301,35 @@ export default function DealDetails() {
 
         {/* Tabs Content */}
         <div className="lg:col-span-2">
-          <Tabs defaultValue="notes" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full justify-start bg-muted/50 p-1">
-              <TabsTrigger value="notes" className="flex-1 sm:flex-none">
-                Notas ({notes.length})
-              </TabsTrigger>
-              <TabsTrigger value="files" className="flex-1 sm:flex-none">
-                Arquivos ({files.length})
+              <TabsTrigger value="summary" className="flex-1 sm:flex-none">
+                Resumo
               </TabsTrigger>
               <TabsTrigger value="activities" className="flex-1 sm:flex-none">
                 Atividades ({activities.length})
               </TabsTrigger>
-              <TabsTrigger value="emails" className="flex-1 sm:flex-none">
-                E-mails ({emails.length})
-              </TabsTrigger>
               <TabsTrigger value="history" className="flex-1 sm:flex-none">
                 Histórico ({history.length})
               </TabsTrigger>
+              <TabsTrigger value="files" className="flex-1 sm:flex-none">
+                Anexos ({files.length})
+              </TabsTrigger>
+              <TabsTrigger value="notes" className="flex-1 sm:flex-none">
+                Notas ({notes.length})
+              </TabsTrigger>
+              <TabsTrigger value="emails" className="flex-1 sm:flex-none">
+                E-mails ({emails.length})
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="notes" className="mt-4">
-              <DealNotes
+            <TabsContent value="summary" className="mt-4">
+              <DealSummary
+                activities={activities}
                 notes={notes}
-                onAddNote={addNote}
-                onTogglePin={togglePin}
-                onDeleteNote={deleteNote}
-                onEditNote={(noteId, content) => updateNote({ noteId, content })}
-                isAdding={isAddingNote}
-                dealId={id || ''}
-                dealTitle={deal?.title || ''}
-              />
-            </TabsContent>
-
-            <TabsContent value="files" className="mt-4">
-              <DealFiles
                 files={files}
-                isLoading={isLoadingFiles}
-                isUploading={isUploading}
-                onUpload={uploadFile}
-                onDownload={downloadFile}
-                onDelete={deleteFile}
+                history={history}
+                onTabChange={setActiveTab}
               />
             </TabsContent>
 
@@ -362,6 +353,34 @@ export default function DealDetails() {
               />
             </TabsContent>
 
+            <TabsContent value="history" className="mt-4">
+              <DealTimeline history={history} />
+            </TabsContent>
+
+            <TabsContent value="files" className="mt-4">
+              <DealFiles
+                files={files}
+                isLoading={isLoadingFiles}
+                isUploading={isUploading}
+                onUpload={uploadFile}
+                onDownload={downloadFile}
+                onDelete={deleteFile}
+              />
+            </TabsContent>
+
+            <TabsContent value="notes" className="mt-4">
+              <DealNotes
+                notes={notes}
+                onAddNote={addNote}
+                onTogglePin={togglePin}
+                onDeleteNote={deleteNote}
+                onEditNote={(noteId, content) => updateNote({ noteId, content })}
+                isAdding={isAddingNote}
+                dealId={id || ''}
+                dealTitle={deal?.title || ''}
+              />
+            </TabsContent>
+
             <TabsContent value="emails" className="mt-4">
               <DealEmails
                 dealId={id || ''}
@@ -369,10 +388,6 @@ export default function DealDetails() {
                 recipientEmail={deal?.person?.email || deal?.organization?.email || ''}
                 recipientName={deal?.person?.name || deal?.organization?.name}
               />
-            </TabsContent>
-
-            <TabsContent value="history" className="mt-4">
-              <DealTimeline history={history} />
             </TabsContent>
           </Tabs>
         </div>
