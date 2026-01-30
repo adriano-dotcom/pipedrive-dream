@@ -85,14 +85,14 @@ export function ImportStepMapping({
                 {/* Target Field */}
                 <div className="w-[200px] flex-shrink-0">
                   <Select
-                    value={currentValue}
-                    onValueChange={(value) => onMappingChange(header, value)}
+                    value={currentValue || '__ignore__'}
+                    onValueChange={(value) => onMappingChange(header, value === '__ignore__' ? '' : value)}
                   >
                     <SelectTrigger className={currentValue ? 'border-primary/50' : ''}>
                       <SelectValue placeholder="Selecionar campo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="__ignore__">
                         <span className="text-muted-foreground">Ignorar coluna</span>
                       </SelectItem>
                       
