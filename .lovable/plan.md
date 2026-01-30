@@ -1,164 +1,263 @@
 
 
-# Validacao de CNPJ Duplicado em Tempo Real (onBlur)
+# Feedback Aprimorado ao Criar Pessoa
 
 ## Objetivo
 
-Implementar validacao inline do campo de CNPJ quando o usuario sai do campo, verificando se o CNPJ ja existe no banco de dados e mostrando erro visual antes do submit.
-
----
-
-## Componente Afetado
-
-**OrganizationForm.tsx** - formulario de organizacoes
+Melhorar a experiencia do usuario ao criar/editar pessoas com:
+1. Validacao server-side reforçada (nao confiar apenas no frontend)
+2. Feedback visual mais claro em todos os estados
+3. Estados do botao bem definidos
 
 ---
 
 ## Situacao Atual
 
-O componente ja possui a funcao `checkCnpjExists` (linhas 60-75) que e usada durante o submit. Precisamos adicionar a validacao no blur do campo CNPJ.
+O codigo ja possui:
+- Validacao server-side no `createMutation.mutationFn` (linhas 155-179) que verifica duplicatas antes do insert
+- Toast de sucesso "Pessoa criada com sucesso!"
+- Toast de erro com mensagens especificas para email/WhatsApp/CPF duplicados
+
+O que precisa melhorar:
+- Mensagens de erro mais claras com icones
+- Estado visual do botao durante erro
+- Possibilidade de adicionar validacao via database constraint (mais robusta)
 
 ---
 
-## Modificacoes Detalhadas
+## Modificacoes
 
-### OrganizationForm.tsx
+### 1. PersonForm.tsx - Melhorar Toasts de Erro
 
-**1. Adicionar estados para CNPJ (apos linha 80):**
+**Atualizar `onError` no createMutation (linhas 206-222):**
 
 ```typescript
-const [cnpjError, setCnpjError] = useState<string | null>(null);
-const [isCheckingCnpj, setIsCheckingCnpj] = useState(false);
+onError: (error) => {
+  if (error.message.includes('email')) {
+    setEmailError('Este e-mail ja esta cadastrado no sistema');
+    toast.error('E-mail ja cadastrado', {
+      description: 'Ja existe uma pessoa cadastrada com este email.',
+      icon: '⚠️',
+    });
+  } else if (error.message.includes('WhatsApp')) {
+    setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
+    toast.error('WhatsApp ja cadastrado', {
+      description: 'Ja existe uma pessoa cadastrada com este WhatsApp.',
+      icon: '⚠️',
+    });
+  } else if (error.message.includes('CPF')) {
+    toast.error('CPF ja cadastrado', {
+      description: 'Ja existe uma pessoa cadastrada com este CPF.',
+      icon: '⚠️',
+    });
+  } else {
+    toast.error('Erro ao criar pessoa', {
+      description: error.message,
+      icon: '❌',
+    });
+  }
+},
 ```
 
-**2. Adicionar import do AlertCircle (linha 23):**
+**Atualizar `onSuccess` (linhas 200-205):**
 
 ```typescript
-import { Loader2, AlertCircle } from 'lucide-react';
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['people'] });
+  queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+  toast.success('Pessoa criada com sucesso!', {
+    description: 'O contato foi adicionado ao sistema.',
+    icon: '✅',
+  });
+  onSuccess();
+},
 ```
 
-**3. Adicionar handler onBlur para CNPJ (apos fetchCnpjData, linha 173):**
+### 2. PersonForm.tsx - Estado do Botao Melhorado
+
+**Atualizar o botao de submit (linhas 518-521):**
+
+```tsx
+<Button 
+  type="submit" 
+  disabled={isLoading || !!emailError || !!whatsappError}
+  className={cn(
+    emailError || whatsappError ? 'animate-shake' : ''
+  )}
+>
+  {isLoading ? (
+    <>
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      {person ? 'Salvando...' : 'Criando...'}
+    </>
+  ) : (
+    person ? 'Salvar Alteracoes' : 'Criar Pessoa'
+  )}
+</Button>
+```
+
+### 3. AddContactPersonDialog.tsx - Validacao Server-side
+
+**Adicionar validacao antes do insert no createMutation (linha 183):**
 
 ```typescript
-const handleCnpjBlur = async () => {
-  const cnpj = watch('cnpj');
-  if (!cnpj || cnpj.trim() === '') {
-    setCnpjError(null);
-    return;
-  }
-  
-  // Precisa ter 14 digitos para validar
-  const cleanCnpj = cnpj.replace(/\D/g, '');
-  if (cleanCnpj.length !== 14) {
-    return;
-  }
-  
-  setIsCheckingCnpj(true);
-  try {
-    const exists = await checkCnpjExists(cnpj, organization?.id);
-    if (exists) {
-      setCnpjError('Este CNPJ ja esta cadastrado no sistema');
-    } else {
-      setCnpjError(null);
+const createMutation = useMutation({
+  mutationFn: async () => {
+    // Validacao server-side - verificar duplicatas novamente
+    if (newPersonEmail) {
+      const exists = await checkEmailExists(newPersonEmail);
+      if (exists) {
+        throw new Error('email_duplicado');
+      }
     }
-  } finally {
-    setIsCheckingCnpj(false);
-  }
-};
+    
+    if (newPersonWhatsapp) {
+      const exists = await checkWhatsappExists(newPersonWhatsapp);
+      if (exists) {
+        throw new Error('whatsapp_duplicado');
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('people')
+      .insert({
+        name: newPersonName.trim(),
+        job_title: newPersonJobTitle.trim() || null,
+        phone: newPersonPhone.trim() || null,
+        email: newPersonEmail.trim().toLowerCase() || null,
+        whatsapp: newPersonWhatsapp.trim() || null,
+        organization_id: organizationId || null,
+        owner_id: user?.id,
+        created_by: user?.id,
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data as Person;
+  },
+  onSuccess: (person) => {
+    queryClient.invalidateQueries({ queryKey: ['organization-contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['people'] });
+    onPersonCreated(person);
+    toast.success('Pessoa criada com sucesso!', {
+      description: 'O contato foi adicionado ao sistema.',
+      icon: '✅',
+    });
+    onOpenChange(false);
+    resetForm();
+  },
+  onError: (error) => {
+    if (error.message === 'email_duplicado') {
+      setEmailError('Este e-mail ja esta cadastrado no sistema');
+      toast.error('E-mail ja cadastrado', {
+        description: 'Use outro e-mail ou busque a pessoa existente.',
+        icon: '⚠️',
+      });
+    } else if (error.message === 'whatsapp_duplicado') {
+      setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
+      toast.error('WhatsApp ja cadastrado', {
+        description: 'Use outro numero ou busque a pessoa existente.',
+        icon: '⚠️',
+      });
+    } else {
+      toast.error('Erro ao criar pessoa', {
+        description: error.message,
+        icon: '❌',
+      });
+    }
+  },
+});
 ```
 
-**4. Atualizar o campo CNPJ (linhas 331-352):**
+### 4. PersonForm.tsx - Atualizar updateMutation tambem
 
-```tsx
-<div className="space-y-2">
-  <Label htmlFor="cnpj">CNPJ</Label>
-  <div className="relative">
-    <CnpjInput
-      id="cnpj"
-      value={watch('cnpj') || ''}
-      onValueChange={(value) => {
-        setValue('cnpj', value);
-        if (cnpjError) setCnpjError(null); // Limpa erro ao digitar
-        // Fetch company data when CNPJ has 14 digits
-        if (value.length === 14 && !organization) {
-          fetchCnpjData(value);
-        }
-      }}
-      onBlur={handleCnpjBlur}
-      disabled={isFetchingCnpj}
-      className={cn(
-        isFetchingCnpj ? 'pr-10' : '',
-        cnpjError ? 'border-destructive' : ''
-      )}
-    />
-    {isFetchingCnpj && (
-      <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-    )}
-  </div>
-  {isCheckingCnpj && (
-    <p className="text-sm text-muted-foreground flex items-center gap-1">
-      <Loader2 className="h-3 w-3 animate-spin" />
-      Verificando...
-    </p>
-  )}
-  {cnpjError && (
-    <p className="text-sm text-destructive flex items-center gap-1">
-      <AlertCircle className="h-3 w-3" />
-      {cnpjError}
-    </p>
-  )}
-  {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj.message}</p>}
-</div>
-```
-
-**5. Adicionar import do cn (linha 6 ou existente):**
-
-Verificar se `cn` ja esta importado, caso contrario adicionar:
+**Aplicar mesmo padrao no updateMutation (linhas 262-283):**
 
 ```typescript
-import { cn } from '@/lib/utils';
-```
-
-**6. Atualizar o botao de submit (linha ~509):**
-
-```tsx
-<Button type="submit" disabled={isLoading || !!cnpjError}>
+onSuccess: () => {
+  queryClient.invalidateQueries({ queryKey: ['people'] });
+  toast.success('Pessoa atualizada com sucesso!', {
+    description: 'As alteracoes foram salvas.',
+    icon: '✅',
+  });
+  onSuccess();
+},
+onError: (error) => {
+  if (error.message.includes('email')) {
+    setEmailError('Este e-mail ja esta cadastrado no sistema');
+    toast.error('E-mail ja cadastrado', {
+      description: 'Ja existe outra pessoa cadastrada com este email.',
+      icon: '⚠️',
+    });
+  } else if (error.message.includes('WhatsApp')) {
+    setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
+    toast.error('WhatsApp ja cadastrado', {
+      description: 'Ja existe outra pessoa cadastrada com este WhatsApp.',
+      icon: '⚠️',
+    });
+  } else if (error.message.includes('CPF')) {
+    toast.error('CPF ja cadastrado', {
+      description: 'Ja existe outra pessoa cadastrada com este CPF.',
+      icon: '⚠️',
+    });
+  } else {
+    toast.error('Erro ao atualizar pessoa', {
+      description: error.message,
+      icon: '❌',
+    });
+  }
+},
 ```
 
 ---
 
-## Fluxo Visual
+## Fluxo Visual dos Estados
 
 ```text
-Usuario digita CNPJ
+Usuario clica "Criar Pessoa"
        |
        v
-Sai do campo (blur)
+Botao muda para "Criando..." + loading
        |
        v
-CNPJ tem 14 digitos?
-   /        \
- Nao        Sim
-  |          |
-  v          v
-Ignora    Mostra "Verificando..."
-             |
-             v
-         Existe?
-         /     \
-       Sim     Nao
-        |       |
-        v       v
-     Mostra   Limpa
-     erro     erro
-        |
-        v
-Botao DESABILITADO
+Validacao server-side (duplicatas)
+       |
+   Duplicado?
+   /       \
+ Sim       Nao
+  |         |
+  v         v
+Toast     Insert no banco
+erro        |
+⚠️         Sucesso?
+  |       /       \
+  v     Sim       Nao
+Campo    |         |
+fica     v         v
+vermelho Toast   Toast
+        ✅        ❌
+         |
+         v
+    onSuccess()
+   (fecha dialog/redireciona)
 ```
 
 ---
 
-## Nota sobre CnpjInput
+## Resumo de Arquivos
 
-O componente CnpjInput ja suporta `className` e passa `{...props}` ao PatternFormat, portanto `onBlur` sera passado automaticamente.
+| Arquivo | Modificacao |
+|---------|-------------|
+| PersonForm.tsx | Melhorar toasts, adicionar estados visuais ao botao, sincronizar erros inline |
+| AddContactPersonDialog.tsx | Adicionar validacao server-side duplicada, melhorar toasts de feedback |
+
+---
+
+## Beneficios
+
+1. **Seguranca**: Validacao dupla (frontend + backend) previne race conditions
+2. **UX**: Feedback visual claro em todos os estados
+3. **Consistencia**: Mesmo padrao em todos os forms de criacao de pessoa
+4. **Acessibilidade**: Icones + texto nos toasts facilitam compreensao
 
