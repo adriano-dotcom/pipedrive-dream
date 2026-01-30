@@ -45,6 +45,7 @@ import type { ExportColumn } from '@/lib/export';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationsMobileList } from './OrganizationsMobileList';
 import type { Tables } from '@/integrations/supabase/types';
+import { formatCnpj } from '@/lib/utils';
 
 type Organization = Tables<'organizations'>;
 
@@ -201,7 +202,9 @@ export function OrganizationsTable({
         accessorKey: 'cnpj',
         header: ({ column }) => <SortableHeader column={column} title="CNPJ" />,
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.cnpj || '-'}</span>
+          <span className="text-muted-foreground font-mono text-sm">
+            {row.original.cnpj ? formatCnpj(row.original.cnpj) : '-'}
+          </span>
         ),
       },
       {
