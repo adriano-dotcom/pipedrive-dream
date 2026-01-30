@@ -1,76 +1,227 @@
 
-# Mover QuickNoteCard para Dentro da Aba Notas
 
-## Situacao Atual
+# Validacao de Email Duplicado em Tempo Real (onBlur)
 
-O layout atual esta assim:
+## Objetivo
 
-```
-Header
-QuickNoteCard (sempre visivel)
-Grid [Sidebar | Tabs(Notas, Arquivos...)]
-```
-
-## Layout Desejado
-
-```
-Header
-Grid [Sidebar | Tabs(Notas, Arquivos...)]
-                 |-> TabsContent(notes): QuickNoteCard + Lista de Notas
-```
-
-O QuickNoteCard deve aparecer apenas quando a aba "Notas" esta selecionada.
+Implementar validacao inline do campo de email quando o usuario sai do campo, verificando se o email ja existe no banco de dados e mostrando erro visual antes do submit.
 
 ---
 
-## Modificacao
+## Componentes Afetados
 
-### Arquivo: `src/pages/OrganizationDetails.tsx`
+### 1. PersonForm.tsx (formulario principal)
 
-**1. Remover o QuickNoteCard da posicao atual (linhas 283-289)**
+### 2. AddContactPersonDialog.tsx (dialog de criacao rapida)
 
-Remover este bloco que esta antes do grid:
+---
+
+## Modificacoes Detalhadas
+
+### PersonForm.tsx
+
+**Estado adicional:**
 
 ```typescript
-{/* Quick Note Card */}
-<QuickNoteCard
-  organizationId={id || ''}
-  organizationName={organization.name}
-  onAddNote={addNote}
-  isAdding={isAddingNote}
-/>
+const [emailError, setEmailError] = useState<string | null>(null);
+const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 ```
 
-**2. Adicionar o QuickNoteCard dentro do TabsContent de "notes"**
-
-Modificar o TabsContent de notes (linha 327-338) para incluir o QuickNoteCard antes do OrganizationNotes:
+**Handler onBlur para email:**
 
 ```typescript
-<TabsContent value="notes" className="mt-4 space-y-4">
-  <QuickNoteCard
-    organizationId={id || ''}
-    organizationName={organization.name}
-    onAddNote={addNote}
-    isAdding={isAddingNote}
+const handleEmailBlur = async () => {
+  const email = watch('email');
+  if (!email || email.trim() === '') {
+    setEmailError(null);
+    return;
+  }
+  
+  setIsCheckingEmail(true);
+  try {
+    const exists = await checkEmailExists(email, person?.id);
+    if (exists) {
+      setEmailError('Este e-mail ja esta cadastrado no sistema');
+    } else {
+      setEmailError(null);
+    }
+  } finally {
+    setIsCheckingEmail(false);
+  }
+};
+```
+
+**Campo de email atualizado:**
+
+```tsx
+<div className="space-y-2 sm:col-span-2">
+  <Label htmlFor="email">Email</Label>
+  <Input 
+    id="email" 
+    type="email" 
+    {...register('email')} 
+    placeholder="joao@email.com"
+    onBlur={handleEmailBlur}
+    className={emailError ? 'border-destructive' : ''}
   />
-  <OrganizationNotes
-    notes={notes}
-    onAddNote={addNote}
-    onTogglePin={togglePin}
-    onDeleteNote={deleteNote}
-    onEditNote={updateNote}
-    isAdding={isAddingNote}
-    organizationId={id || ''}
-    organizationName={organization.name}
-  />
-</TabsContent>
+  {isCheckingEmail && (
+    <p className="text-sm text-muted-foreground flex items-center gap-1">
+      <Loader2 className="h-3 w-3 animate-spin" />
+      Verificando...
+    </p>
+  )}
+  {emailError && (
+    <p className="text-sm text-destructive flex items-center gap-1">
+      <AlertCircle className="h-3 w-3" />
+      {emailError}
+    </p>
+  )}
+  {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+</div>
+```
+
+**Botao de submit desabilitado:**
+
+```tsx
+<Button 
+  type="submit" 
+  disabled={isLoading || !!emailError}
+>
+  ...
+</Button>
 ```
 
 ---
 
-## Resultado
+### AddContactPersonDialog.tsx
 
-| Antes | Depois |
-|-------|--------|
-| QuickNoteCard sempre visivel acima do grid | QuickNoteCard visivel apenas na aba Notas |
-| Tabs aparecem abaixo do card | Tabs aparecem primeiro, card dentro do conteudo |
+**Estado adicional:**
+
+```typescript
+const [emailError, setEmailError] = useState<string | null>(null);
+const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+```
+
+**Funcao de verificacao:**
+
+```typescript
+const checkEmailExists = async (email: string): Promise<boolean> => {
+  if (!email || email.trim() === '') return false;
+  
+  const { data } = await supabase
+    .from('people')
+    .select('id')
+    .eq('email', email.trim().toLowerCase())
+    .maybeSingle();
+  
+  return !!data;
+};
+```
+
+**Handler onBlur:**
+
+```typescript
+const handleEmailBlur = async () => {
+  if (!newPersonEmail || newPersonEmail.trim() === '') {
+    setEmailError(null);
+    return;
+  }
+  
+  setIsCheckingEmail(true);
+  try {
+    const exists = await checkEmailExists(newPersonEmail);
+    if (exists) {
+      setEmailError('Este e-mail ja esta cadastrado no sistema');
+    } else {
+      setEmailError(null);
+    }
+  } finally {
+    setIsCheckingEmail(false);
+  }
+};
+```
+
+**Campo atualizado:**
+
+```tsx
+<div className="space-y-2">
+  <Label htmlFor="new-person-email">Email</Label>
+  <Input
+    id="new-person-email"
+    type="email"
+    value={newPersonEmail}
+    onChange={(e) => {
+      setNewPersonEmail(e.target.value);
+      if (emailError) setEmailError(null); // Limpa erro ao digitar
+    }}
+    onBlur={handleEmailBlur}
+    placeholder="email@empresa.com"
+    className={emailError ? 'border-destructive' : ''}
+  />
+  {isCheckingEmail && (
+    <p className="text-sm text-muted-foreground flex items-center gap-1">
+      <Loader2 className="h-3 w-3 animate-spin" />
+      Verificando...
+    </p>
+  )}
+  {emailError && (
+    <p className="text-sm text-destructive flex items-center gap-1">
+      <AlertCircle className="h-3 w-3" />
+      {emailError}
+    </p>
+  )}
+</div>
+```
+
+**Botao desabilitado:**
+
+```tsx
+<Button
+  className="w-full"
+  onClick={handleCreatePerson}
+  disabled={isCreating || !newPersonName.trim() || !!emailError}
+>
+```
+
+**Reset do formulario:**
+
+```typescript
+const resetForm = () => {
+  // ... campos existentes
+  setEmailError(null);
+};
+```
+
+---
+
+## Fluxo Visual
+
+```text
+Usuario digita email
+       |
+       v
+Sai do campo (blur)
+       |
+       v
+Mostra "Verificando..."
+       |
+       v
+   Existe?
+   /     \
+ Sim     Nao
+  |       |
+  v       v
+Mostra   Limpa
+erro     erro
+  |
+  v
+Botao DESABILITADO
+```
+
+---
+
+## Imports Necessarios
+
+- `AlertCircle` de lucide-react (para icone de erro)
+- `useState` do React (ja importado)
+
