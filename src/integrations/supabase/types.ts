@@ -861,6 +861,66 @@ export type Database = {
           },
         ]
       }
+      person_tag_assignments: {
+        Row: {
+          created_at: string | null
+          id: string
+          person_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          person_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          person_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_tag_assignments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "person_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_tags: {
+        Row: {
+          color: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       pipelines: {
         Row: {
           created_at: string

@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   useReactTable,
   getCoreRowModel,
@@ -43,6 +44,8 @@ import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { PeopleMobileList } from './PeopleMobileList';
+import { PersonTagBadge } from './PersonTagBadge';
+import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -79,6 +82,7 @@ const columnLabels: Record<string, string> = {
   automotores: 'Automotores',
   job_title: 'Cargo',
   label: 'Status',
+  tags: 'Etiquetas',
   actions: 'Ações',
 };
 
@@ -135,6 +139,43 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     pageIndex: 0,
     pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
   });
+  
+  // Buscar todas as atribuições de tags para as pessoas na lista
+  const personIds = people.map(p => p.id);
+  const { data: allTagAssignments = [] } = useQuery({
+    queryKey: ['person-tag-assignments-bulk', personIds],
+    queryFn: async () => {
+      if (personIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from('person_tag_assignments')
+        .select(`
+          id,
+          person_id,
+          tag_id,
+          tag:person_tags(id, name, color)
+        `)
+        .in('person_id', personIds);
+      
+      if (error) throw error;
+      return data as { id: string; person_id: string; tag_id: string; tag: { id: string; name: string; color: string } }[];
+    },
+    enabled: personIds.length > 0,
+  });
+  
+  // Criar um mapa de pessoa -> tags
+  const tagsByPersonId = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; color: string }[]>();
+    allTagAssignments.forEach(assignment => {
+      if (!map.has(assignment.person_id)) {
+        map.set(assignment.person_id, []);
+      }
+      if (assignment.tag) {
+        map.get(assignment.person_id)!.push(assignment.tag);
+      }
+    });
+    return map;
+  }, [allTagAssignments]);
 
   // Export columns configuration
   const exportColumns: ExportColumn[] = useMemo(() => [
@@ -272,6 +313,28 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
       ),
     },
     {
+      id: 'tags',
+      accessorFn: (row) => {
+        const tags = tagsByPersonId.get(row.id) || [];
+        return tags.map(t => t.name).join(', ');
+      },
+      header: 'Etiquetas',
+      cell: ({ row }) => {
+        const tags = tagsByPersonId.get(row.original.id) || [];
+        if (tags.length === 0) return <span className="text-muted-foreground/50">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1 max-w-[200px]">
+            {tags.slice(0, 3).map(tag => (
+              <PersonTagBadge key={tag.id} name={tag.name} color={tag.color} />
+            ))}
+            {tags.length > 3 && (
+              <span className="text-xs text-muted-foreground">+{tags.length - 3}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       id: 'actions',
       header: 'Ações',
       cell: ({ row }) => (
@@ -297,7 +360,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
         </div>
       ),
     },
-  ], [isAdmin, onEdit, onDelete]);
+  ], [isAdmin, onEdit, onDelete, tagsByPersonId]);
 
   const defaultColumnOrder = useMemo(() => columns.map(c => c.id as string), [columns]);
 
