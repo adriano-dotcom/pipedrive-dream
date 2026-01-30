@@ -1,231 +1,137 @@
 
-# Melhorar Header da Pagina DealDetails
+# Melhorar DealSidebar com Informacoes Faltantes
 
 ## Objetivo
 
-Padronizar a pagina de detalhes de negocios (`/deals/[id]`) com o mesmo padrao UX das paginas de Pessoas e Organizacoes, incluindo:
+Adicionar campos importantes que estao faltando na sidebar de detalhes do negocio, seguindo o padrao das sidebars de Pessoas e Organizacoes:
 
-- Avatar/badge visual com cor do estagio
-- Dropdown de acoes adicionais (...)
-- Botao "Nova Atividade"
-- Funcionalidade de edicao
-- Funcionalidade de exclusao com confirmacao
+- Data de criacao
+- Tempo em pipeline
+- Status visual (Aberto/Ganho/Perdido)
 
 ---
 
-## Comparativo Atual vs Proposto
+## Campos Solicitados vs Situacao Atual
 
-```text
-ATUAL:
-┌─────────────────────────────────────────────────────────┐
-│ ← RecordNav  Titulo do Negocio                [✓] [✗] [✏️]│
-│              Pipeline • Etapa                           │
-│              R$ 50.000                                  │
-└─────────────────────────────────────────────────────────┘
-
-PROPOSTO:
-┌─────────────────────────────────────────────────────────┐
-│ ← RecordNav  [🟢] Titulo do Negocio [Quente] [📅 Atividade] [✓] [✗] [✏️] [...]│
-│                   Pipeline • Etapa                      │
-│                   R$ 50.000                             │
-└─────────────────────────────────────────────────────────┘
-```
+| Campo | Situacao | Acao |
+|-------|----------|------|
+| Valor do negocio | JA EXISTE | Manter |
+| Etapa/Status | JA EXISTE (parcial) | Adicionar badge de status |
+| Pessoa de contato | JA EXISTE | Ja clicavel |
+| Organizacao | JA EXISTE | Ja clicavel |
+| Data de criacao | FALTA | Adicionar |
+| Probabilidade de ganho | JA EXISTE | Manter |
+| Data esperada de fechamento | JA EXISTE | Manter |
+| Tempo em pipeline | FALTA | Calcular e adicionar |
 
 ---
 
-## Modificacoes no Arquivo DealDetails.tsx
+## Modificacoes no DealSidebar.tsx
 
-### 1. Adicionar Avatar Visual com Cor do Estagio
+### 1. Atualizar Interface DealSidebarProps
 
-Criar um icone visual antes do titulo que mostra a cor do estagio atual:
+Adicionar campos necessarios:
 
 ```typescript
-<div 
-  className="flex h-12 w-12 items-center justify-center rounded-xl border"
-  style={{ 
-    backgroundColor: `${deal.stage?.color}20`, 
-    borderColor: `${deal.stage?.color}40` 
-  }}
->
-  <Handshake 
-    className="h-6 w-6" 
-    style={{ color: deal.stage?.color }} 
-  />
-</div>
+interface DealSidebarProps {
+  deal: {
+    // ... campos existentes
+    created_at: string;        // NOVO
+    status: string;            // NOVO
+  };
+}
 ```
 
-### 2. Adicionar Badge de Label
+### 2. Adicionar Secao "Visao Geral"
 
-Se o deal tiver um label (Quente, Morno, Frio), exibir badge colorido como em Pessoas/Organizacoes:
+Nova secao similar a PersonSidebar/OrganizationSidebar:
 
 ```typescript
-{deal.label && (
-  <Badge variant="secondary" className={getLabelColor(deal.label)}>
-    {deal.label}
-  </Badge>
-)}
+<SidebarSection title="Visao Geral" icon={Clock}>
+  <div className="space-y-0.5">
+    {/* Status do Negocio */}
+    <div className="flex items-center justify-between py-1.5 text-sm">
+      <span className="text-muted-foreground">Status</span>
+      <Badge variant={...} className={...}>
+        {getStatusLabel(deal.status)}
+      </Badge>
+    </div>
+    
+    {/* Data de Criacao */}
+    <InfoRow 
+      label="Criado em" 
+      value={format(new Date(deal.created_at), 'dd/MM/yyyy')} 
+      icon={Calendar} 
+    />
+    
+    {/* Tempo em Pipeline */}
+    <InfoRow 
+      label="Tempo no pipeline" 
+      value={formatDistanceToNow(new Date(deal.created_at), { locale: ptBR })} 
+      icon={Clock} 
+    />
+  </div>
+</SidebarSection>
 ```
 
-### 3. Adicionar Botao "Nova Atividade"
-
-Adicionar botao consistente com as outras paginas:
+### 3. Adicionar Funcao Helper para Status
 
 ```typescript
-<Button 
-  variant="outline" 
-  size="sm"
-  onClick={() => {
-    setEditingActivity(null);
-    setActivityFormOpen(true);
-  }}
->
-  <Calendar className="h-4 w-4 mr-2" />
-  Nova Atividade
-</Button>
-```
-
-### 4. Adicionar Estado para Edicao e Exclusao
-
-```typescript
-const [editSheetOpen, setEditSheetOpen] = useState(false);
-const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-```
-
-### 5. Adicionar Dropdown "Mais Acoes"
-
-Menu dropdown com opcoes adicionais:
-
-```typescript
-<DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button variant="outline" size="icon">
-      <MoreVertical className="h-4 w-4" />
-    </Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent align="end">
-    <DropdownMenuItem onClick={() => setEditSheetOpen(true)}>
-      <Pencil className="h-4 w-4 mr-2" />
-      Editar
-    </DropdownMenuItem>
-    <DropdownMenuSeparator />
-    <DropdownMenuItem 
-      onClick={() => setDeleteDialogOpen(true)}
-      className="text-destructive focus:text-destructive"
-    >
-      <Trash2 className="h-4 w-4 mr-2" />
-      Excluir
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
-```
-
-### 6. Adicionar Funcionalidade de Exclusao
-
-Buscar pipeline/stages para o formulario de edicao e adicionar mutation de exclusao:
-
-```typescript
-// Mutation para deletar deal
-const deleteDealMutation = useMutation({
-  mutationFn: async () => {
-    const { error } = await supabase
-      .from('deals')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
-  },
-  onSuccess: () => {
-    toast({ title: 'Negocio excluido com sucesso!' });
-    navigate('/deals');
-  },
-  onError: (error) => {
-    toast({
-      variant: 'destructive',
-      title: 'Erro ao excluir',
-      description: error.message,
-    });
-  },
-});
-```
-
-### 7. Adicionar Componentes no JSX
-
-```typescript
-{/* Delete Confirm Dialog */}
-<DeleteConfirmDialog
-  open={deleteDialogOpen}
-  onOpenChange={setDeleteDialogOpen}
-  title="Excluir Negocio"
-  itemName={deal.title}
-  onConfirm={() => deleteDealMutation.mutate()}
-  isDeleting={deleteDealMutation.isPending}
-/>
-
-{/* Deal Edit Sheet */}
-<DealFormSheet
-  open={editSheetOpen}
-  onOpenChange={setEditSheetOpen}
-  deal={deal}
-  pipelineId={deal.pipeline_id}
-  stages={stages}
-/>
-```
-
----
-
-## Novos Imports Necessarios
-
-```typescript
-import { Calendar, MoreVertical, Trash2, Handshake } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
-import { DealFormSheet } from '@/components/deals/DealFormSheet';
-```
-
----
-
-## Funcao Helper para Cores de Label
-
-```typescript
-const getLabelColor = (label: string | null) => {
-  switch (label) {
-    case 'Quente':
-      return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-    case 'Morno':
-      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-    case 'Frio':
-      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'won':
+      return { label: 'Ganho', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' };
+    case 'lost':
+      return { label: 'Perdido', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' };
     default:
-      return '';
+      return { label: 'Aberto', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' };
   }
 };
 ```
 
+### 4. Importar Dependencias
+
+```typescript
+import { formatDistanceToNow } from 'date-fns';
+import { Clock } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+```
+
 ---
 
-## Layout Final do Header
+## Layout Final da Sidebar
 
 ```text
-┌──────────────────────────────────────────────────────────────────────┐
-│                                                                      │
-│  [←]  [< X de Y >]  [🟢]  Titulo do Negocio  [Quente]               │
-│                           Pipeline • Etapa                           │
-│                           R$ 50.000,00                               │
-│                                                                      │
-│                      [📅 Nova Atividade] [✓ Ganho] [✗ Perdido] [...]│
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-
-Dropdown "..." contem:
-├── Editar
-├── ─────────
-└── Excluir (vermelho)
+┌─────────────────────────────────┐
+│ [👤] Pessoa                     │
+│     Nome (clicavel) [✏️]         │
+│     Cargo                       │
+│     📞 Telefone                 │
+│     ✉️ Email           [📧]     │
+├─────────────────────────────────┤
+│ [🏢] Organizacao                │
+│     Nome (clicavel) [✏️]         │
+│     📞 Telefone                 │
+│     ✉️ Email           [📧]     │
+├─────────────────────────────────┤
+│ [🕐] Visao Geral        <NOVO>  │
+│     Status: [Aberto/Ganho/...]  │
+│     Criado em: 15/01/2025       │
+│     Tempo no pipeline: 15 dias  │
+├─────────────────────────────────┤
+│ [💰] Resumo                     │
+│     Funil: Vendas               │
+│     Etapa: Cotacao              │
+│     Valor: R$ 50.000            │
+│     Probabilidade: 60%          │
+│     Fechamento previsto: ...    │
+├─────────────────────────────────┤
+│ [🛡️] Detalhes do Seguro        │
+│     (recolhido por padrao)      │
+├─────────────────────────────────┤
+│ [📝] Observacoes                │
+│     (se houver notas)           │
+└─────────────────────────────────┘
 ```
 
 ---
@@ -234,28 +140,13 @@ Dropdown "..." contem:
 
 | Arquivo | Modificacao |
 |---------|-------------|
-| `src/pages/DealDetails.tsx` | Adicionar avatar, badge, dropdown, dialogs e funcionalidades |
+| `src/components/deals/detail/DealSidebar.tsx` | Adicionar Visao Geral, status badge, tempo no pipeline |
 
 ---
 
 ## Observacoes Importantes
 
-1. **RLS Policy**: A exclusao de deals requer role `admin` conforme RLS existente
-2. **Reutilizacao**: Usa componentes existentes (DeleteConfirmDialog, DealFormSheet, Badge, DropdownMenu)
-3. **Consistencia**: Segue exatamente o padrao visual de PersonDetails e OrganizationDetails
-4. **Responsividade**: Os botoes ja usam classes responsivas existentes
-
----
-
-## Estimativa de Tempo
-
-| Tarefa | Tempo |
-|--------|-------|
-| Adicionar avatar com cor do estagio | 15min |
-| Adicionar badge de label | 10min |
-| Adicionar botao Nova Atividade | 5min |
-| Adicionar dropdown Mais Acoes | 15min |
-| Implementar exclusao com dialog | 20min |
-| Conectar formulario de edicao | 15min |
-| Testes e ajustes | 20min |
-| **Total** | **~1h30** |
+1. **Dados ja disponiveis**: O hook `useDealDetails` ja busca `*` da tabela deals, entao `created_at` e `status` ja estao disponiveis
+2. **Nao precisa alterar DealDetails.tsx**: O componente ja passa `deal` completo para DealSidebar
+3. **Consistencia visual**: Usar os mesmos componentes e estilos de PersonSidebar/OrganizationSidebar
+4. **Reordenacao**: Mover "Visao Geral" para antes de "Resumo" para melhor hierarquia de informacao
