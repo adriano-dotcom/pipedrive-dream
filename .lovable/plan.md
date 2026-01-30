@@ -1,18 +1,17 @@
 
 
-# Validacao de Email Duplicado em Tempo Real (onBlur)
+# Validacao de WhatsApp Duplicado em Tempo Real (onBlur)
 
 ## Objetivo
 
-Implementar validacao inline do campo de email quando o usuario sai do campo, verificando se o email ja existe no banco de dados e mostrando erro visual antes do submit.
+Implementar validacao inline do campo de WhatsApp quando o usuario sai do campo, verificando se o WhatsApp ja existe no banco de dados e mostrando erro visual antes do submit.
 
 ---
 
 ## Componentes Afetados
 
-### 1. PersonForm.tsx (formulario principal)
-
-### 2. AddContactPersonDialog.tsx (dialog de criacao rapida)
+1. **PersonForm.tsx** - formulario principal
+2. **AddContactPersonDialog.tsx** - dialog de criacao rapida
 
 ---
 
@@ -20,184 +19,184 @@ Implementar validacao inline do campo de email quando o usuario sai do campo, ve
 
 ### PersonForm.tsx
 
-**Estado adicional:**
+**1. Adicionar estados para WhatsApp (junto aos estados de email, linha 56-57):**
 
 ```typescript
-const [emailError, setEmailError] = useState<string | null>(null);
-const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+const [whatsappError, setWhatsappError] = useState<string | null>(null);
+const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
 ```
 
-**Handler onBlur para email:**
+**2. Adicionar handler onBlur para WhatsApp (apos handleEmailBlur, linha 318):**
 
 ```typescript
-const handleEmailBlur = async () => {
-  const email = watch('email');
-  if (!email || email.trim() === '') {
-    setEmailError(null);
+const handleWhatsappBlur = async () => {
+  const whatsapp = watch('whatsapp');
+  if (!whatsapp || whatsapp.trim() === '') {
+    setWhatsappError(null);
     return;
   }
   
-  setIsCheckingEmail(true);
+  setIsCheckingWhatsapp(true);
   try {
-    const exists = await checkEmailExists(email, person?.id);
+    const exists = await checkWhatsappExists(whatsapp, person?.id);
     if (exists) {
-      setEmailError('Este e-mail ja esta cadastrado no sistema');
+      setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
     } else {
-      setEmailError(null);
+      setWhatsappError(null);
     }
   } finally {
-    setIsCheckingEmail(false);
+    setIsCheckingWhatsapp(false);
   }
 };
 ```
 
-**Campo de email atualizado:**
+**3. Atualizar o campo WhatsApp (linhas 396-402):**
 
 ```tsx
-<div className="space-y-2 sm:col-span-2">
-  <Label htmlFor="email">Email</Label>
-  <Input 
-    id="email" 
-    type="email" 
-    {...register('email')} 
-    placeholder="joao@email.com"
-    onBlur={handleEmailBlur}
-    className={emailError ? 'border-destructive' : ''}
+<div className="space-y-2">
+  <Label htmlFor="whatsapp">WhatsApp</Label>
+  <PhoneInput
+    id="whatsapp"
+    value={watch('whatsapp') || ''}
+    onValueChange={(value) => {
+      setValue('whatsapp', value);
+      if (whatsappError) setWhatsappError(null);
+    }}
+    onBlur={handleWhatsappBlur}
+    className={whatsappError ? 'border-destructive' : ''}
   />
-  {isCheckingEmail && (
+  {isCheckingWhatsapp && (
     <p className="text-sm text-muted-foreground flex items-center gap-1">
       <Loader2 className="h-3 w-3 animate-spin" />
       Verificando...
     </p>
   )}
-  {emailError && (
+  {whatsappError && (
     <p className="text-sm text-destructive flex items-center gap-1">
       <AlertCircle className="h-3 w-3" />
-      {emailError}
+      {whatsappError}
     </p>
   )}
-  {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
 </div>
 ```
 
-**Botao de submit desabilitado:**
+**4. Atualizar o botao de submit (linha 476):**
 
 ```tsx
-<Button 
-  type="submit" 
-  disabled={isLoading || !!emailError}
->
-  ...
-</Button>
+<Button type="submit" disabled={isLoading || !!emailError || !!whatsappError}>
 ```
 
 ---
 
 ### AddContactPersonDialog.tsx
 
-**Estado adicional:**
+**1. Adicionar estados para WhatsApp (junto aos estados de email, linha 60-61):**
 
 ```typescript
-const [emailError, setEmailError] = useState<string | null>(null);
-const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+const [whatsappError, setWhatsappError] = useState<string | null>(null);
+const [isCheckingWhatsapp, setIsCheckingWhatsapp] = useState(false);
 ```
 
-**Funcao de verificacao:**
+**2. Adicionar funcao de verificacao de WhatsApp (apos checkEmailExists, linha 74):**
 
 ```typescript
-const checkEmailExists = async (email: string): Promise<boolean> => {
-  if (!email || email.trim() === '') return false;
+const checkWhatsappExists = async (whatsapp: string): Promise<boolean> => {
+  if (!whatsapp || whatsapp.trim() === '') return false;
   
   const { data } = await supabase
     .from('people')
     .select('id')
-    .eq('email', email.trim().toLowerCase())
+    .eq('whatsapp', whatsapp.trim())
     .maybeSingle();
   
   return !!data;
 };
 ```
 
-**Handler onBlur:**
+**3. Adicionar handler onBlur para WhatsApp (apos handleEmailBlur, linha 94):**
 
 ```typescript
-const handleEmailBlur = async () => {
-  if (!newPersonEmail || newPersonEmail.trim() === '') {
-    setEmailError(null);
+const handleWhatsappBlur = async () => {
+  if (!newPersonWhatsapp || newPersonWhatsapp.trim() === '') {
+    setWhatsappError(null);
     return;
   }
   
-  setIsCheckingEmail(true);
+  setIsCheckingWhatsapp(true);
   try {
-    const exists = await checkEmailExists(newPersonEmail);
+    const exists = await checkWhatsappExists(newPersonWhatsapp);
     if (exists) {
-      setEmailError('Este e-mail ja esta cadastrado no sistema');
+      setWhatsappError('Este WhatsApp ja esta cadastrado no sistema');
     } else {
-      setEmailError(null);
+      setWhatsappError(null);
     }
   } finally {
-    setIsCheckingEmail(false);
+    setIsCheckingWhatsapp(false);
   }
 };
 ```
 
-**Campo atualizado:**
+**4. Atualizar o campo WhatsApp (linhas 326-333):**
 
 ```tsx
 <div className="space-y-2">
-  <Label htmlFor="new-person-email">Email</Label>
-  <Input
-    id="new-person-email"
-    type="email"
-    value={newPersonEmail}
-    onChange={(e) => {
-      setNewPersonEmail(e.target.value);
-      if (emailError) setEmailError(null); // Limpa erro ao digitar
+  <Label htmlFor="new-person-whatsapp">WhatsApp</Label>
+  <PhoneInput
+    id="new-person-whatsapp"
+    value={newPersonWhatsapp}
+    onValueChange={(value) => {
+      setNewPersonWhatsapp(value);
+      if (whatsappError) setWhatsappError(null);
     }}
-    onBlur={handleEmailBlur}
-    placeholder="email@empresa.com"
-    className={emailError ? 'border-destructive' : ''}
+    onBlur={handleWhatsappBlur}
+    className={whatsappError ? 'border-destructive' : ''}
   />
-  {isCheckingEmail && (
+  {isCheckingWhatsapp && (
     <p className="text-sm text-muted-foreground flex items-center gap-1">
       <Loader2 className="h-3 w-3 animate-spin" />
       Verificando...
     </p>
   )}
-  {emailError && (
+  {whatsappError && (
     <p className="text-sm text-destructive flex items-center gap-1">
       <AlertCircle className="h-3 w-3" />
-      {emailError}
+      {whatsappError}
     </p>
   )}
 </div>
 ```
 
-**Botao desabilitado:**
+**5. Atualizar resetForm (linha 179-188):**
+
+```typescript
+const resetForm = () => {
+  // ... campos existentes
+  setWhatsappError(null);
+};
+```
+
+**6. Atualizar o botao de submit (linha 364-367):**
 
 ```tsx
 <Button
   className="w-full"
   onClick={handleCreatePerson}
-  disabled={isCreating || !newPersonName.trim() || !!emailError}
+  disabled={isCreating || !newPersonName.trim() || !!emailError || !!whatsappError}
 >
 ```
 
-**Reset do formulario:**
+---
 
-```typescript
-const resetForm = () => {
-  // ... campos existentes
-  setEmailError(null);
-};
-```
+## Nota sobre PhoneInput
+
+O componente PhoneInput precisa suportar `onBlur` e `className`. Verificarei se precisa de ajustes para aceitar essas props, passando-as ao Input interno.
 
 ---
 
 ## Fluxo Visual
 
 ```text
-Usuario digita email
+Usuario digita WhatsApp
        |
        v
 Sai do campo (blur)
@@ -217,11 +216,4 @@ erro     erro
   v
 Botao DESABILITADO
 ```
-
----
-
-## Imports Necessarios
-
-- `AlertCircle` de lucide-react (para icone de erro)
-- `useState` do React (ja importado)
 
