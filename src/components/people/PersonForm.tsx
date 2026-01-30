@@ -200,24 +200,35 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['people'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast.success('Pessoa criada com sucesso!');
+      toast.success('Pessoa criada com sucesso!', {
+        description: 'O contato foi adicionado ao sistema.',
+        icon: '✅',
+      });
       onSuccess();
     },
     onError: (error) => {
       if (error.message.includes('email')) {
-        toast.error('Email duplicado', {
+        setEmailError('Este e-mail já está cadastrado no sistema');
+        toast.error('E-mail já cadastrado', {
           description: 'Já existe uma pessoa cadastrada com este email.',
+          icon: '⚠️',
         });
       } else if (error.message.includes('WhatsApp')) {
-        toast.error('WhatsApp duplicado', {
+        setWhatsappError('Este WhatsApp já está cadastrado no sistema');
+        toast.error('WhatsApp já cadastrado', {
           description: 'Já existe uma pessoa cadastrada com este WhatsApp.',
+          icon: '⚠️',
         });
       } else if (error.message.includes('CPF')) {
-        toast.error('CPF duplicado', {
+        toast.error('CPF já cadastrado', {
           description: 'Já existe uma pessoa cadastrada com este CPF.',
+          icon: '⚠️',
         });
       } else {
-        toast.error('Erro ao criar pessoa: ' + error.message);
+        toast.error('Erro ao criar pessoa', {
+          description: error.message,
+          icon: '❌',
+        });
       }
     },
   });
@@ -261,24 +272,35 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['people'] });
-      toast.success('Pessoa atualizada com sucesso!');
+      toast.success('Pessoa atualizada com sucesso!', {
+        description: 'As alterações foram salvas.',
+        icon: '✅',
+      });
       onSuccess();
     },
     onError: (error) => {
       if (error.message.includes('email')) {
-        toast.error('Email duplicado', {
-          description: 'Já existe uma pessoa cadastrada com este email.',
+        setEmailError('Este e-mail já está cadastrado no sistema');
+        toast.error('E-mail já cadastrado', {
+          description: 'Já existe outra pessoa cadastrada com este email.',
+          icon: '⚠️',
         });
       } else if (error.message.includes('WhatsApp')) {
-        toast.error('WhatsApp duplicado', {
-          description: 'Já existe uma pessoa cadastrada com este WhatsApp.',
+        setWhatsappError('Este WhatsApp já está cadastrado no sistema');
+        toast.error('WhatsApp já cadastrado', {
+          description: 'Já existe outra pessoa cadastrada com este WhatsApp.',
+          icon: '⚠️',
         });
       } else if (error.message.includes('CPF')) {
-        toast.error('CPF duplicado', {
-          description: 'Já existe uma pessoa cadastrada com este CPF.',
+        toast.error('CPF já cadastrado', {
+          description: 'Já existe outra pessoa cadastrada com este CPF.',
+          icon: '⚠️',
         });
       } else {
-        toast.error('Erro ao atualizar pessoa: ' + error.message);
+        toast.error('Erro ao atualizar pessoa', {
+          description: error.message,
+          icon: '❌',
+        });
       }
     },
   });
@@ -516,8 +538,14 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
           Cancelar
         </Button>
         <Button type="submit" disabled={isLoading || !!emailError || !!whatsappError}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {person ? 'Salvar Alterações' : 'Criar Pessoa'}
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {person ? 'Salvando...' : 'Criando...'}
+            </>
+          ) : (
+            person ? 'Salvar Alterações' : 'Criar Pessoa'
+          )}
         </Button>
       </div>
     </form>

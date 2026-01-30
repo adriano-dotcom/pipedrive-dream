@@ -182,13 +182,28 @@ export function AddContactPersonDialog({
   // Create new person
   const createMutation = useMutation({
     mutationFn: async () => {
+      // Validação server-side - verificar duplicatas novamente
+      if (newPersonEmail && newPersonEmail.trim() !== '') {
+        const exists = await checkEmailExists(newPersonEmail);
+        if (exists) {
+          throw new Error('email_duplicado');
+        }
+      }
+      
+      if (newPersonWhatsapp && newPersonWhatsapp.trim() !== '') {
+        const exists = await checkWhatsappExists(newPersonWhatsapp);
+        if (exists) {
+          throw new Error('whatsapp_duplicado');
+        }
+      }
+
       const { data, error } = await supabase
         .from('people')
         .insert({
           name: newPersonName.trim(),
           job_title: newPersonJobTitle.trim() || null,
           phone: newPersonPhone.trim() || null,
-          email: newPersonEmail.trim() || null,
+          email: newPersonEmail.trim().toLowerCase() || null,
           whatsapp: newPersonWhatsapp.trim() || null,
           organization_id: organizationId || null,
           owner_id: user?.id,
@@ -204,12 +219,32 @@ export function AddContactPersonDialog({
       queryClient.invalidateQueries({ queryKey: ['organization-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['people'] });
       onPersonCreated(person);
-      toast.success('Pessoa criada com sucesso!');
+      toast.success('Pessoa criada com sucesso!', {
+        description: 'O contato foi adicionado ao sistema.',
+        icon: '✅',
+      });
       onOpenChange(false);
       resetForm();
     },
     onError: (error) => {
-      toast.error('Erro ao criar pessoa: ' + error.message);
+      if (error.message === 'email_duplicado') {
+        setEmailError('Este e-mail já está cadastrado no sistema');
+        toast.error('E-mail já cadastrado', {
+          description: 'Use outro e-mail ou busque a pessoa existente.',
+          icon: '⚠️',
+        });
+      } else if (error.message === 'whatsapp_duplicado') {
+        setWhatsappError('Este WhatsApp já está cadastrado no sistema');
+        toast.error('WhatsApp já cadastrado', {
+          description: 'Use outro número ou busque a pessoa existente.',
+          icon: '⚠️',
+        });
+      } else {
+        toast.error('Erro ao criar pessoa', {
+          description: error.message,
+          icon: '❌',
+        });
+      }
     },
   });
 
