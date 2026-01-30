@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw, MoreVertical, Trash2 } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,16 @@ import { OrganizationDeals } from '@/components/organizations/detail/Organizatio
 import { OrganizationEmails } from '@/components/organizations/detail/OrganizationEmails';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { useSentEmails } from '@/hooks/useSentEmails';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
@@ -40,9 +49,12 @@ const getLabelColor = (label: string | null) => {
 export default function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const {
     organization,
@@ -115,6 +127,29 @@ export default function OrganizationDetails() {
     const dueDate = new Date(a.due_date);
     return isPast(dueDate) && !isToday(dueDate);
   }).length;
+
+  // Delete mutation
+  const deleteOrganizationMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      toast({ title: 'Organização excluída com sucesso!' });
+      navigate('/organizations');
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir',
+        description: error.message,
+      });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -220,13 +255,27 @@ export default function OrganizationDetails() {
             <Plus className="h-4 w-4 mr-2" />
             Novo Negócio
           </Button>
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => setEditSheetOpen(true)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditSheetOpen(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => setDeleteDialogOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -337,6 +386,16 @@ export default function OrganizationDetails() {
         open={editSheetOpen}
         onOpenChange={setEditSheetOpen}
         organization={organization}
+      />
+
+      {/* Delete Confirm Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Excluir Organização"
+        itemName={organization?.name}
+        onConfirm={() => deleteOrganizationMutation.mutate()}
+        isDeleting={deleteOrganizationMutation.isPending}
       />
       </div>
     </ErrorBoundary>
