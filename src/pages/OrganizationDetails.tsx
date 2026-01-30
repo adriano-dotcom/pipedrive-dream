@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OrganizationSidebar } from '@/components/organizations/detail/OrganizationSidebar';
 import { OrganizationTimeline } from '@/components/organizations/detail/OrganizationTimeline';
 import { OrganizationNotes } from '@/components/organizations/detail/OrganizationNotes';
+import { QuickNoteCard } from '@/components/organizations/detail/QuickNoteCard';
 import { OrganizationFiles } from '@/components/organizations/detail/OrganizationFiles';
 import { OrganizationActivities } from '@/components/organizations/detail/OrganizationActivities';
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
@@ -278,6 +279,14 @@ export default function OrganizationDetails() {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Quick Note Card */}
+      <QuickNoteCard
+        organizationId={id || ''}
+        organizationName={organization.name}
+        onAddNote={addNote}
+        isAdding={isAddingNote}
+      />
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
