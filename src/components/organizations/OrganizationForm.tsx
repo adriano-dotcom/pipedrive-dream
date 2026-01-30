@@ -20,7 +20,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { InsuranceFieldsSection } from './InsuranceFieldsSection';
 import { ContactPersonSection } from './ContactPersonSection';
 import type { Tables } from '@/integrations/supabase/types';
@@ -78,6 +79,10 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
+  
+  // Estado para validação inline de CNPJ
+  const [cnpjError, setCnpjError] = useState<string | null>(null);
+  const [isCheckingCnpj, setIsCheckingCnpj] = useState(false);
 
   // Insurance fields state (not part of zod schema for simplicity with arrays)
   const [insuranceBranches, setInsuranceBranches] = useState<string[]>(
@@ -169,6 +174,33 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
       console.log('Não foi possível buscar dados do CNPJ:', error);
     } finally {
       setIsFetchingCnpj(false);
+    }
+  };
+
+  // Handler para validação de CNPJ no blur
+  const handleCnpjBlur = async () => {
+    const cnpj = watch('cnpj');
+    if (!cnpj || cnpj.trim() === '') {
+      setCnpjError(null);
+      return;
+    }
+    
+    // Precisa ter 14 dígitos para validar
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    if (cleanCnpj.length !== 14) {
+      return;
+    }
+    
+    setIsCheckingCnpj(true);
+    try {
+      const exists = await checkCnpjExists(cnpj, organization?.id);
+      if (exists) {
+        setCnpjError('Este CNPJ já está cadastrado no sistema');
+      } else {
+        setCnpjError(null);
+      }
+    } finally {
+      setIsCheckingCnpj(false);
     }
   };
 
@@ -336,18 +368,35 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
                 value={watch('cnpj') || ''}
                 onValueChange={(value) => {
                   setValue('cnpj', value);
+                  if (cnpjError) setCnpjError(null);
                   // Fetch company data when CNPJ has 14 digits
                   if (value.length === 14 && !organization) {
                     fetchCnpjData(value);
                   }
                 }}
+                onBlur={handleCnpjBlur}
                 disabled={isFetchingCnpj}
-                className={isFetchingCnpj ? 'pr-10' : ''}
+                className={cn(
+                  isFetchingCnpj ? 'pr-10' : '',
+                  cnpjError ? 'border-destructive' : ''
+                )}
               />
               {isFetchingCnpj && (
                 <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
               )}
             </div>
+            {isCheckingCnpj && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Verificando...
+              </p>
+            )}
+            {cnpjError && (
+              <p className="text-sm text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                {cnpjError}
+              </p>
+            )}
             {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj.message}</p>}
           </div>
           <div className="space-y-2">
@@ -503,7 +552,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || !!cnpjError}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {organization ? 'Salvar Alterações' : 'Criar Organização'}
         </Button>
