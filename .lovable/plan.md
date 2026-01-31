@@ -1,193 +1,164 @@
 
-# Melhorar Deteccao de Empresas Duplicadas na Importacao
 
-## Problema
+# Corrigir Exibição de Telefone no Formulário de Edição
 
-Ao importar dados do Pipedrive, cada contato vem em uma linha separada com os dados da empresa repetidos. Por exemplo:
+## Problema Identificado
 
-```text
-| Primeiro nome | Sobrenome | Telefone          | Nome (Empresa)            | CNPJ            |
-|---------------|-----------|-------------------|---------------------------|-----------------|
-| Antonio       |           | 554330471700      | A C MANOSSO E CIA LTDA ME | 09.407.877/0001-76 |
-| Katia         |           | 554330471700...   | A C MANOSSO E CIA LTDA ME | 09.407.877/0001-76 |
-```
+O campo telefone no banco de dados contém um valor em formato não-padrão (importado do Pipedrive):
 
-O sistema precisa:
-1. Detectar que "A C MANOSSO" aparece 2 vezes
-2. Criar a empresa apenas 1 vez
-3. Vincular Antonio e Katia a mesma empresa
+| Campo | Valor no Banco |
+|-------|----------------|
+| phone | `5543991407114, (43) 9140-7114` |
+| whatsapp | `null` |
 
-## Situacao Atual
+Quando esse valor passa pelo componente `PhoneInput` que usa máscara fixa `(##) #####-####`:
+- A máscara espera exatamente 11 dígitos
+- O valor real tem 28+ caracteres (dois telefones separados por vírgula)
+- Resultado: apenas os primeiros 11 dígitos são exibidos → `(55) 43991-4071`
+- Os dados restantes são perdidos na edição
 
-O codigo atual **ja possui logica para isso** no `ImportDialog.tsx` (linha 234-333):
-- Usa um `orgCache` para evitar duplicatas durante a importacao
-- Verifica por CNPJ e nome antes de criar
-
-**Porem**, os aliases de mapeamento automatico nao detectam bem as colunas do Pipedrive.
+**Na sidebar (visualização)**: Exibe o valor bruto do banco → `5543991407114, (43) 9140-7114`
+**No formulário (edição)**: A máscara corta para → `(55) 43991-4071`
 
 ---
 
-## Solucao
+## Solução Proposta
 
-### 1. Adicionar aliases para colunas do Pipedrive
+Modificar o `PhoneInput` para detectar quando o valor não se encaixa no padrão brasileiro e, nesses casos, usar um input de texto simples em vez da máscara.
 
-O Pipedrive exporta com colunas como:
-- `primeiro nome` / `first name` / `sobrenome` / `last name`
-- `Nome` (para empresa) - esse conflita com "nome" da pessoa
-- `NUMERO DE INSCRICAO` (para CNPJ)
+### Lógica de Detecção
 
-### 2. Adicionar campo "Sobrenome" e combinar com "Primeiro Nome"
+```text
+Se o valor:
+  - Contém vírgula ou ponto-e-vírgula (múltiplos telefones)
+  - Tem mais de 11 dígitos após limpar
+  - Começa com código de país diferente de 55
 
-Adicionar campos para capturar primeiro nome e sobrenome separados e combinar na hora da importacao.
-
-### 3. Melhorar deteccao de duplicatas
-
-Na etapa de preview, mostrar quais empresas serao consolidadas (evitando confusao do usuario).
+→ Usar Input simples (sem máscara)
+→ Caso contrário, usar PhoneInput com máscara normal
+```
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Modificacao |
+| Arquivo | Modificação |
 |---------|-------------|
-| `src/lib/import.ts` | Adicionar aliases para Pipedrive e campo `first_name`/`last_name` |
-| `src/components/import/ImportDialog.tsx` | Combinar first_name + last_name em name; melhorar mensagens |
-| `src/components/import/ImportStepPreview.tsx` | Mostrar aviso de empresas que serao consolidadas |
+| `src/components/ui/phone-input.tsx` | Detectar valores não-padrão e usar Input simples |
 
 ---
 
-## Detalhes Tecnicos
+## Detalhes Técnicos
 
-### 1. src/lib/import.ts - Novos campos e aliases
-
-Adicionar campos para nome separado:
+### phone-input.tsx - Nova Implementação
 
 ```typescript
-export const PERSON_FIELDS: ImportColumn[] = [
-  { id: 'name', label: 'Nome da Pessoa', required: true, aliases: ['nome', 'nome completo', 'contato', 'nome do contato', 'full name', 'nome do contato'] },
-  { id: 'first_name', label: 'Primeiro Nome', aliases: ['primeiro nome', 'first name', 'firstname', 'primeiro'] },
-  { id: 'last_name', label: 'Sobrenome', aliases: ['sobrenome', 'last name', 'lastname', 'ultimo nome'] },
-  // ... resto dos campos
-];
+import { PatternFormat, PatternFormatProps } from 'react-number-format';
+import { Input } from './input';
+import { cn } from '@/lib/utils';
 
-export const ORGANIZATION_FIELDS: ImportColumn[] = [
-  { id: 'org_name', label: 'Nome da Empresa', aliases: [
-    'empresa', 'razão social', 'razao social', 'organização', 'organizacao', 'nome da empresa',
-    'organization', 'organization name', 'company', 'company name'
-  ]},
-  { id: 'cnpj', label: 'CNPJ', aliases: [
-    'cnpj', 'cnpj da empresa', 'cnpj empresa',
-    'número de inscrição', 'numero de inscricao', 'numero inscricao',
-    'inscrição', 'inscricao'
-  ]},
-  // ... resto
-];
-```
-
-### 2. src/components/import/ImportDialog.tsx - Combinar nomes
-
-Na funcao `performImport`, antes de processar a pessoa:
-
-```typescript
-// Combinar first_name + last_name se name nao estiver mapeado
-let personName = mappedData.name;
-if (!personName && (mappedData.first_name || mappedData.last_name)) {
-  personName = [mappedData.first_name, mappedData.last_name]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
+interface PhoneInputProps extends Omit<PatternFormatProps, 'format' | 'mask' | 'customInput' | 'onValueChange'> {
+  value: string;
+  onValueChange: (value: string) => void;
+  className?: string;
+  onBlur?: () => void;
 }
 
-if (!personName) {
-  throw new Error('Nome e obrigatorio');
+// Verifica se o valor pode ser formatado com a máscara brasileira
+function canUseBrazilianMask(value: string | null | undefined): boolean {
+  if (!value) return true; // Valores vazios podem usar máscara
+  
+  // Se contém separadores (múltiplos telefones), não usar máscara
+  if (value.includes(',') || value.includes(';')) return false;
+  
+  // Extrair apenas dígitos
+  const digits = value.replace(/\D/g, '');
+  
+  // Telefone brasileiro tem 10-11 dígitos (com DDD) ou 12-13 (com código país)
+  // Se tem mais que isso, provavelmente é formato especial
+  if (digits.length > 13) return false;
+  
+  return true;
 }
-```
 
-### 3. src/components/import/ImportStepPreview.tsx - Aviso de consolidacao
-
-Adicionar um aviso informativo quando houver empresas duplicadas que serao consolidadas:
-
-```typescript
-// Calcular empresas unicas vs total de linhas com empresa
-const orgNamesSet = new Set<string>();
-let orgRowsCount = 0;
-
-rows.forEach(row => {
-  const orgName = row.mappedData.org_name || row.mappedData.cnpj;
-  if (orgName) {
-    orgRowsCount++;
-    orgNamesSet.add((row.mappedData.cnpj || row.mappedData.org_name || '').toLowerCase().trim());
+export function PhoneInput({ value, onValueChange, className, onBlur, ...props }: PhoneInputProps) {
+  // Se o valor não pode usar máscara brasileira, usar input simples
+  if (!canUseBrazilianMask(value)) {
+    return (
+      <Input
+        value={value || ''}
+        onChange={(e) => onValueChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder="Telefone"
+        className={cn(className)}
+        {...props}
+      />
+    );
   }
-});
 
-const consolidatedOrgs = orgRowsCount - orgNamesSet.size;
-
-// Exibir aviso se houver consolidacao
-{consolidatedOrgs > 0 && (
-  <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700">
-    <Info className="h-4 w-4 flex-shrink-0" />
-    <span className="text-sm">
-      {consolidatedOrgs} linha(s) com empresas repetidas serao vinculadas a mesma empresa
-    </span>
-  </div>
-)}
+  return (
+    <PatternFormat
+      format="(##) #####-####"
+      mask="_"
+      customInput={Input}
+      value={value}
+      onValueChange={(values) => onValueChange(values.value)}
+      onBlur={onBlur}
+      placeholder="(00) 00000-0000"
+      className={cn(className)}
+      {...props}
+    />
+  );
+}
 ```
 
 ---
 
-## Fluxo de Importacao Atualizado
+## Comportamento Esperado
+
+### Caso 1: Telefone Padrão Brasileiro
+- Entrada: `43991407114`
+- Exibição: `(43) 99140-7114` (com máscara)
+- Ao digitar: Máscara aplicada automaticamente
+
+### Caso 2: Múltiplos Telefones (Pipedrive)
+- Entrada: `5543991407114, (43) 9140-7114`
+- Exibição: `5543991407114, (43) 9140-7114` (sem máscara, valor completo)
+- Ao digitar: Input livre sem formatação
+
+### Caso 3: Telefone Internacional
+- Entrada: `+1 555 123 4567`
+- Exibição: `+1 555 123 4567` (sem máscara)
+- Ao digitar: Input livre
+
+---
+
+## Benefícios
+
+1. **Preserva dados**: Valores importados não são mais corrompidos ao editar
+2. **Retrocompatível**: Telefones no formato brasileiro continuam com máscara
+3. **Flexível**: Suporta formatos internacionais e múltiplos telefones
+4. **Sem perda de dados**: O usuário vê exatamente o que está no banco
+
+---
+
+## Fluxo Visual
 
 ```text
-Arquivo CSV do Pipedrive:
-┌─────────────────────────────────────────────────────────────────┐
-│ Primeiro nome │ Nome (Empresa)    │ NUMERO INSCRICAO           │
-├───────────────┼───────────────────┼────────────────────────────┤
-│ Antonio       │ A C MANOSSO       │ 09.407.877/0001-76         │
-│ Katia         │ A C MANOSSO       │ 09.407.877/0001-76         │
-└─────────────────────────────────────────────────────────────────┘
-
-Mapeamento automatico:
-- "Primeiro nome" -> first_name
-- "Nome" -> org_name (prioridade para empresa)
-- "NUMERO INSCRICAO" -> cnpj
-
-Resultado da importacao:
-- 1 Empresa criada: "A C MANOSSO" (CNPJ: 09.407.877/0001-76)
-- 2 Pessoas criadas: Antonio e Katia, ambas vinculadas a mesma empresa
+┌─────────────────────────────────────────────────────────────┐
+│ Formulário de Edição                                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Telefone                                                    │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ 5543991407114, (43) 9140-7114                           │ │  ← Valor completo
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ WhatsApp                                                    │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ (00) 00000-0000                                         │ │  ← Com máscara (vazio)
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## Validacao na Preview
-
-O sistema mostrara na etapa de preview:
-
-```text
-┌────────────────────────────────────────────────────────────────┐
-│ ℹ 1 linha(s) com empresas repetidas serao vinculadas          │
-│   a mesma empresa automaticamente                              │
-├────────────────────────────────────────────────────────────────┤
-│ ☑ │ Nome      │ Empresa           │ CNPJ             │ Status │
-├───┼───────────┼───────────────────┼──────────────────┼────────┤
-│ ✓ │ Antonio   │ A C MANOSSO       │ 09.407.877/0001  │ OK     │
-│ ✓ │ Katia     │ A C MANOSSO       │ 09.407.877/0001  │ OK     │
-└────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Resumo das Alteracoes
-
-1. **import.ts**: Adicionar campos `first_name` e `last_name`, e novos aliases para detectar colunas do Pipedrive
-2. **ImportDialog.tsx**: Combinar primeiro nome + sobrenome quando nome completo nao estiver mapeado
-3. **ImportStepPreview.tsx**: Mostrar aviso informativo sobre empresas que serao consolidadas
-4. **Mapeamento automatico**: Priorizar "Nome" para empresa quando houver outras colunas de nome da pessoa
-
----
-
-## Beneficios
-
-- Compatibilidade total com exportacoes do Pipedrive
-- Usuarios verao claramente que empresas serao consolidadas
-- Evita duplicacao de empresas no banco de dados
-- Varios contatos de uma empresa ficam corretamente vinculados
