@@ -28,10 +28,12 @@ export interface ImportRow {
 
 // Person fields for mapping
 export const PERSON_FIELDS: ImportColumn[] = [
-  { id: 'name', label: 'Nome da Pessoa', required: true, aliases: ['nome', 'nome completo', 'contato', 'nome do contato'] },
+  { id: 'name', label: 'Nome da Pessoa', required: true, aliases: ['nome', 'nome completo', 'contato', 'nome do contato', 'full name'] },
+  { id: 'first_name', label: 'Primeiro Nome', aliases: ['primeiro nome', 'first name', 'firstname', 'primeiro'] },
+  { id: 'last_name', label: 'Sobrenome', aliases: ['sobrenome', 'last name', 'lastname', 'ultimo nome', 'último nome'] },
   { id: 'cpf', label: 'CPF', aliases: ['cpf', 'cpf/cnpf', 'documento'] },
-  { id: 'email', label: 'Email', aliases: ['email', 'e-mail', 'correio', 'email pessoal'] },
-  { id: 'phone', label: 'Telefone', aliases: ['telefone', 'fone', 'tel', 'telefone pessoal'] },
+  { id: 'email', label: 'Email', aliases: ['email', 'e-mail', 'correio', 'email pessoal', 'email (pessoa)', 'email pessoa'] },
+  { id: 'phone', label: 'Telefone', aliases: ['telefone', 'fone', 'tel', 'telefone pessoal', 'telefone (pessoa)', 'telefone pessoa'] },
   { id: 'whatsapp', label: 'WhatsApp', aliases: ['whatsapp', 'celular', 'cel', 'zap'] },
   { id: 'job_title', label: 'Cargo', aliases: ['cargo', 'função', 'funcao', 'profissão', 'profissao'] },
   { id: 'notes', label: 'Observações', aliases: ['observações', 'observacoes', 'notas', 'anotações'] },
@@ -41,15 +43,22 @@ export const PERSON_FIELDS: ImportColumn[] = [
 
 // Organization fields for mapping
 export const ORGANIZATION_FIELDS: ImportColumn[] = [
-  { id: 'org_name', label: 'Nome da Empresa', aliases: ['empresa', 'razão social', 'razao social', 'organização', 'organizacao', 'nome da empresa'] },
-  { id: 'cnpj', label: 'CNPJ', aliases: ['cnpj', 'cnpj da empresa', 'cnpj empresa'] },
+  { id: 'org_name', label: 'Nome da Empresa', aliases: [
+    'empresa', 'razão social', 'razao social', 'organização', 'organizacao', 'nome da empresa',
+    'organization', 'organization name', 'company', 'company name', 'nome (empresa)', 'nome empresa'
+  ]},
+  { id: 'cnpj', label: 'CNPJ', aliases: [
+    'cnpj', 'cnpj da empresa', 'cnpj empresa',
+    'número de inscrição', 'numero de inscricao', 'numero inscricao',
+    'inscrição', 'inscricao', 'inscription number'
+  ]},
   { id: 'cnae', label: 'CNAE', aliases: ['cnae', 'código cnae', 'codigo cnae'] },
-  { id: 'org_phone', label: 'Telefone da Empresa', aliases: ['telefone empresa', 'fone empresa', 'tel empresa'] },
-  { id: 'org_email', label: 'Email da Empresa', aliases: ['email empresa', 'e-mail empresa'] },
+  { id: 'org_phone', label: 'Telefone da Empresa', aliases: ['telefone empresa', 'fone empresa', 'tel empresa', 'telefone (empresa)'] },
+  { id: 'org_email', label: 'Email da Empresa', aliases: ['email empresa', 'e-mail empresa', 'email (empresa)'] },
   { id: 'automotores', label: 'Automotores/Frota', aliases: ['automotores', 'qtd veículos', 'qtd veiculos', 'frota', 'veículos', 'veiculos'] },
-  { id: 'address_city', label: 'Cidade', aliases: ['cidade', 'municipio', 'município'] },
-  { id: 'address_state', label: 'Estado', aliases: ['estado', 'uf'] },
-  { id: 'address_zipcode', label: 'CEP', aliases: ['cep', 'código postal', 'codigo postal'] },
+  { id: 'address_city', label: 'Cidade', aliases: ['cidade', 'municipio', 'município', 'city'] },
+  { id: 'address_state', label: 'Estado', aliases: ['estado', 'uf', 'state'] },
+  { id: 'address_zipcode', label: 'CEP', aliases: ['cep', 'código postal', 'codigo postal', 'zip', 'zipcode'] },
 ];
 
 // All fields combined
@@ -306,8 +315,12 @@ export function validateRow(mappedData: Record<string, string>): ValidationResul
   const errors: string[] = [];
   const warnings: string[] = [];
   
+  // Combine first_name + last_name if name is not present
+  const personName = mappedData.name?.trim() || 
+    [mappedData.first_name, mappedData.last_name].filter(Boolean).join(' ').trim();
+  
   // Required field: name
-  if (!mappedData.name?.trim()) {
+  if (!personName) {
     errors.push('Nome é obrigatório');
   }
   

@@ -33,12 +33,31 @@ export function ImportStepPreview({
 }: ImportStepPreviewProps) {
   const stats = useMemo(() => {
     const selected = rows.filter(r => r.selected);
+    
+    // Calculate consolidated orgs (rows with repeated company that will be linked to the same org)
+    const orgIdentifiers = new Set<string>();
+    let orgRowsCount = 0;
+    
+    rows.forEach(row => {
+      const cnpj = row.mappedData.cnpj?.replace(/\D/g, '');
+      const orgName = row.mappedData.org_name?.toLowerCase().trim();
+      const identifier = cnpj || orgName;
+      
+      if (identifier) {
+        orgRowsCount++;
+        orgIdentifiers.add(identifier);
+      }
+    });
+    
+    const consolidatedOrgs = orgRowsCount > 0 ? orgRowsCount - orgIdentifiers.size : 0;
+    
     return {
       total: rows.length,
       selected: selected.length,
       valid: selected.filter(r => r.status === 'valid').length,
       warnings: selected.filter(r => r.status === 'warning').length,
       errors: selected.filter(r => r.status === 'error').length,
+      consolidatedOrgs,
     };
   }, [rows]);
 
@@ -126,6 +145,16 @@ export function ImportStepPreview({
           </span>
         </div>
       </div>
+
+      {/* Info about consolidated orgs */}
+      {stats.consolidatedOrgs > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-sm text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <span>
+            <strong>{stats.consolidatedOrgs}</strong> linha(s) com empresas repetidas serão vinculadas à mesma empresa automaticamente.
+          </span>
+        </div>
+      )}
 
       {/* Info about updates */}
       {stats.warnings > 0 && (
