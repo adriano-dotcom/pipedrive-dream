@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Phone, Mail, Building2, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -23,6 +24,9 @@ interface PeopleMobileListProps {
   isAdmin: boolean;
   onEdit: (person: PersonWithOrg) => void;
   onDelete: (person: PersonWithOrg) => void;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  onBulkDelete?: () => void;
 }
 
 const getLabelStyles = (label: string | null) => {
@@ -38,7 +42,15 @@ const getLabelStyles = (label: string | null) => {
   }
 };
 
-export function PeopleMobileList({ people, isAdmin, onEdit, onDelete }: PeopleMobileListProps) {
+export function PeopleMobileList({ people, isAdmin, onEdit, onDelete, selectedIds = [], onSelectionChange, onBulkDelete }: PeopleMobileListProps) {
+  const handleToggleSelection = (personId: string, checked: boolean) => {
+    if (checked) {
+      onSelectionChange?.([...selectedIds, personId]);
+    } else {
+      onSelectionChange?.(selectedIds.filter(id => id !== personId));
+    }
+  };
+
   if (people.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -48,25 +60,61 @@ export function PeopleMobileList({ people, isAdmin, onEdit, onDelete }: PeopleMo
   }
 
   return (
-    <div className="space-y-3 p-4">
+    <div className="space-y-3">
+      {/* Barra de ações em lote fixa */}
+      {isAdmin && selectedIds.length > 0 && (
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b p-3 flex items-center justify-between">
+          <span className="text-sm font-medium">
+            {selectedIds.length} selecionada(s)
+          </span>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => onSelectionChange?.([]) }
+            >
+              Limpar
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={onBulkDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      <div className="space-y-3 p-4">
       {people.map((person) => (
         <div 
           key={person.id} 
           className="ios-glass p-4 rounded-xl space-y-3"
         >
-          {/* Header with name and label */}
-          <div className="flex items-start justify-between gap-2">
-            <Link
-              to={`/people/${person.id}`}
-              className="font-semibold text-foreground hover:text-primary transition-colors flex-1"
-            >
-              {person.name}
-            </Link>
-            {person.label && (
-              <Badge variant="outline" className={cn("text-xs flex-shrink-0", getLabelStyles(person.label))}>
-                {person.label}
-              </Badge>
+          {/* Header with checkbox, name and label */}
+          <div className="flex items-start gap-3">
+            {isAdmin && onSelectionChange && (
+              <Checkbox
+                checked={selectedIds.includes(person.id)}
+                onCheckedChange={(checked) => handleToggleSelection(person.id, !!checked)}
+                className="mt-1"
+              />
             )}
+            <div className="flex-1 flex items-start justify-between gap-2">
+              <Link
+                to={`/people/${person.id}`}
+                className="font-semibold text-foreground hover:text-primary transition-colors flex-1"
+              >
+                {person.name}
+              </Link>
+              {person.label && (
+                <Badge variant="outline" className={cn("text-xs flex-shrink-0", getLabelStyles(person.label))}>
+                  {person.label}
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Contact info */}
@@ -123,6 +171,7 @@ export function PeopleMobileList({ people, isAdmin, onEdit, onDelete }: PeopleMo
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

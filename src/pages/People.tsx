@@ -41,6 +41,8 @@ export default function People() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<PersonWithOrg | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PersonWithOrg | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('people-tag-filter');
     return saved ? JSON.parse(saved) : [];
@@ -108,6 +110,23 @@ export default function People() {
     },
     onError: (error) => {
       toast.error('Erro ao excluir pessoa: ' + error.message);
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from('people').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success(`${selectedIds.length} pessoa(s) excluída(s) com sucesso!`);
+      setSelectedIds([]);
+      setBulkDeleteOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir pessoas: ' + error.message);
     },
   });
 
@@ -226,6 +245,9 @@ export default function People() {
           isAdmin={isAdmin}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          onBulkDelete={() => setBulkDeleteOpen(true)}
         />
       )}
 
@@ -237,6 +259,16 @@ export default function People() {
         itemName={deleteTarget?.name}
         onConfirm={confirmDelete}
         isDeleting={deleteMutation.isPending}
+      />
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Excluir Pessoas"
+        itemCount={selectedIds.length}
+        onConfirm={() => bulkDeleteMutation.mutate(selectedIds)}
+        isDeleting={bulkDeleteMutation.isPending}
       />
     </div>
   );
