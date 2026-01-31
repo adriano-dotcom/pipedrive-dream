@@ -33,6 +33,7 @@ import { useOrganizationFiles } from '@/hooks/useOrganizationFiles';
 import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
+import { formatCnpj } from '@/lib/utils';
 
 const getLabelColor = (label: string | null) => {
   switch (label) {
@@ -234,7 +235,7 @@ export default function OrganizationDetails() {
               )}
             </div>
             {organization.cnpj && (
-              <p className="text-sm text-muted-foreground">CNPJ: {organization.cnpj}</p>
+              <p className="text-sm text-muted-foreground">CNPJ: {formatCnpj(organization.cnpj)}</p>
             )}
           </div>
         </div>
