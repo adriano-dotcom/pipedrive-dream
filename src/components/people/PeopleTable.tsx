@@ -11,6 +11,7 @@ import {
   PaginationState,
   SortingState,
   VisibilityState,
+  RowSelectionState,
   Column,
 } from '@tanstack/react-table';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -39,7 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon } from 'lucide-react';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -67,6 +69,9 @@ interface PeopleTableProps {
   isAdmin: boolean;
   onEdit: (person: PersonWithOrg) => void;
   onDelete: (person: PersonWithOrg) => void;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  onBulkDelete?: () => void;
 }
 
 const STORAGE_KEY = 'people-table-column-order';
@@ -121,7 +126,7 @@ function SortableHeader({ column, title }: { column: Column<PersonWithOrg>; titl
   );
 }
 
-export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTableProps) {
+export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [], onSelectionChange, onBulkDelete }: PeopleTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
@@ -140,6 +145,22 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     pageIndex: 0,
     pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
   });
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  // Sync row selection with parent component
+  useEffect(() => {
+    const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+    onSelectionChange?.(selectedRowIds);
+  }, [rowSelection, onSelectionChange]);
+
+  // Sync incoming selectedIds with local rowSelection state
+  useEffect(() => {
+    const newSelection: RowSelectionState = {};
+    selectedIds.forEach(id => {
+      newSelection[id] = true;
+    });
+    setRowSelection(newSelection);
+  }, [selectedIds]);
   
   // Buscar todas as atribuições de tags para as pessoas na lista
   const personIds = people.map(p => p.id);
@@ -196,6 +217,29 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     { id: 'automotores', label: 'Automotores', accessor: (row: PersonWithOrg) => row.organizations?.automotores },
     { id: 'label', label: 'Status', accessor: (row: PersonWithOrg) => row.label },
   ], []);
+
+  const selectColumn: ColumnDef<PersonWithOrg> = {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected()}
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Selecionar todos"
+        className="translate-y-[2px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Selecionar linha"
+        className="translate-y-[2px]"
+        onClick={(e) => e.stopPropagation()}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  };
 
   const columns = useMemo<ColumnDef<PersonWithOrg>[]>(() => [
     {
@@ -363,6 +407,10 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
     },
   ], [isAdmin, onEdit, onDelete, tagsByPersonId]);
 
+  const allColumns = useMemo(() => {
+    return isAdmin ? [selectColumn, ...columns] : columns;
+  }, [isAdmin, columns, selectColumn]);
+
   const defaultColumnOrder = useMemo(() => columns.map(c => c.id as string), [columns]);
 
   useEffect(() => {
@@ -384,13 +432,17 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
 
   const table = useReactTable({
     data: people,
-    columns,
+    columns: allColumns,
     state: {
       sorting,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
       columnVisibility,
       pagination,
+      rowSelection,
     },
+    enableRowSelection: isAdmin,
+    getRowId: (row) => row.id,
+    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onColumnVisibilityChange: setColumnVisibility,
@@ -424,18 +476,48 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
 
   // Mobile view
   if (isMobile) {
-    return <PeopleMobileList people={people} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />;
+    return (
+      <PeopleMobileList 
+        people={people} 
+        isAdmin={isAdmin} 
+        onEdit={onEdit} 
+        onDelete={onDelete}
+        selectedIds={selectedIds}
+        onSelectionChange={onSelectionChange}
+        onBulkDelete={onBulkDelete}
+      />
+    );
   }
 
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
       {/* Barra de ferramentas */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
-        <ExportButtons 
-          data={people} 
-          columns={exportColumns} 
-          filenamePrefix="pessoas" 
-        />
+        <div className="flex items-center gap-4">
+          <ExportButtons 
+            data={people} 
+            columns={exportColumns} 
+            filenamePrefix="pessoas" 
+          />
+          
+          {/* Ações em lote - aparece quando há seleção */}
+          {isAdmin && selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 pl-4 border-l">
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.length} selecionada(s)
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onBulkDelete}
+                className="h-8"
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Excluir
+              </Button>
+            </div>
+          )}
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-1.5">
