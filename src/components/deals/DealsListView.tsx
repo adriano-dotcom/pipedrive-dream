@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DealsTable } from './DealsTable';
@@ -41,12 +41,13 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
             from: parsed.dateRange?.from ? new Date(parsed.dateRange.from) : null,
             to: parsed.dateRange?.to ? new Date(parsed.dateRange.to) : null,
           },
+          tagIds: parsed.tagIds || [],
         };
       } catch {
-        return { insuranceTypes: [], labels: [], dateRange: { from: null, to: null }, ownerId: null };
+        return { insuranceTypes: [], labels: [], dateRange: { from: null, to: null }, ownerId: null, tagIds: [] };
       }
     }
-    return { insuranceTypes: [], labels: [], dateRange: { from: null, to: null }, ownerId: null };
+    return { insuranceTypes: [], labels: [], dateRange: { from: null, to: null }, ownerId: null, tagIds: [] };
   });
 
   // Persist filters to localStorage
@@ -92,29 +93,52 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
     },
   });
 
-  // Filter deals based on active filters
-  const filteredDeals = deals.filter((deal: any) => {
-    // Insurance type filter
-    if (filters.insuranceTypes.length > 0 && 
-        (!deal.insurance_type || !filters.insuranceTypes.includes(deal.insurance_type))) {
-      return false;
-    }
-    // Label filter
-    if (filters.labels.length > 0 && 
-        (!deal.label || !filters.labels.includes(deal.label))) {
-      return false;
-    }
-    // Date range filter (expected_close_date)
-    if (filters.dateRange.from && deal.expected_close_date) {
-      const dealDate = new Date(deal.expected_close_date);
-      if (dealDate < filters.dateRange.from) return false;
-    }
-    if (filters.dateRange.to && deal.expected_close_date) {
-      const dealDate = new Date(deal.expected_close_date);
-      if (dealDate > filters.dateRange.to) return false;
-    }
-    return true;
+  // Fetch deal tag assignments for filtering
+  const { data: dealTagAssignments = [] } = useQuery({
+    queryKey: ['deal-tag-filter-assignments-list', filters.tagIds],
+    queryFn: async () => {
+      if (!filters.tagIds || filters.tagIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('deal_tag_assignments')
+        .select('deal_id')
+        .in('tag_id', filters.tagIds);
+      if (error) throw error;
+      return data?.map((a) => a.deal_id) || [];
+    },
+    enabled: (filters.tagIds?.length || 0) > 0,
   });
+
+  // Filter deals based on active filters
+  const filteredDeals = useMemo(() => {
+    const tagFilterSet = new Set(dealTagAssignments);
+    
+    return deals.filter((deal: any) => {
+      // Insurance type filter
+      if (filters.insuranceTypes.length > 0 && 
+          (!deal.insurance_type || !filters.insuranceTypes.includes(deal.insurance_type))) {
+        return false;
+      }
+      // Label filter
+      if (filters.labels.length > 0 && 
+          (!deal.label || !filters.labels.includes(deal.label))) {
+        return false;
+      }
+      // Date range filter (expected_close_date)
+      if (filters.dateRange.from && deal.expected_close_date) {
+        const dealDate = new Date(deal.expected_close_date);
+        if (dealDate < filters.dateRange.from) return false;
+      }
+      if (filters.dateRange.to && deal.expected_close_date) {
+        const dealDate = new Date(deal.expected_close_date);
+        if (dealDate > filters.dateRange.to) return false;
+      }
+      // Tag filter
+      if ((filters.tagIds?.length || 0) > 0 && !tagFilterSet.has(deal.id)) {
+        return false;
+      }
+      return true;
+    });
+  }, [deals, filters, dealTagAssignments]);
 
   const handleEditDeal = (deal: any) => {
     setEditingDeal(deal);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
 import { PeopleTable } from '@/components/people/PeopleTable';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
+import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
+import { usePersonTags } from '@/hooks/usePersonTags';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -39,6 +41,18 @@ export default function People() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<PersonWithOrg | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PersonWithOrg | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('people-tag-filter');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Persist tag filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('people-tag-filter', JSON.stringify(selectedTagIds));
+  }, [selectedTagIds]);
+
+  // Fetch all person tags
+  const { data: personTags = [], isLoading: tagsLoading } = usePersonTags();
 
   const { data: people, isLoading } = useQuery({
     queryKey: ['people', search],
@@ -57,6 +71,29 @@ export default function People() {
       return data as PersonWithOrg[];
     },
   });
+
+  // Fetch tag assignments for filtering
+  const { data: tagAssignments = [] } = useQuery({
+    queryKey: ['person-tag-filter-assignments', selectedTagIds],
+    queryFn: async () => {
+      if (selectedTagIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('person_tag_assignments')
+        .select('person_id')
+        .in('tag_id', selectedTagIds);
+      if (error) throw error;
+      return data?.map((a) => a.person_id) || [];
+    },
+    enabled: selectedTagIds.length > 0,
+  });
+
+  // Filter people based on tags
+  const filteredPeople = useMemo(() => {
+    if (!people) return [];
+    if (selectedTagIds.length === 0) return people;
+    const validIds = new Set(tagAssignments);
+    return people.filter((p) => validIds.has(p.id));
+  }, [people, selectedTagIds, tagAssignments]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -134,14 +171,24 @@ export default function People() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, email ou telefone..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10 bg-card/50"
+      {/* Search & Tag Filter */}
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, email ou telefone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-card/50"
+          />
+        </div>
+        <TagFilterPopover
+          tags={personTags}
+          isLoading={tagsLoading}
+          selectedTagIds={selectedTagIds}
+          onTagsChange={setSelectedTagIds}
+          placeholder="Etiquetas"
+          emptyMessage="Nenhuma etiqueta criada"
         />
       </div>
 
@@ -154,7 +201,7 @@ export default function People() {
           </div>
           <p className="text-sm text-muted-foreground mt-4">Carregando pessoas...</p>
         </div>
-      ) : people?.length === 0 ? (
+      ) : filteredPeople.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="relative mb-6">
             <div className="absolute inset-0 rounded-2xl bg-muted/50 blur-xl" />
@@ -164,9 +211,9 @@ export default function People() {
           </div>
           <h3 className="text-lg font-semibold mb-1">Nenhuma pessoa encontrada</h3>
           <p className="text-muted-foreground mb-6 max-w-sm">
-            {search ? 'Tente ajustar sua busca' : 'Adicione seu primeiro contato para começar'}
+            {search || selectedTagIds.length > 0 ? 'Tente ajustar sua busca ou filtros' : 'Adicione seu primeiro contato para começar'}
           </p>
-          {!search && (
+          {!search && selectedTagIds.length === 0 && (
             <Button onClick={() => setIsDialogOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Criar Primeiro Contato
@@ -175,7 +222,7 @@ export default function People() {
         </div>
       ) : (
         <PeopleTable
-          people={people || []}
+          people={filteredPeople}
           isAdmin={isAdmin}
           onEdit={handleEdit}
           onDelete={handleDelete}

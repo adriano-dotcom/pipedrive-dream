@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import { OrganizationForm } from '@/components/organizations/OrganizationForm';
 import { OrganizationsTable } from '@/components/organizations/OrganizationsTable';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
+import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
+import { useOrganizationTags } from '@/hooks/useOrganizationTags';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -36,6 +38,18 @@ export default function Organizations() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrganizationWithContact | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrganizationWithContact | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('org-tag-filter');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Persist tag filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('org-tag-filter', JSON.stringify(selectedTagIds));
+  }, [selectedTagIds]);
+
+  // Fetch all organization tags
+  const { data: organizationTags = [], isLoading: tagsLoading } = useOrganizationTags();
 
   const { data: organizations, isLoading } = useQuery({
     queryKey: ['organizations', search],
@@ -61,6 +75,29 @@ export default function Organizations() {
       return data as OrganizationWithContact[];
     },
   });
+
+  // Fetch tag assignments for filtering
+  const { data: tagAssignments = [] } = useQuery({
+    queryKey: ['org-tag-filter-assignments', selectedTagIds],
+    queryFn: async () => {
+      if (selectedTagIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('organization_tag_assignments')
+        .select('organization_id')
+        .in('tag_id', selectedTagIds);
+      if (error) throw error;
+      return data?.map((a) => a.organization_id) || [];
+    },
+    enabled: selectedTagIds.length > 0,
+  });
+
+  // Filter organizations based on tags
+  const filteredOrganizations = useMemo(() => {
+    if (!organizations) return [];
+    if (selectedTagIds.length === 0) return organizations;
+    const validIds = new Set(tagAssignments);
+    return organizations.filter((o) => validIds.has(o.id));
+  }, [organizations, selectedTagIds, tagAssignments]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -138,14 +175,24 @@ export default function Organizations() {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, CNPJ ou email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-card/50"
+        {/* Search & Tag Filter */}
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, CNPJ ou email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 bg-card/50"
+            />
+          </div>
+          <TagFilterPopover
+            tags={organizationTags}
+            isLoading={tagsLoading}
+            selectedTagIds={selectedTagIds}
+            onTagsChange={setSelectedTagIds}
+            placeholder="Etiquetas"
+            emptyMessage="Nenhuma etiqueta criada"
           />
         </div>
 
@@ -158,7 +205,7 @@ export default function Organizations() {
             </div>
             <p className="text-sm text-muted-foreground mt-4">Carregando organizações...</p>
           </div>
-        ) : organizations?.length === 0 ? (
+        ) : filteredOrganizations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="relative mb-6">
               <div className="absolute inset-0 rounded-2xl bg-muted/50 blur-xl" />
@@ -168,9 +215,9 @@ export default function Organizations() {
             </div>
             <h3 className="text-lg font-semibold mb-1">Nenhuma organização encontrada</h3>
             <p className="text-muted-foreground mb-6 max-w-sm">
-              {search ? 'Tente ajustar sua busca' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
+              {search || selectedTagIds.length > 0 ? 'Tente ajustar sua busca ou filtros' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
             </p>
-            {!search && (
+            {!search && selectedTagIds.length === 0 && (
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Criar Primeira Organização
@@ -180,7 +227,7 @@ export default function Organizations() {
         ) : (
           <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
             <OrganizationsTable
-              organizations={organizations || []}
+              organizations={filteredOrganizations}
               isAdmin={isAdmin}
               onEdit={handleEdit}
               onDelete={handleDelete}
