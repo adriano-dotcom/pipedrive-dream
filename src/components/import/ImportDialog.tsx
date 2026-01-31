@@ -333,8 +333,15 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           }
         }
 
-        // Handle person
-        const personName = mappedData.name;
+        // Handle person - combine first_name + last_name if name is not present
+        let personName = mappedData.name;
+        if (!personName && (mappedData.first_name || mappedData.last_name)) {
+          personName = [mappedData.first_name, mappedData.last_name]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+        }
+        
         if (!personName) {
           throw new Error('Nome é obrigatório');
         }
@@ -451,7 +458,10 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
       case 1:
         return false; // Auto-advances on file select
       case 2:
-        return Object.values(mapping).includes('name');
+        // Allow to proceed if name OR (first_name/last_name) is mapped
+        const hasName = Object.values(mapping).includes('name');
+        const hasFirstOrLastName = Object.values(mapping).includes('first_name') || Object.values(mapping).includes('last_name');
+        return hasName || hasFirstOrLastName;
       case 3:
         return importRows.some(r => r.selected);
       default:
