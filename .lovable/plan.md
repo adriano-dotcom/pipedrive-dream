@@ -1,68 +1,128 @@
 
+# Adicionar Coluna WhatsApp na Tabela de Pessoas
 
-# Formatar CNPJ na Tabela de Pessoas
+## Objetivo
 
-## Problema
+Adicionar uma nova coluna "WhatsApp" na tabela de Pessoas para que seja possível visualizar e selecionar essa informação no menu de visibilidade de colunas.
 
-Na tabela de Pessoas (`/people`), a coluna CNPJ da organização vinculada está exibindo o valor sem formatação (apenas dígitos como `04719759000260`), quando deveria estar no padrão brasileiro `XX.XXX.XXX/XXXX-XX` (exemplo: `04.719.759/0001-60`).
+---
 
-## Solução
+## Situacao Atual
 
-Utilizar a função `formatCnpj` que já existe em `src/lib/utils.ts` para formatar a exibição do CNPJ na tabela.
+A tabela de Pessoas (`/people`) ja possui o campo `whatsapp` no banco de dados e na exportacao, mas nao exibe como coluna na tabela. Atualmente as colunas disponiveis sao:
+
+- Nome
+- Telefone
+- Email
+- Empresa
+- CNPJ
+- Cidade
+- Automotores
+- Cargo
+- Status
+- Etiquetas
+
+---
+
+## Interface do Usuario
+
+Apos a implementacao, o menu "Colunas" tera a opcao WhatsApp:
+
+```text
+┌─────────────────────────────────┐
+│ 👁  Visibilidade das Colunas   │
+├─────────────────────────────────┤
+│ ✓ Nome                          │
+│ ✓ Empresa                       │
+│ ✓ Telefone                      │
+│ ✓ WhatsApp       <-- NOVO       │
+│ ✓ Email                         │
+│ ✓ CNPJ                          │
+│ ...                             │
+└─────────────────────────────────┘
+```
+
+Na tabela, a coluna sera exibida com o icone do MessageCircle (WhatsApp) e o numero clicavel para abrir o WhatsApp Web.
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Modificação |
+| Arquivo | Modificacao |
 |---------|-------------|
-| `src/components/people/PeopleTable.tsx` | Importar `formatCnpj` e aplicar na coluna CNPJ |
+| `src/components/people/PeopleTable.tsx` | Adicionar coluna WhatsApp e atualizar columnLabels |
 
 ---
 
-## Detalhes Técnicos
+## Detalhes Tecnicos
 
 ### PeopleTable.tsx
 
-**Adicionar import:**
+**1. Adicionar import do icone:**
 
 ```typescript
-import { formatCnpj } from '@/lib/utils';
+import { MessageCircle } from 'lucide-react';
 ```
 
-**Modificar a célula da coluna CNPJ (linha 259-264):**
+**2. Atualizar columnLabels para incluir WhatsApp:**
 
-Antes:
 ```typescript
-cell: ({ row }) => (
-  row.original.organizations?.cnpj ? (
-    <span className="text-muted-foreground font-mono text-xs">
-      {row.original.organizations.cnpj}
-    </span>
-  ) : <span className="text-muted-foreground/50">-</span>
-),
+const columnLabels: Record<string, string> = {
+  name: 'Nome',
+  phone: 'Telefone',
+  whatsapp: 'WhatsApp',  // <-- Adicionar
+  email: 'Email',
+  organization: 'Empresa',
+  cnpj: 'CNPJ',
+  city: 'Cidade',
+  automotores: 'Automotores',
+  job_title: 'Cargo',
+  label: 'Status',
+  tags: 'Etiquetas',
+  actions: 'Acoes',
+};
 ```
 
-Depois:
+**3. Adicionar a definicao da coluna WhatsApp (apos a coluna phone):**
+
 ```typescript
-cell: ({ row }) => (
-  row.original.organizations?.cnpj ? (
-    <span className="text-muted-foreground font-mono text-xs">
-      {formatCnpj(row.original.organizations.cnpj)}
-    </span>
-  ) : <span className="text-muted-foreground/50">-</span>
-),
+{
+  id: 'whatsapp',
+  accessorKey: 'whatsapp',
+  header: ({ column }) => <SortableHeader column={column} title="WhatsApp" />,
+  cell: ({ row }) => {
+    const whatsapp = row.original.whatsapp;
+    if (!whatsapp) return <span className="text-muted-foreground/50">-</span>;
+    
+    // Limpar o numero para usar no link do WhatsApp
+    const cleanNumber = whatsapp.replace(/\D/g, '');
+    
+    return (
+      <a
+        href={`https://wa.me/${cleanNumber}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-500 transition-colors"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <MessageCircle className="h-3 w-3" />
+        {whatsapp}
+      </a>
+    );
+  },
+},
 ```
 
 ---
 
 ## Resultado Esperado
 
-| Antes | Depois |
-|-------|--------|
-| `04719759000260` | `04.719.759/0002-60` |
-| `05629020000140` | `05.629.020/0001-40` |
-| `21764817000106` | `21.764.817/0001-06` |
+| Coluna | Exibicao |
+|--------|----------|
+| WhatsApp | Numero com icone verde, clicavel para abrir WhatsApp Web |
+| Sem numero | Exibe "-" |
 
-A formatação segue o padrão brasileiro para CNPJ, consistente com a exibição em outras partes do sistema (como a tabela de Organizações).
-
+A coluna aparecera:
+- No menu de visibilidade de colunas
+- Pode ser reordenada via drag-and-drop
+- Sera persistida nas preferencias do usuario via localStorage
