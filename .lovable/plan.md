@@ -1,33 +1,39 @@
 
-# Funcionalidade de Mesclar Organizacoes Duplicadas
+# Funcionalidade de Desfazer Mesclagem
 
 ## Objetivo
 
-Implementar uma funcionalidade para mesclar organizacoes duplicadas, seguindo exatamente o mesmo padrao ja implementado para pessoas (contatos), permitindo combinar todos os dados e relacionamentos de duas organizacoes em uma unica.
+Adicionar a capacidade de desfazer uma mesclagem de contatos ou organizacoes, salvando um backup temporario dos dados antes da mesclagem ser executada.
 
 ---
 
-## Cenario de Uso
+## Arquitetura da Solucao
 
-1. Usuario identifica duas organizacoes que sao a mesma empresa (ex: "Transportadora XYZ" e "XYZ Transportes")
-2. Um registro tem CNPJ e endereco, outro tem contato principal e ramos de seguro
-3. Usuario seleciona as duas organizacoes e escolhe "Mesclar"
-4. Sistema combina os dados em um unico registro, mantendo o mais completo de cada campo
+### Abordagem: Backup em Tabela Dedicada
+
+Criar uma tabela `merge_backups` no banco de dados que armazena:
+- Dados completos do registro excluido
+- IDs das relacoes transferidas (para reverter)
+- Estado anterior do registro mantido
+- Expiracao automatica (ex: 30 dias)
 
 ---
 
-## Arquitetura Existente (Referencia)
+## Nova Tabela: merge_backups
 
-O sistema ja possui implementacao completa para mesclar pessoas:
-
-| Arquivo | Funcao |
-|---------|--------|
-| `useMergeContacts.ts` | Hook com logica de mesclagem |
-| `MergeContactsDialog.tsx` | Dialog para selecionar valores |
-| `ContactSearchDialog.tsx` | Busca de contato para mesclar |
-| `People.tsx` | Integracao na lista |
-| `PeopleTable.tsx` | Botao "Mesclar" na toolbar |
-| `PersonDetails.tsx` | Opcao no menu da pagina de detalhes |
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | uuid | ID do backup |
+| entity_type | text | 'person' ou 'organization' |
+| kept_entity_id | uuid | ID do registro que foi mantido |
+| deleted_entity_id | uuid | ID do registro que foi excluido |
+| deleted_entity_data | jsonb | Dados completos do registro excluido |
+| kept_entity_previous_data | jsonb | Estado anterior do registro mantido |
+| transferred_relations | jsonb | IDs de atividades, negocios, etc transferidos |
+| merged_by | uuid | Usuario que fez a mesclagem |
+| created_at | timestamp | Data da mesclagem |
+| expires_at | timestamp | Data de expiracao do backup (30 dias) |
+| is_restored | boolean | Se ja foi restaurado |
 
 ---
 
@@ -35,243 +41,339 @@ O sistema ja possui implementacao completa para mesclar pessoas:
 
 | Arquivo | Descricao |
 |---------|-----------|
-| `src/hooks/useMergeOrganizations.ts` | Hook com logica de mesclagem de organizacoes |
-| `src/components/organizations/MergeOrganizationsDialog.tsx` | Dialog para selecionar valores de cada campo |
-| `src/components/organizations/OrganizationSearchDialog.tsx` | Busca de organizacao para mesclar |
+| `src/hooks/useMergeBackups.ts` | Hook para listar e restaurar backups |
+| `src/hooks/useUndoMergeContact.ts` | Hook para desfazer mesclagem de contato |
+| `src/hooks/useUndoMergeOrganization.ts` | Hook para desfazer mesclagem de organizacao |
+| `src/components/shared/MergeUndoToast.tsx` | Toast com botao de desfazer |
+| `src/components/shared/MergeBackupsList.tsx` | Lista de mesclagens que podem ser desfeitas |
 
 ## Arquivos a Modificar
 
 | Arquivo | Modificacao |
 |---------|-------------|
-| `src/pages/Organizations.tsx` | Adicionar estado e dialog de mesclagem |
-| `src/components/organizations/OrganizationsTable.tsx` | Adicionar botao "Mesclar" na toolbar |
-| `src/pages/OrganizationDetails.tsx` | Adicionar opcao "Mesclar" no menu de acoes |
-
----
-
-## Campos a Mesclar (Campo a Campo)
-
-| Campo | Tipo | Observacao |
-|-------|------|------------|
-| name | texto | Usuario escolhe |
-| cnpj | texto | Usuario escolhe |
-| cnae | texto | Usuario escolhe |
-| rntrc_antt | texto | Usuario escolhe |
-| phone | texto | Usuario escolhe |
-| email | texto | Usuario escolhe |
-| website | texto | Usuario escolhe |
-| address_* | texto | Usuario escolhe (endereco completo) |
-| label | texto | Usuario escolhe (Quente/Morno/Frio) |
-| primary_contact_id | uuid | Usuario escolhe |
-| insurance_branches | array | Combinar ambos |
-| preferred_insurers | array | Combinar ambos |
-| fleet_type | texto | Usuario escolhe |
-| fleet_size | numero | Usuario escolhe |
-| current_insurer | texto | Usuario escolhe |
-| risk_profile | texto | Usuario escolhe |
-| policy_renewal_month | numero | Usuario escolhe |
-| annual_premium_estimate | numero | Usuario escolhe |
-| has_claims_history | boolean | Usuario escolhe |
-| automotores | numero | Usuario escolhe |
-| notes | texto | Concatenar ambos |
-| broker_notes | texto | Concatenar ambos |
-
----
-
-## Relacionamentos a Transferir
-
-| Tabela | Campo | Acao |
-|--------|-------|------|
-| `activities` | organization_id | Atualizar para org mantida |
-| `deals` | organization_id | Atualizar para org mantida |
-| `people` | organization_id | Atualizar para org mantida |
-| `organization_notes` | organization_id | Transferir todas |
-| `organization_files` | organization_id | Transferir todos |
-| `organization_history` | organization_id | Transferir + registrar evento |
-| `organization_tag_assignments` | organization_id | Combinar tags (sem duplicar) |
-| `sent_emails` (entity_type='organization') | entity_id | Atualizar |
+| `src/hooks/useMergeContacts.ts` | Salvar backup antes de mesclar |
+| `src/hooks/useMergeOrganizations.ts` | Salvar backup antes de mesclar |
+| `src/pages/PersonDetails.tsx` | Mostrar opcao de desfazer se houver backup |
+| `src/pages/OrganizationDetails.tsx` | Mostrar opcao de desfazer se houver backup |
 
 ---
 
 ## Detalhes Tecnicos
 
-### 1. useMergeOrganizations.ts
+### 1. Migracao do Banco de Dados
+
+```sql
+CREATE TABLE merge_backups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('person', 'organization')),
+  kept_entity_id UUID NOT NULL,
+  deleted_entity_id UUID NOT NULL,
+  deleted_entity_data JSONB NOT NULL,
+  kept_entity_previous_data JSONB NOT NULL,
+  transferred_relations JSONB NOT NULL DEFAULT '{}',
+  merged_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  expires_at TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days'),
+  is_restored BOOLEAN DEFAULT false
+);
+
+-- Indice para buscar backups ativos
+CREATE INDEX idx_merge_backups_active ON merge_backups (kept_entity_id, entity_type) 
+WHERE is_restored = false AND expires_at > now();
+
+-- RLS policies
+ALTER TABLE merge_backups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view merge backups" ON merge_backups
+  FOR SELECT USING (true);
+
+CREATE POLICY "Authenticated users can insert backups" ON merge_backups
+  FOR INSERT WITH CHECK (auth.uid() = merged_by);
+
+CREATE POLICY "Users can update own backups" ON merge_backups
+  FOR UPDATE USING (auth.uid() = merged_by OR has_role(auth.uid(), 'admin'));
+```
+
+### 2. Modificacao do useMergeContacts.ts
 
 ```typescript
-interface MergeOrganizationsParams {
-  keepOrgId: string;
-  deleteOrgId: string;
-  deleteOrgName: string;
-  mergedData: Partial<Organization>;
+// Antes de fazer qualquer alteracao:
+
+// 1. Buscar dados completos do contato que sera excluido
+const { data: deletedPersonData } = await supabase
+  .from('people')
+  .select('*')
+  .eq('id', deletePersonId)
+  .single();
+
+// 2. Buscar dados atuais do contato mantido (antes da alteracao)
+const { data: keptPersonPreviousData } = await supabase
+  .from('people')
+  .select('*')
+  .eq('id', keepPersonId)
+  .single();
+
+// 3. Buscar IDs das relacoes que serao transferidas
+const { data: activitiesToTransfer } = await supabase
+  .from('activities')
+  .select('id')
+  .eq('person_id', deletePersonId);
+
+const { data: dealsToTransfer } = await supabase
+  .from('deals')
+  .select('id')
+  .eq('person_id', deletePersonId);
+
+// ... buscar notas, arquivos, tags, emails, etc
+
+// 4. Salvar backup
+const { error: backupError } = await supabase
+  .from('merge_backups')
+  .insert({
+    entity_type: 'person',
+    kept_entity_id: keepPersonId,
+    deleted_entity_id: deletePersonId,
+    deleted_entity_data: deletedPersonData,
+    kept_entity_previous_data: keptPersonPreviousData,
+    transferred_relations: {
+      activities: activitiesToTransfer?.map(a => a.id) || [],
+      deals: dealsToTransfer?.map(d => d.id) || [],
+      notes: notesToTransfer?.map(n => n.id) || [],
+      files: filesToTransfer?.map(f => f.id) || [],
+      tags: tagsToTransfer?.map(t => t.tag_id) || [],
+      emails: emailsToTransfer?.map(e => e.id) || [],
+    },
+    merged_by: user.id,
+  });
+
+if (backupError) throw backupError;
+
+// 5. Continuar com a mesclagem normal...
+```
+
+### 3. Hook useUndoMergeContact.ts
+
+```typescript
+export function useUndoMergeContact() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const undoMutation = useMutation({
+    mutationFn: async (backupId: string) => {
+      // 1. Buscar backup
+      const { data: backup, error: fetchError } = await supabase
+        .from('merge_backups')
+        .select('*')
+        .eq('id', backupId)
+        .eq('entity_type', 'person')
+        .eq('is_restored', false)
+        .single();
+
+      if (fetchError || !backup) throw new Error('Backup nao encontrado');
+
+      // 2. Restaurar o contato excluido
+      const deletedData = backup.deleted_entity_data as Person;
+      const { error: insertError } = await supabase
+        .from('people')
+        .insert({
+          ...deletedData,
+          id: backup.deleted_entity_id, // Usar o mesmo ID original
+        });
+
+      if (insertError) throw insertError;
+
+      // 3. Reverter dados do contato mantido para estado anterior
+      const previousData = backup.kept_entity_previous_data as Person;
+      const { error: revertError } = await supabase
+        .from('people')
+        .update(previousData)
+        .eq('id', backup.kept_entity_id);
+
+      if (revertError) throw revertError;
+
+      // 4. Reverter transferencia de relacoes
+      const relations = backup.transferred_relations as TransferredRelations;
+
+      // Atividades
+      if (relations.activities?.length > 0) {
+        await supabase
+          .from('activities')
+          .update({ person_id: backup.deleted_entity_id })
+          .in('id', relations.activities);
+      }
+
+      // Negocios
+      if (relations.deals?.length > 0) {
+        await supabase
+          .from('deals')
+          .update({ person_id: backup.deleted_entity_id })
+          .in('id', relations.deals);
+      }
+
+      // ... reverter notas, arquivos, tags, emails
+
+      // 5. Marcar backup como restaurado
+      await supabase
+        .from('merge_backups')
+        .update({ is_restored: true })
+        .eq('id', backupId);
+
+      // 6. Registrar no historico
+      await supabase.from('people_history').insert({
+        person_id: backup.kept_entity_id,
+        event_type: 'merge_undone',
+        description: `Mesclagem com "${deletedData.name}" desfeita`,
+        metadata: { restored_person_id: backup.deleted_entity_id },
+        created_by: user.id,
+      });
+
+      return { restoredPersonId: backup.deleted_entity_id };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      queryClient.invalidateQueries({ queryKey: ['person'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      toast.success('Mesclagem desfeita com sucesso!');
+    },
+    onError: (error) => {
+      console.error('Erro ao desfazer mesclagem:', error);
+      toast.error('Erro ao desfazer mesclagem: ' + error.message);
+    },
+  });
+
+  return {
+    undoMerge: undoMutation.mutateAsync,
+    isUndoing: undoMutation.isPending,
+  };
 }
-
-// Passos da mesclagem:
-// 1. Atualizar registro mantido com dados mesclados
-// 2. Transferir atividades
-// 3. Transferir negocios
-// 4. Transferir pessoas vinculadas
-// 5. Transferir notas
-// 6. Transferir arquivos
-// 7. Transferir historico
-// 8. Combinar tags
-// 9. Transferir emails enviados
-// 10. Registrar evento no historico
-// 11. Excluir organizacao duplicada
 ```
 
-### 2. MergeOrganizationsDialog.tsx
+### 4. Toast com Botao de Desfazer
 
-Interface similar ao MergeContactsDialog:
-- Grid de 3 colunas: Campo | Org 1 | Org 2
-- Radio buttons para selecionar valor de cada campo
-- Pre-selecao automatica de valores nao vazios
-- Alerta sobre irreversibilidade
-- Arrays (insurance_branches, preferred_insurers) sao combinados automaticamente
-
-### 3. OrganizationSearchDialog.tsx
-
-Dialog para buscar segunda organizacao quando iniciado da pagina de detalhes:
-- Campo de busca por nome, CNPJ ou email
-- Lista de resultados com cidade/estado
-- Exclui a organizacao atual da busca
-
-### 4. Integracao na Organizations.tsx
+Apos mesclagem bem sucedida, mostrar toast especial:
 
 ```typescript
-// Estado
-const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
-
-// Condicao para mostrar dialog
-{selectedIds.length === 2 && (
-  <MergeOrganizationsDialog
-    open={mergeDialogOpen}
-    onOpenChange={setMergeDialogOpen}
-    org1={filteredOrganizations.find(o => o.id === selectedIds[0])!}
-    org2={filteredOrganizations.find(o => o.id === selectedIds[1])!}
-    onSuccess={() => {
-      setSelectedIds([]);
-      setMergeDialogOpen(false);
-    }}
-  />
-)}
+// No onSuccess do merge
+toast.success(
+  <div className="flex items-center gap-3">
+    <span>Contatos mesclados com sucesso!</span>
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => undoMerge(backupId)}
+    >
+      <Undo2 className="h-4 w-4 mr-1" />
+      Desfazer
+    </Button>
+  </div>,
+  { duration: 10000 } // 10 segundos para decidir
+);
 ```
 
-### 5. Botao na OrganizationsTable
-
-Na toolbar, quando 2 organizacoes estao selecionadas:
-```typescript
-{selectedIds.length === 2 && (
-  <Button variant="outline" size="sm" onClick={onMerge}>
-    <GitMerge className="h-4 w-4 mr-1.5" />
-    Mesclar
-  </Button>
-)}
-```
-
-### 6. Menu em OrganizationDetails
+### 5. Estrutura de transferred_relations
 
 ```typescript
-<DropdownMenuItem onClick={() => setSearchDialogOpen(true)}>
-  <GitMerge className="h-4 w-4 mr-2" />
-  Mesclar com outra organizacao...
-</DropdownMenuItem>
+interface TransferredRelations {
+  activities: string[];     // IDs das atividades transferidas
+  deals: string[];          // IDs dos negocios transferidos
+  notes: string[];          // IDs das notas transferidas
+  files: string[];          // IDs dos arquivos transferidos
+  tags: string[];           // IDs das tags adicionadas
+  emails: string[];         // IDs dos emails transferidos
+  orgs_primary_contact?: string[]; // Organizacoes que tinham este como contato principal
+}
 ```
 
 ---
 
-## Fluxo de Mesclagem
+## Fluxo de Desfazer Mesclagem
 
 ```text
-1. Usuario seleciona 2 organizacoes na lista OU
-   Usuario clica "Mesclar" na pagina de detalhes
-              │
-              ▼
-2. Dialog abre mostrando campos lado a lado
-   - Usuario escolhe qual valor manter para cada campo
-   - Arrays sao combinados automaticamente
-              │
-              ▼
-3. Usuario confirma a mesclagem
-              │
-              ▼
-4. Sistema executa:
-   a) Atualiza registro mantido com dados escolhidos
-   b) Transfere atividades, negocios, pessoas, notas, arquivos
-   c) Combina tags sem duplicar
-   d) Registra evento no historico
-   e) Exclui organizacao duplicada
-              │
-              ▼
-5. Redireciona para pagina da organizacao mesclada
-   - Toast de sucesso
-   - Queries invalidadas
+1. Usuario clica em "Desfazer" no toast ou na pagina de detalhes
+                    |
+                    v
+2. Sistema busca o backup mais recente
+                    |
+                    v
+3. Recria o registro excluido com o mesmo ID original
+                    |
+                    v
+4. Reverte os dados do registro mantido para estado anterior
+                    |
+                    v
+5. Move as relacoes de volta para o registro restaurado
+   - Atividades com IDs salvos -> person_id original
+   - Negocios com IDs salvos -> person_id original
+   - Notas, arquivos, tags, emails
+                    |
+                    v
+6. Marca backup como restaurado
+                    |
+                    v
+7. Registra evento no historico
+                    |
+                    v
+8. Toast de sucesso + refresh das queries
 ```
 
 ---
 
-## Campos Especificos de Organizacoes
+## Interface do Usuario
 
-Alem dos campos basicos, as organizacoes tem campos especificos de seguros:
+### Na Pagina de Detalhes
 
-| Grupo | Campos |
-|-------|--------|
-| Dados Basicos | name, cnpj, cnae, rntrc_antt |
-| Contato | phone, email, website |
-| Endereco | address_street, address_number, address_complement, address_neighborhood, address_city, address_state, address_zipcode |
-| Seguro | insurance_branches, preferred_insurers, fleet_type, fleet_size, current_insurer, risk_profile |
-| Renovacao | policy_renewal_month, annual_premium_estimate, has_claims_history |
-| Outros | label, notes, broker_notes, automotores |
+Se existir um backup recente para este registro:
 
----
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ ⚠️ Este registro foi mesclado recentemente                   │
+│                                                              │
+│ Wilson foi mesclado em 31/01/2025 as 15:30                   │
+│ O contato "Wilson teste" foi excluido na mesclagem.          │
+│                                                              │
+│ [Desfazer mesclagem]                 Expira em: 29 dias      │
+└──────────────────────────────────────────────────────────────┘
+```
 
-## Logica Especial para Arrays
+### No Toast Pos-Mesclagem
 
-```typescript
-// Combinar insurance_branches
-const mergedBranches = [
-  ...new Set([
-    ...(org1.insurance_branches || []),
-    ...(org2.insurance_branches || [])
-  ])
-];
-
-// Combinar preferred_insurers
-const mergedInsurers = [
-  ...new Set([
-    ...(org1.preferred_insurers || []),
-    ...(org2.preferred_insurers || [])
-  ])
-];
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ ✓ Contatos mesclados com sucesso!        [Desfazer] [X]      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Validacoes
+## Consideracoes Importantes
 
-1. Apenas usuarios autenticados podem mesclar
-2. Dialog de confirmacao antes de executar
-3. Acao irreversivel - avisar usuario claramente
-4. Historico registrado para auditoria
-5. Pessoas vinculadas sao atualizadas automaticamente
-6. Se ambas organizacoes tem contato principal, usuario escolhe qual manter
+1. **Janela de Tempo**: Backup expira em 30 dias (configuravel)
+2. **Limites de Storage**: Backups antigos podem ser limpos por job agendado
+3. **Integridade**: Se o registro mantido for editado apos a mesclagem, o undo restaura o estado anterior
+4. **Arquivos Storage**: Os arquivos em si nao sao duplicados, apenas os metadados
+5. **Multiplas Mesclagens**: Se o mesmo registro foi mesclado multiplas vezes, cada mesclagem tem seu backup
 
 ---
 
 ## Resumo de Implementacao
 
-1. **Criar useMergeOrganizations.ts**: Hook com logica de mesclagem
-2. **Criar MergeOrganizationsDialog.tsx**: Interface de selecao de campos
-3. **Criar OrganizationSearchDialog.tsx**: Busca de organizacao
-4. **Modificar Organizations.tsx**: Adicionar estado e dialog
-5. **Modificar OrganizationsTable.tsx**: Botao "Mesclar" na toolbar
-6. **Modificar OrganizationDetails.tsx**: Opcao no menu de acoes
+1. **Migracao SQL**: Criar tabela `merge_backups` com RLS
+2. **Modificar useMergeContacts.ts**: Salvar backup antes de mesclar
+3. **Modificar useMergeOrganizations.ts**: Salvar backup antes de mesclar  
+4. **Criar useUndoMergeContact.ts**: Logica para desfazer mesclagem de pessoa
+5. **Criar useUndoMergeOrganization.ts**: Logica para desfazer mesclagem de org
+6. **Criar useMergeBackups.ts**: Hook para listar backups disponiveis
+7. **Modificar PersonDetails.tsx**: Mostrar banner se houver backup
+8. **Modificar OrganizationDetails.tsx**: Mostrar banner se houver backup
+9. **Modificar dialogs de mesclagem**: Toast com botao de desfazer
 
 ---
 
 ## Beneficios
 
-- Elimina organizacoes duplicadas mantendo todos os dados
-- Consolida pessoas vinculadas, negocios, atividades e historico
-- Interface intuitiva identica a mesclagem de contatos
-- Campos de seguro sao combinados automaticamente
-- Auditoria completa via historico
+- Seguranca para o usuario em caso de erro
+- Dados nunca sao perdidos permanentemente (por 30 dias)
+- Interface intuitiva com toast e banner
+- Restauracao completa incluindo todas as relacoes
+- Auditoria via historico de eventos
