@@ -20,6 +20,7 @@ import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { useOrganizationTags } from '@/hooks/useOrganizationTags';
 import { OrganizationsFilters, OrganizationsFiltersState, defaultOrganizationsFilters } from '@/components/organizations/OrganizationsFilters';
+import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -82,6 +83,9 @@ export default function Organizations() {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  
+  // Merge state
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   // Persist advanced filters to localStorage
   useEffect(() => {
@@ -453,6 +457,7 @@ export default function Organizations() {
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
               onBulkDelete={() => setBulkDeleteOpen(true)}
+              onMerge={() => setMergeDialogOpen(true)}
             />
           </div>
         )}
@@ -476,6 +481,20 @@ export default function Organizations() {
           onConfirm={handleBulkDelete}
           isDeleting={bulkDeleteMutation.isPending}
         />
+
+        {/* Merge Organizations Dialog */}
+        {selectedIds.length === 2 && (
+          <MergeOrganizationsDialog
+            open={mergeDialogOpen}
+            onOpenChange={setMergeDialogOpen}
+            org1={filteredOrganizations.find(o => o.id === selectedIds[0])!}
+            org2={filteredOrganizations.find(o => o.id === selectedIds[1])!}
+            onSuccess={() => {
+              setSelectedIds([]);
+              setMergeDialogOpen(false);
+            }}
+          />
+        )}
     </div>
   );
 }

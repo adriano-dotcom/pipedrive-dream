@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw, MoreVertical, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw, MoreVertical, Trash2, GitMerge } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,8 @@ import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { useSentEmails } from '@/hooks/useSentEmails';
+import { OrganizationSearchDialog } from '@/components/organizations/OrganizationSearchDialog';
+import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +36,7 @@ import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
 import { formatCnpj } from '@/lib/utils';
+import type { Tables } from '@/integrations/supabase/types';
 
 const getLabelColor = (label: string | null) => {
   switch (label) {
@@ -47,6 +50,7 @@ const getLabelColor = (label: string | null) => {
       return '';
   }
 };
+type Organization = Tables<'organizations'>;
 
 export default function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
@@ -57,6 +61,9 @@ export default function OrganizationDetails() {
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [selectedOrgToMerge, setSelectedOrgToMerge] = useState<Organization | null>(null);
 
   const {
     organization,
@@ -268,6 +275,10 @@ export default function OrganizationDetails() {
                 <Pencil className="h-4 w-4 mr-2" />
                 Editar
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSearchDialogOpen(true)}>
+                <GitMerge className="h-4 w-4 mr-2" />
+                Mesclar com outra organização...
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={() => setDeleteDialogOpen(true)}
@@ -405,6 +416,39 @@ export default function OrganizationDetails() {
         onConfirm={() => deleteOrganizationMutation.mutate()}
         isDeleting={deleteOrganizationMutation.isPending}
       />
+
+      {/* Organization Search Dialog for Merge */}
+      <OrganizationSearchDialog
+        open={searchDialogOpen}
+        onOpenChange={setSearchDialogOpen}
+        excludeId={id || ''}
+        onSelect={(org) => {
+          setSelectedOrgToMerge(org);
+          setSearchDialogOpen(false);
+          setMergeDialogOpen(true);
+        }}
+      />
+
+      {/* Merge Organizations Dialog */}
+      {selectedOrgToMerge && organization && (
+        <MergeOrganizationsDialog
+          open={mergeDialogOpen}
+          onOpenChange={(open) => {
+            setMergeDialogOpen(open);
+            if (!open) setSelectedOrgToMerge(null);
+          }}
+          org1={organization}
+          org2={selectedOrgToMerge}
+          onSuccess={(keepOrgId) => {
+            setMergeDialogOpen(false);
+            setSelectedOrgToMerge(null);
+            // Navigate to the kept organization
+            if (keepOrgId !== id) {
+              navigate(`/organizations/${keepOrgId}`);
+            }
+          }}
+        />
+      )}
       </div>
     </ErrorBoundary>
   );

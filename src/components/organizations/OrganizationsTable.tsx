@@ -41,7 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star, GitMerge } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -73,6 +73,7 @@ interface OrganizationsTableProps {
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
   onBulkDelete?: () => void;
+  onMerge?: () => void;
 }
 
 const COLUMN_ORDER_KEY = 'org-table-column-order';
@@ -147,6 +148,7 @@ export function OrganizationsTable({
   selectedIds,
   onSelectionChange,
   onBulkDelete,
+  onMerge,
 }: OrganizationsTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -489,6 +491,17 @@ export function OrganizationsTable({
               <span className="text-sm text-muted-foreground">
                 {selectedIds.length} selecionada(s)
               </span>
+              {selectedIds.length === 2 && onMerge && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onMerge}
+                  className="h-8"
+                >
+                  <GitMerge className="h-4 w-4 mr-1.5" />
+                  Mesclar
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="sm"
