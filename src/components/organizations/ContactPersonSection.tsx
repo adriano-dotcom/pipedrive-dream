@@ -6,6 +6,7 @@ import { UserPlus, Users, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContactPersonItem } from './ContactPersonItem';
 import { AddContactPersonDialog } from './AddContactPersonDialog';
+import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -28,6 +29,7 @@ export function ContactPersonSection({
 }: ContactPersonSectionProps) {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deletingPerson, setDeletingPerson] = useState<Person | null>(null);
 
   // Fetch linked contacts for existing organization
   const { data: linkedContacts, isLoading } = useQuery({
@@ -73,6 +75,34 @@ export function ContactPersonSection({
     },
   });
 
+  // Delete person mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (personId: string) => {
+      const { error } = await supabase
+        .from('people')
+        .delete()
+        .eq('id', personId);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, personId) => {
+      queryClient.invalidateQueries({ queryKey: ['organization-contacts', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      queryClient.invalidateQueries({ queryKey: ['person', personId] });
+      
+      // If deleting primary contact, clear it
+      if (personId === primaryContactId) {
+        onPrimaryContactChange(null);
+      }
+      
+      toast.success('Pessoa excluída permanentemente');
+      setDeletingPerson(null);
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir pessoa: ' + error.message);
+    },
+  });
+
   const handleSetPrimary = (personId: string) => {
     if (personId === primaryContactId) {
       onPrimaryContactChange(null);
@@ -91,6 +121,16 @@ export function ContactPersonSection({
       if (personId === primaryContactId) {
         onPrimaryContactChange(null);
       }
+    }
+  };
+
+  const handleDelete = (person: Person) => {
+    setDeletingPerson(person);
+  };
+
+  const confirmDelete = () => {
+    if (deletingPerson) {
+      deleteMutation.mutate(deletingPerson.id);
     }
   };
 
@@ -157,6 +197,7 @@ export function ContactPersonSection({
               isPrimary={person.id === primaryContactId}
               onSetPrimary={handleSetPrimary}
               onUnlink={handleUnlink}
+              onDelete={organizationId ? handleDelete : undefined}
             />
           ))}
         </div>
@@ -169,6 +210,15 @@ export function ContactPersonSection({
         excludePersonIds={excludePersonIds}
         onPersonLinked={handlePersonLinked}
         onPersonCreated={handlePersonCreated}
+      />
+
+      <DeleteConfirmDialog
+        open={!!deletingPerson}
+        onOpenChange={(open) => !open && setDeletingPerson(null)}
+        title="Excluir pessoa?"
+        description={`Tem certeza que deseja excluir "${deletingPerson?.name}" permanentemente? Esta ação não pode ser desfeita. Todos os dados da pessoa, incluindo atividades, notas e arquivos vinculados, serão removidos.`}
+        onConfirm={confirmDelete}
+        isDeleting={deleteMutation.isPending}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Mail, Star, StarOff, Unlink, Pencil } from 'lucide-react';
+import { Phone, Mail, Star, StarOff, Unlink, Pencil, Trash2 } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -11,6 +11,7 @@ interface ContactPersonItemProps {
   onSetPrimary: (personId: string) => void;
   onUnlink: (personId: string) => void;
   onEdit?: (person: Person) => void;
+  onDelete?: (person: Person) => void;
 }
 
 export function ContactPersonItem({
@@ -19,6 +20,7 @@ export function ContactPersonItem({
   onSetPrimary,
   onUnlink,
   onEdit,
+  onDelete,
 }: ContactPersonItemProps) {
   return (
     <div className="flex items-start justify-between p-3 border rounded-lg bg-card">
@@ -77,11 +79,23 @@ export function ContactPersonItem({
             <Pencil className="h-4 w-4" />
           </Button>
         )}
+        {onDelete && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => onDelete(person)}
+            title="Excluir pessoa permanentemente"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive"
+          className="h-8 w-8 text-muted-foreground hover:text-muted-foreground"
           onClick={() => onUnlink(person.id)}
           title="Desvincular da organização"
         >
