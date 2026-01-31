@@ -16,6 +16,7 @@ interface DeleteConfirmDialogProps {
   title: string;
   description?: string;
   itemName?: string;
+  itemCount?: number;
   onConfirm: () => void;
   isDeleting?: boolean;
 }
@@ -26,6 +27,7 @@ export function DeleteConfirmDialog({
   title,
   description,
   itemName,
+  itemCount,
   onConfirm,
   isDeleting = false,
 }: DeleteConfirmDialogProps) {
@@ -41,13 +43,23 @@ export function DeleteConfirmDialog({
           </div>
           <AlertDialogDescription className="pt-2">
             {description || (
-              <>
-                Tem certeza que deseja excluir{' '}
-                {itemName && (
-                  <span className="font-medium text-foreground">"{itemName}"</span>
-                )}
-                ? Esta ação não pode ser desfeita.
-              </>
+              itemCount && itemCount > 1 ? (
+                <>
+                  Tem certeza que deseja excluir{' '}
+                  <span className="font-medium text-foreground">
+                    {itemCount} organizações
+                  </span>
+                  ? Esta ação não pode ser desfeita.
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir{' '}
+                  {itemName && (
+                    <span className="font-medium text-foreground">"{itemName}"</span>
+                  )}
+                  ? Esta ação não pode ser desfeita.
+                </>
+              )
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>

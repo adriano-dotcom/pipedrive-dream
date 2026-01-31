@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Phone, Mail, MapPin, Pencil, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn, formatCnpj } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -25,6 +26,9 @@ interface OrganizationsMobileListProps {
   onDelete: (org: OrganizationWithContact) => void;
   onSetPrimaryContact?: (orgId: string, contactId: string) => void;
   isSettingPrimaryContact?: boolean;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  onBulkDelete?: () => void;
 }
 
 const getLabelColor = (label: string | null) => {
@@ -47,6 +51,9 @@ export function OrganizationsMobileList({
   onDelete,
   onSetPrimaryContact,
   isSettingPrimaryContact,
+  selectedIds,
+  onSelectionChange,
+  onBulkDelete,
 }: OrganizationsMobileListProps) {
   if (organizations.length === 0) {
     return (
@@ -56,26 +63,70 @@ export function OrganizationsMobileList({
     );
   }
 
+  const handleToggleSelection = (orgId: string, checked: boolean) => {
+    if (!onSelectionChange) return;
+    if (checked) {
+      onSelectionChange([...(selectedIds || []), orgId]);
+    } else {
+      onSelectionChange((selectedIds || []).filter(id => id !== orgId));
+    }
+  };
+
   return (
     <div className="space-y-3 p-4">
+      {/* Bulk action bar - sticky at top when selection exists */}
+      {isAdmin && selectedIds && selectedIds.length > 0 && (
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b p-3 flex items-center justify-between -mx-4 -mt-4 mb-3">
+          <span className="text-sm font-medium">
+            {selectedIds.length} selecionada(s)
+          </span>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => onSelectionChange?.([])}
+            >
+              Limpar
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={onBulkDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir
+            </Button>
+          </div>
+        </div>
+      )}
+
       {organizations.map((org) => (
         <div 
           key={org.id} 
           className="ios-glass p-4 rounded-xl space-y-3"
         >
-          {/* Header with name and label */}
-          <div className="flex items-start justify-between gap-2">
-            <Link
-              to={`/organizations/${org.id}`}
-              className="font-semibold text-foreground hover:text-primary transition-colors flex-1"
-            >
-              {org.name}
-            </Link>
-            {org.label && (
-              <Badge variant="outline" className={cn("text-xs flex-shrink-0", getLabelColor(org.label))}>
-                {org.label}
-              </Badge>
+          {/* Header with checkbox, name and label */}
+          <div className="flex items-start gap-3">
+            {isAdmin && onSelectionChange && (
+              <Checkbox
+                checked={selectedIds?.includes(org.id) || false}
+                onCheckedChange={(checked) => handleToggleSelection(org.id, !!checked)}
+                className="mt-1"
+              />
             )}
+            <div className="flex-1 flex items-start justify-between gap-2">
+              <Link
+                to={`/organizations/${org.id}`}
+                className="font-semibold text-foreground hover:text-primary transition-colors flex-1"
+              >
+                {org.name}
+              </Link>
+              {org.label && (
+                <Badge variant="outline" className={cn("text-xs flex-shrink-0", getLabelColor(org.label))}>
+                  {org.label}
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Info */}

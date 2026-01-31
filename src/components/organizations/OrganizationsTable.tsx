@@ -12,7 +12,9 @@ import {
   SortingState,
   VisibilityState,
   Column,
+  RowSelectionState,
 } from '@tanstack/react-table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
   Table,
@@ -68,6 +70,9 @@ interface OrganizationsTableProps {
   onDelete: (org: OrganizationWithContact) => void;
   onSetPrimaryContact?: (orgId: string, contactId: string) => void;
   isSettingPrimaryContact?: boolean;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  onBulkDelete?: () => void;
 }
 
 const COLUMN_ORDER_KEY = 'org-table-column-order';
@@ -139,9 +144,13 @@ export function OrganizationsTable({
   onDelete,
   onSetPrimaryContact,
   isSettingPrimaryContact,
+  selectedIds,
+  onSelectionChange,
+  onBulkDelete,
 }: OrganizationsTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
     const saved = localStorage.getItem(COLUMN_ORDER_KEY);
     return saved ? JSON.parse(saved) : defaultColumnOrder;
@@ -158,6 +167,12 @@ export function OrganizationsTable({
     pageIndex: 0,
     pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
   });
+
+  // Sync row selection with parent callback
+  useEffect(() => {
+    const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+    onSelectionChange?.(selectedRowIds);
+  }, [rowSelection, onSelectionChange]);
 
   useEffect(() => {
     if (columnOrder.length > 0) {
@@ -190,7 +205,34 @@ export function OrganizationsTable({
     { id: 'label', label: 'Status', accessor: (row: OrganizationWithContact) => row.label },
   ], []);
 
-  const columns = useMemo<ColumnDef<OrganizationWithContact>[]>(
+  // Select column for bulk actions (only for admins)
+  const selectColumn: ColumnDef<OrganizationWithContact> = {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() || 
+          (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Selecionar todos"
+        className="translate-y-[2px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Selecionar linha"
+        className="translate-y-[2px]"
+        onClick={(e) => e.stopPropagation()}
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  };
+
+  const baseColumns = useMemo<ColumnDef<OrganizationWithContact>[]>(
     () => [
       {
         id: 'name',
@@ -376,6 +418,12 @@ export function OrganizationsTable({
     [isAdmin, onEdit, onDelete, onSetPrimaryContact, isSettingPrimaryContact]
   );
 
+  // Add select column for admins
+  const columns = useMemo(() => 
+    isAdmin && onSelectionChange ? [selectColumn, ...baseColumns] : baseColumns,
+    [isAdmin, baseColumns, onSelectionChange]
+  );
+
   const table = useReactTable({
     data: organizations,
     columns,
@@ -384,7 +432,11 @@ export function OrganizationsTable({
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
       columnVisibility,
       pagination,
+      rowSelection,
     },
+    enableRowSelection: isAdmin,
+    getRowId: (row) => row.id,
+    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onColumnVisibilityChange: setColumnVisibility,
@@ -413,6 +465,9 @@ export function OrganizationsTable({
         onDelete={onDelete}
         onSetPrimaryContact={onSetPrimaryContact}
         isSettingPrimaryContact={isSettingPrimaryContact}
+        selectedIds={selectedIds}
+        onSelectionChange={onSelectionChange}
+        onBulkDelete={onBulkDelete}
       />
     );
   }
@@ -421,11 +476,31 @@ export function OrganizationsTable({
     <div className="rounded-md border overflow-hidden">
       {/* Barra de ferramentas */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
-        <ExportButtons 
-          data={organizations} 
-          columns={exportColumns} 
-          filenamePrefix="organizacoes" 
-        />
+        <div className="flex items-center gap-4">
+          <ExportButtons 
+            data={organizations} 
+            columns={exportColumns} 
+            filenamePrefix="organizacoes" 
+          />
+          
+          {/* Bulk actions - appears when selection exists */}
+          {isAdmin && selectedIds && selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 pl-4 border-l">
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.length} selecionada(s)
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onBulkDelete}
+                className="h-8"
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Excluir
+              </Button>
+            </div>
+          )}
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-1.5">
