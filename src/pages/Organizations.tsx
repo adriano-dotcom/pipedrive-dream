@@ -23,12 +23,23 @@ import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
 
+type LinkedPerson = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+};
+
 type OrganizationWithContact = Organization & {
   primary_contact: {
+    id?: string;
     name: string;
     phone: string | null;
     email: string | null;
   } | null;
+  linked_people?: LinkedPerson[];
+  is_fallback_contact?: boolean;
+  fallback_contact_id?: string;
 };
 
 export default function Organizations() {
@@ -59,6 +70,13 @@ export default function Organizations() {
         .select(`
           *,
           primary_contact:people!primary_contact_id(
+            id,
+            name,
+            phone,
+            email
+          ),
+          linked_people:people!people_organization_id_fkey(
+            id,
             name,
             phone,
             email
@@ -72,7 +90,27 @@ export default function Organizations() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as OrganizationWithContact[];
+      
+      // Process data to apply fallback contact logic
+      const processedData = (data || []).map(org => {
+        const hasPrimaryContact = !!org.primary_contact;
+        const hasLinkedPeople = org.linked_people && org.linked_people.length > 0;
+        
+        return {
+          ...org,
+          primary_contact: org.primary_contact || 
+            (hasLinkedPeople ? {
+              id: org.linked_people![0].id,
+              name: org.linked_people![0].name,
+              phone: org.linked_people![0].phone,
+              email: org.linked_people![0].email,
+            } : null),
+          is_fallback_contact: !hasPrimaryContact && hasLinkedPeople,
+          fallback_contact_id: !hasPrimaryContact && hasLinkedPeople ? org.linked_people![0].id : undefined,
+        };
+      });
+      
+      return processedData as OrganizationWithContact[];
     },
   });
 

@@ -51,10 +51,13 @@ type Organization = Tables<'organizations'>;
 
 type OrganizationWithContact = Organization & {
   primary_contact: {
+    id?: string;
     name: string;
     phone: string | null;
     email: string | null;
   } | null;
+  is_fallback_contact?: boolean;
+  fallback_contact_id?: string;
 };
 
 interface OrganizationsTableProps {
@@ -221,18 +224,36 @@ export function OrganizationsTable({
         id: 'contact_name',
         accessorFn: (row) => row.primary_contact?.name ?? '',
         header: ({ column }) => <SortableHeader column={column} title="Contato Principal" />,
-        cell: ({ row }) => (
-          row.original.primary_contact && row.original.primary_contact_id ? (
+        cell: ({ row }) => {
+          const { primary_contact, primary_contact_id, is_fallback_contact, fallback_contact_id } = row.original;
+          
+          if (!primary_contact) {
+            return <span className="text-muted-foreground">-</span>;
+          }
+          
+          const contactId = is_fallback_contact ? fallback_contact_id : primary_contact_id;
+          
+          if (is_fallback_contact) {
+            return (
+              <Link
+                to={`/people/${contactId}`}
+                className="text-muted-foreground hover:text-primary hover:underline transition-colors italic"
+              >
+                {primary_contact.name}
+                <span className="text-xs ml-1 not-italic opacity-70">(vinculado)</span>
+              </Link>
+            );
+          }
+          
+          return (
             <Link
-              to={`/people/${row.original.primary_contact_id}`}
+              to={`/people/${contactId}`}
               className="text-muted-foreground hover:text-primary hover:underline transition-colors"
             >
-              {row.original.primary_contact.name}
+              {primary_contact.name}
             </Link>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          )
-        ),
+          );
+        },
       },
       {
         id: 'contact_phone',
