@@ -26,8 +26,11 @@ import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
 import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
 import { ContactSearchDialog } from '@/components/people/ContactSearchDialog';
+import { MergeUndoBanner } from '@/components/shared/MergeUndoBanner';
 import { usePersonDetails } from '@/hooks/usePersonDetails';
 import { usePersonFiles } from '@/hooks/usePersonFiles';
+import { useMergeBackups } from '@/hooks/useMergeBackups';
+import { useUndoMergeContact } from '@/hooks/useUndoMergeContact';
 import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
@@ -93,6 +96,10 @@ export default function PersonDetails() {
   } = usePersonFiles(id || '');
 
   const { emails } = useSentEmails('person', id || '');
+
+  // Merge backup for undo functionality
+  const { data: mergeBackup } = useMergeBackups(id || '', 'person');
+  const { undoMerge, isUndoing } = useUndoMergeContact();
 
   // Fetch default pipeline for new deals
   const { data: defaultPipeline } = useQuery({
@@ -169,6 +176,16 @@ export default function PersonDetails() {
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto animate-fade-in">
+      {/* Merge Undo Banner */}
+      {mergeBackup && (
+        <MergeUndoBanner
+          backup={mergeBackup}
+          entityName={person.name}
+          onUndo={undoMerge}
+          isUndoing={isUndoing}
+        />
+      )}
+
       {/* Breadcrumbs */}
       <PageBreadcrumbs
         items={[

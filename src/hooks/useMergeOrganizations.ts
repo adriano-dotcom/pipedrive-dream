@@ -13,15 +13,104 @@ interface MergeOrganizationsParams {
   mergedData: Partial<Organization>;
 }
 
+interface MergeResult {
+  keepOrgId: string;
+  backupId?: string;
+}
+
 export function useMergeOrganizations() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const mergeMutation = useMutation({
-    mutationFn: async ({ keepOrgId, deleteOrgId, deleteOrgName, mergedData }: MergeOrganizationsParams) => {
+    mutationFn: async ({ keepOrgId, deleteOrgId, deleteOrgName, mergedData }: MergeOrganizationsParams): Promise<MergeResult> => {
       if (!user) throw new Error('Usuário não autenticado');
 
-      // 1. Atualizar o registro mantido com os dados mesclados
+      // ========== BACKUP BEFORE MERGE ==========
+
+      // 1. Fetch complete data of organization being deleted
+      const { data: deletedOrgData, error: fetchDeletedError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', deleteOrgId)
+        .single();
+
+      if (fetchDeletedError) throw fetchDeletedError;
+
+      // 2. Fetch current data of organization being kept (before changes)
+      const { data: keptOrgPreviousData, error: fetchKeptError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', keepOrgId)
+        .single();
+
+      if (fetchKeptError) throw fetchKeptError;
+
+      // 3. Fetch IDs of relations that will be transferred
+      const { data: activitiesToTransfer } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('organization_id', deleteOrgId);
+
+      const { data: dealsToTransfer } = await supabase
+        .from('deals')
+        .select('id')
+        .eq('organization_id', deleteOrgId);
+
+      const { data: peopleToTransfer } = await supabase
+        .from('people')
+        .select('id')
+        .eq('organization_id', deleteOrgId);
+
+      const { data: notesToTransfer } = await supabase
+        .from('organization_notes')
+        .select('id')
+        .eq('organization_id', deleteOrgId);
+
+      const { data: filesToTransfer } = await supabase
+        .from('organization_files')
+        .select('id')
+        .eq('organization_id', deleteOrgId);
+
+      const { data: tagsToTransfer } = await supabase
+        .from('organization_tag_assignments')
+        .select('tag_id')
+        .eq('organization_id', deleteOrgId);
+
+      const { data: emailsToTransfer } = await supabase
+        .from('sent_emails')
+        .select('id')
+        .eq('entity_type', 'organization')
+        .eq('entity_id', deleteOrgId);
+
+      // 4. Save backup
+      const { data: backupData, error: backupError } = await supabase
+        .from('merge_backups')
+        .insert({
+          entity_type: 'organization',
+          kept_entity_id: keepOrgId,
+          deleted_entity_id: deleteOrgId,
+          deleted_entity_data: deletedOrgData,
+          kept_entity_previous_data: keptOrgPreviousData,
+          transferred_relations: {
+            activities: activitiesToTransfer?.map(a => a.id) || [],
+            deals: dealsToTransfer?.map(d => d.id) || [],
+            people: peopleToTransfer?.map(p => p.id) || [],
+            notes: notesToTransfer?.map(n => n.id) || [],
+            files: filesToTransfer?.map(f => f.id) || [],
+            tags: tagsToTransfer?.map(t => t.tag_id) || [],
+            emails: emailsToTransfer?.map(e => e.id) || [],
+          },
+          merged_by: user.id,
+        })
+        .select('id')
+        .single();
+
+      if (backupError) throw backupError;
+
+      // ========== PROCEED WITH MERGE ==========
+
+      // 5. Update the kept record with merged data
       const { error: updateError } = await supabase
         .from('organizations')
         .update(mergedData)
@@ -137,7 +226,7 @@ export function useMergeOrganizations() {
 
       if (deleteError) throw deleteError;
 
-      return { keepOrgId };
+      return { keepOrgId, backupId: backupData?.id };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
