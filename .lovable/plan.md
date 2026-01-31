@@ -1,96 +1,74 @@
 
-# Funcionalidade de Mesclar Contatos (Pessoas)
+# Sistema de Filtros Avancados para Organizacoes e Pessoas
 
-## Objetivo
+## Situacao Atual
 
-Implementar uma funcionalidade similar ao Pipedrive para mesclar duas pessoas (contatos) duplicadas em um unico registro, combinando todos os dados e relacionamentos.
-
----
-
-## Cenario de Uso
-
-1. Usuario identifica dois contatos que sao a mesma pessoa (ex: "Wilson" e "Wilson teste")
-2. Um registro tem email, outro tem telefone - ambos incompletos
-3. Usuario seleciona os dois contatos e escolhe "Mesclar"
-4. Sistema combina os dados em um unico registro, mantendo o mais completo de cada campo
+O sistema ja possui:
+- Busca por texto (nome, email, telefone, CNPJ)
+- Filtro por etiquetas (tags) via TagFilterPopover
+- Persistencia de etiquetas selecionadas no localStorage
+- Padrao de filtros avancados implementado em KanbanFilters para negocios
 
 ---
 
-## Interface do Usuario
+## Proposta: Adicionar Filtros Avancados
 
-### 1. Acesso a Funcionalidade
+Criar um sistema de filtros similar ao existente em Deals (KanbanFilters), adaptado para cada entidade.
 
-A mesclagem pode ser iniciada de duas formas:
+---
 
-**Opcao A - Na lista de contatos:**
-- Selecionar exatamente 2 contatos com checkbox
-- Botao "Mesclar" aparece na barra de acoes
+## Campos Disponiveis para Filtro
 
-**Opcao B - Na pagina de detalhes:**
-- Menu "..." no header com opcao "Mesclar com outro contato..."
-- Abre busca para selecionar segundo contato
+### Pessoas (People)
 
-### 2. Dialog de Mesclagem
+| Campo | Tipo de Filtro | Opcoes |
+|-------|----------------|--------|
+| Status (label) | Multi-selecao | Quente, Morno, Frio |
+| Origem do Lead | Multi-selecao | Lista de origens unicas |
+| Cargo | Multi-selecao | Lista de cargos unicos |
+| Organizacao | Selecao unica | Lista de organizacoes |
+| Responsavel | Selecao unica | Lista de usuarios |
+| Etiquetas | Multi-selecao | Ja implementado |
+| Periodo (criacao) | Range de datas | De/Ate |
+| Tem Email | Boolean | Sim/Nao |
+| Tem Telefone | Boolean | Sim/Nao |
+
+### Organizacoes (Organizations)
+
+| Campo | Tipo de Filtro | Opcoes |
+|-------|----------------|--------|
+| Status (label) | Multi-selecao | Quente, Morno, Frio |
+| Cidade | Multi-selecao | Lista de cidades unicas |
+| Estado | Multi-selecao | Lista de estados |
+| Ramos de Seguro | Multi-selecao | Carga, Saude, Frota, etc |
+| Seguradora Atual | Multi-selecao | Lista de seguradoras |
+| Perfil de Risco | Multi-selecao | Baixo, Medio, Alto |
+| Tipo de Frota | Multi-selecao | Lista unica |
+| Mes de Renovacao | Multi-selecao | Janeiro-Dezembro |
+| Responsavel | Selecao unica | Lista de usuarios |
+| Etiquetas | Multi-selecao | Ja implementado |
+| Periodo (criacao) | Range de datas | De/Ate |
+| Tem CNPJ | Boolean | Sim/Nao |
+| Historico de Sinistros | Boolean | Sim/Nao |
+
+---
+
+## Arquitetura de Componentes
 
 ```text
-┌──────────────────────────────────────────────────────────────────────┐
-│ 🔀 Mesclar Contatos                                            [X]  │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Selecione qual valor manter para cada campo:                        │
-│                                                                      │
-│  ┌─────────────────────────────────────────────────────────────────┐ │
-│  │ Campo         │ Wilson (manter)      │ Wilson teste            │ │
-│  ├───────────────┼──────────────────────┼─────────────────────────┤ │
-│  │ Nome          │ ● Wilson             │ ○ Wilson teste          │ │
-│  │ Email         │ ● wilson@gmail.com   │ ○ -                     │ │
-│  │ Telefone      │ ○ -                  │ ● (43) 99999-9999       │ │
-│  │ WhatsApp      │ ○ -                  │ ● (43) 99999-9999       │ │
-│  │ Cargo         │ ● Gerente            │ ○ -                     │ │
-│  │ Organizacao   │ ● Empresa ABC        │ ○ -                     │ │
-│  │ Status        │ ○ Quente             │ ● Morno                 │ │
-│  │ CPF           │ ○ -                  │ ○ -                     │ │
-│  └─────────────────────────────────────────────────────────────────┘ │
-│                                                                      │
-│  ℹ️ Notas, arquivos, atividades e negocios serao combinados.         │
-│  ⚠️ O contato "Wilson teste" sera excluido apos a mesclagem.        │
-│                                                                      │
-│  [Cancelar]                              [Mesclar Contatos]          │
-└──────────────────────────────────────────────────────────────────────┘
+src/components/shared/
+├── AdvancedFilters.tsx          # Componente base reutilizavel
+├── FilterSection.tsx            # Secao individual de filtro
+├── MultiSelectFilter.tsx        # Filtro multi-selecao
+├── DateRangeFilter.tsx          # Filtro de periodo
+└── BooleanFilter.tsx            # Filtro sim/nao
+
+src/components/people/
+└── PeopleFilters.tsx            # Configuracao de filtros para pessoas
+
+src/components/organizations/
+└── OrganizationsFilters.tsx     # Configuracao de filtros para organizacoes
 ```
-
----
-
-## Dados a Serem Mesclados
-
-### Campos da Pessoa (escolha campo a campo)
-
-| Campo | Logica |
-|-------|--------|
-| name | Usuario escolhe |
-| email | Usuario escolhe |
-| phone | Usuario escolhe |
-| whatsapp | Usuario escolhe |
-| cpf | Usuario escolhe |
-| job_title | Usuario escolhe |
-| organization_id | Usuario escolhe |
-| label | Usuario escolhe |
-| lead_source | Usuario escolhe |
-| utm_source, utm_medium, utm_campaign | Usuario escolhe |
-| notes | Combinar (concatenar) |
-
-### Relacionamentos (transferir automaticamente)
-
-| Tabela | Acao |
-|--------|------|
-| activities | Atualizar person_id para o registro mantido |
-| deals | Atualizar person_id para o registro mantido |
-| people_notes | Transferir todas para o registro mantido |
-| people_files | Transferir todos para o registro mantido |
-| people_history | Transferir todo historico + adicionar evento de mesclagem |
-| person_tag_assignments | Combinar tags de ambos (sem duplicar) |
-| sent_emails (entity_type='person') | Atualizar entity_id |
-| organizations.primary_contact_id | Se o contato excluido era principal, atualizar para o mantido |
 
 ---
 
@@ -98,230 +76,191 @@ A mesclagem pode ser iniciada de duas formas:
 
 | Arquivo | Tipo | Descricao |
 |---------|------|-----------|
-| `src/components/people/MergeContactsDialog.tsx` | Criar | Dialog principal de mesclagem |
-| `src/components/people/MergeFieldSelector.tsx` | Criar | Componente para selecionar valores de cada campo |
-| `src/hooks/useMergeContacts.ts` | Criar | Hook com logica de mesclagem |
-| `src/pages/PersonDetails.tsx` | Modificar | Adicionar opcao "Mesclar" no menu |
-| `src/pages/People.tsx` | Modificar | Adicionar botao "Mesclar" na barra de selecao |
-| `src/components/people/PeopleTable.tsx` | Modificar | Passar handler de mesclagem |
+| `src/components/shared/AdvancedFilters.tsx` | Criar | Componente colapsivel de filtros |
+| `src/components/people/PeopleFilters.tsx` | Criar | Filtros especificos para pessoas |
+| `src/components/organizations/OrganizationsFilters.tsx` | Criar | Filtros especificos para organizacoes |
+| `src/pages/People.tsx` | Modificar | Integrar PeopleFilters |
+| `src/pages/Organizations.tsx` | Modificar | Integrar OrganizationsFilters |
+
+---
+
+## Interface de Usuario
+
+Similar ao KanbanFilters, com painel colapsivel:
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ [🔍 Buscar...]                    [🏷 Etiquetas ▾] [⚙ Filtros (3) ▾] │
+└─────────────────────────────────────────────────────────────────────┘
+                              ▼ (ao expandir)
+┌─────────────────────────────────────────────────────────────────────┐
+│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐ │
+│ │ Status      │ │ Cidade      │ │ Responsavel │ │ Periodo         │ │
+│ │ ○ Quente    │ │ □ Curitiba  │ │ ○ Todos     │ │ De: 01/01/2026  │ │
+│ │ ○ Morno     │ │ □ Londrina  │ │ ○ Joao      │ │ Ate: 31/01/2026 │ │
+│ │ ○ Frio      │ │ □ Maringa   │ │ ○ Maria     │ │                 │ │
+│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────────┘ │
+│                                                                     │
+│                                          [Limpar todos os filtros]  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Filtros ativos aparecem como badges removiveis na barra de ferramentas.
 
 ---
 
 ## Detalhes Tecnicos
 
-### 1. Hook useMergeContacts.ts
+### 1. Interface de Estado dos Filtros
 
 ```typescript
-interface MergeContactsParams {
-  keepPersonId: string;      // ID do contato que sera mantido
-  deletePersonId: string;    // ID do contato que sera excluido
-  mergedData: Partial<Person>; // Dados finais escolhidos pelo usuario
+// Para Pessoas
+interface PeopleFiltersState {
+  labels: string[];           // Quente, Morno, Frio
+  leadSources: string[];      // Origens de lead
+  jobTitles: string[];        // Cargos
+  organizationId: string | null;
+  ownerId: string | null;
+  tagIds: string[];           // Ja existe
+  dateRange: { from: Date | null; to: Date | null };
+  hasEmail: boolean | null;
+  hasPhone: boolean | null;
 }
 
-async function mergeContacts(params: MergeContactsParams) {
-  // 1. Atualizar o registro mantido com os dados mesclados
-  await supabase.from('people').update(mergedData).eq('id', keepPersonId);
+// Para Organizacoes
+interface OrganizationsFiltersState {
+  labels: string[];           // Quente, Morno, Frio
+  cities: string[];           // Cidades
+  states: string[];           // Estados
+  insuranceBranches: string[];// Ramos de seguro
+  currentInsurers: string[]; // Seguradoras
+  riskProfiles: string[];    // Perfis de risco
+  fleetTypes: string[];      // Tipos de frota
+  renewalMonths: number[];   // Meses de renovacao
+  ownerId: string | null;
+  tagIds: string[];          // Ja existe
+  dateRange: { from: Date | null; to: Date | null };
+  hasCnpj: boolean | null;
+  hasClaimsHistory: boolean | null;
+}
+```
+
+### 2. Persistencia no localStorage
+
+```typescript
+// Chaves de armazenamento
+const STORAGE_KEYS = {
+  peopleFilters: 'people-advanced-filters',
+  orgFilters: 'org-advanced-filters',
+};
+
+// Salvar automaticamente ao mudar
+useEffect(() => {
+  localStorage.setItem(STORAGE_KEYS.peopleFilters, JSON.stringify(filters));
+}, [filters]);
+```
+
+### 3. Logica de Filtragem (Client-side)
+
+```typescript
+const filteredPeople = useMemo(() => {
+  if (!people) return [];
   
-  // 2. Transferir atividades
-  await supabase.from('activities')
-    .update({ person_id: keepPersonId })
-    .eq('person_id', deletePersonId);
-  
-  // 3. Transferir negocios
-  await supabase.from('deals')
-    .update({ person_id: keepPersonId })
-    .eq('person_id', deletePersonId);
-  
-  // 4. Transferir notas
-  await supabase.from('people_notes')
-    .update({ person_id: keepPersonId })
-    .eq('person_id', deletePersonId);
-  
-  // 5. Transferir arquivos
-  await supabase.from('people_files')
-    .update({ person_id: keepPersonId })
-    .eq('person_id', deletePersonId);
-  
-  // 6. Transferir historico
-  await supabase.from('people_history')
-    .update({ person_id: keepPersonId })
-    .eq('person_id', deletePersonId);
-  
-  // 7. Combinar tags (remover duplicatas)
-  const existingTags = await supabase.from('person_tag_assignments')
-    .select('tag_id')
-    .eq('person_id', keepPersonId);
-  
-  const otherTags = await supabase.from('person_tag_assignments')
-    .select('tag_id')
-    .eq('person_id', deletePersonId);
-  
-  // Adicionar tags que nao existem no mantido
-  const newTags = otherTags.filter(t => !existingTags.includes(t.tag_id));
-  if (newTags.length > 0) {
-    await supabase.from('person_tag_assignments')
-      .insert(newTags.map(t => ({ person_id: keepPersonId, tag_id: t.tag_id })));
-  }
-  
-  // Remover assignments do contato excluido
-  await supabase.from('person_tag_assignments')
-    .delete()
-    .eq('person_id', deletePersonId);
-  
-  // 8. Transferir emails enviados
-  await supabase.from('sent_emails')
-    .update({ entity_id: keepPersonId })
-    .eq('entity_type', 'person')
-    .eq('entity_id', deletePersonId);
-  
-  // 9. Atualizar primary_contact_id nas organizacoes
-  await supabase.from('organizations')
-    .update({ primary_contact_id: keepPersonId })
-    .eq('primary_contact_id', deletePersonId);
-  
-  // 10. Registrar evento no historico
-  await supabase.from('people_history').insert({
-    person_id: keepPersonId,
-    event_type: 'contacts_merged',
-    description: `Contato mesclado com "${deletedPersonName}"`,
-    metadata: { deleted_person_id: deletePersonId }
+  return people.filter(person => {
+    // Filtro de labels
+    if (filters.labels.length > 0 && !filters.labels.includes(person.label || '')) {
+      return false;
+    }
+    
+    // Filtro de origens
+    if (filters.leadSources.length > 0 && !filters.leadSources.includes(person.lead_source || '')) {
+      return false;
+    }
+    
+    // Filtro de responsavel
+    if (filters.ownerId && person.owner_id !== filters.ownerId) {
+      return false;
+    }
+    
+    // Filtro de email
+    if (filters.hasEmail === true && !person.email) return false;
+    if (filters.hasEmail === false && person.email) return false;
+    
+    // Filtro de periodo
+    if (filters.dateRange.from || filters.dateRange.to) {
+      const createdAt = new Date(person.created_at);
+      if (filters.dateRange.from && createdAt < filters.dateRange.from) return false;
+      if (filters.dateRange.to && createdAt > filters.dateRange.to) return false;
+    }
+    
+    return true;
   });
-  
-  // 11. Excluir o contato duplicado
-  await supabase.from('people').delete().eq('id', deletePersonId);
-}
+}, [people, filters, tagAssignments]);
 ```
 
-### 2. MergeContactsDialog.tsx
+### 4. Contagem de Filtros Ativos
 
 ```typescript
-interface MergeContactsDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  person1: Person;
-  person2: Person;
-  onSuccess: () => void;
-}
-
-// Lista de campos para mesclagem
-const MERGE_FIELDS = [
-  { key: 'name', label: 'Nome' },
-  { key: 'email', label: 'Email' },
-  { key: 'phone', label: 'Telefone' },
-  { key: 'whatsapp', label: 'WhatsApp' },
-  { key: 'cpf', label: 'CPF' },
-  { key: 'job_title', label: 'Cargo' },
-  { key: 'organization_id', label: 'Organizacao' },
-  { key: 'label', label: 'Status' },
-  { key: 'lead_source', label: 'Origem' },
-  { key: 'notes', label: 'Observacoes' },
-];
-
-// Estado inicial: selecionar automaticamente o valor nao-vazio mais antigo
-```
-
-### 3. Modificar PersonDetails.tsx
-
-Adicionar botao no DropdownMenu do header:
-```typescript
-<DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button variant="outline" size="icon">
-      <MoreHorizontal className="h-4 w-4" />
-    </Button>
-  </DropdownMenuTrigger>
-  <DropdownMenuContent align="end">
-    <DropdownMenuItem onClick={() => setMergeDialogOpen(true)}>
-      <GitMerge className="h-4 w-4 mr-2" />
-      Mesclar com outro contato...
-    </DropdownMenuItem>
-    <DropdownMenuSeparator />
-    <DropdownMenuItem className="text-destructive">
-      <Trash className="h-4 w-4 mr-2" />
-      Excluir contato
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-</DropdownMenu>
-```
-
-### 4. Adicionar Busca de Segundo Contato
-
-Quando iniciado da pagina de detalhes, mostrar um dialog de busca:
-```typescript
-<ContactSearchDialog
-  open={searchOpen}
-  onOpenChange={setSearchOpen}
-  excludeId={person.id}
-  onSelect={(selectedPerson) => {
-    setSecondPerson(selectedPerson);
-    setMergeDialogOpen(true);
-  }}
-/>
+const activeFiltersCount = useMemo(() => {
+  return (
+    filters.labels.length +
+    filters.leadSources.length +
+    filters.jobTitles.length +
+    (filters.organizationId ? 1 : 0) +
+    (filters.ownerId ? 1 : 0) +
+    filters.tagIds.length +
+    (filters.dateRange.from || filters.dateRange.to ? 1 : 0) +
+    (filters.hasEmail !== null ? 1 : 0) +
+    (filters.hasPhone !== null ? 1 : 0)
+  );
+}, [filters]);
 ```
 
 ---
 
-## Fluxo de Mesclagem
+## Fluxo de Implementacao
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. Usuario seleciona 2 contatos ou clica "Mesclar" na pagina   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ 2. Dialog abre mostrando campos lado a lado                    │
-│    - Usuario escolhe qual valor manter para cada campo         │
-│    - Sistema pre-seleciona valores nao-vazios automaticamente  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ 3. Usuario confirma a mesclagem                                │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ 4. Sistema executa:                                            │
-│    a) Atualiza registro mantido com dados escolhidos           │
-│    b) Transfere todas as relacoes (atividades, negocios, etc)  │
-│    c) Registra evento no historico                             │
-│    d) Exclui registro duplicado                                │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ 5. Redireciona para pagina do contato mesclado                 │
-│    - Toast de sucesso com detalhes                             │
-└─────────────────────────────────────────────────────────────────┘
+1. Criar AdvancedFilters.tsx
+   └── Componente colapsivel base
+
+2. Criar PeopleFilters.tsx
+   └── Define campos especificos para Pessoas
+   └── Busca dados dinamicos (origens, cargos, etc)
+
+3. Criar OrganizationsFilters.tsx
+   └── Define campos especificos para Organizacoes
+   └── Busca dados dinamicos (cidades, estados, etc)
+
+4. Modificar People.tsx
+   └── Adicionar estado de filtros
+   └── Integrar PeopleFilters
+   └── Aplicar logica de filtragem
+
+5. Modificar Organizations.tsx
+   └── Adicionar estado de filtros
+   └── Integrar OrganizationsFilters
+   └── Aplicar logica de filtragem
 ```
 
 ---
 
-## Validacoes e Seguranca
+## Funcionalidades
 
-1. **Permissao**: Apenas usuarios autenticados podem mesclar
-2. **Confirmacao**: Dialog de confirmacao antes de executar
-3. **Reversibilidade**: Nao reversivel - avisar usuario claramente
-4. **Historico**: Registrar evento de mesclagem para auditoria
-5. **Transacao**: Idealmente usar transacao do banco (ou rollback manual em caso de erro)
-
----
-
-## Resumo da Implementacao
-
-1. **Criar MergeContactsDialog.tsx**: Interface de selecao de campos
-2. **Criar useMergeContacts.ts**: Hook com toda a logica de mesclagem
-3. **Modificar PersonDetails.tsx**: Adicionar menu com opcao de mesclagem
-4. **Modificar People.tsx**: Adicionar botao na barra de selecao
-5. **Criar ContactSearchDialog.tsx**: Para buscar segundo contato quando iniciado da pagina de detalhes
+1. **Multiplos filtros simultaneos**: Sim, todos os filtros podem ser combinados (AND)
+2. **Persistencia**: Filtros salvos no localStorage, mantidos apos reload
+3. **Badges removiveis**: Filtros ativos aparecem como badges que podem ser removidos individualmente
+4. **Limpar tudo**: Botao para resetar todos os filtros
+5. **Contagem visual**: Badge mostrando quantos filtros estao ativos
+6. **Painel colapsivel**: Economiza espaco quando nao esta em uso
+7. **Valores dinamicos**: Listas de cidades, origens, etc sao extraidas dos dados existentes
 
 ---
 
 ## Beneficios
 
-- Elimina contatos duplicados mantendo todos os dados
-- Consolida historico, notas, arquivos e negocios
-- Interface intuitiva para escolher qual valor manter
-- Compativel com dados importados do Pipedrive
-- Auditoria completa via historico
+- Interface consistente com filtros de Negocios (KanbanFilters)
+- Usuarios podem encontrar rapidamente contatos/organizacoes especificas
+- Filtros persistem entre sessoes
+- Facil de adicionar novos campos de filtro no futuro
+- Codigo reutilizavel entre entidades
