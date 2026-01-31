@@ -41,7 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle } from 'lucide-react';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -81,6 +81,7 @@ const COLUMN_VISIBILITY_KEY = 'people-table-column-visibility';
 const columnLabels: Record<string, string> = {
   name: 'Nome',
   phone: 'Telefone',
+  whatsapp: 'WhatsApp',
   email: 'Email',
   organization: 'Empresa',
   cnpj: 'CNPJ',
@@ -267,6 +268,30 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
           </span>
         ) : <span className="text-muted-foreground/50">-</span>
       ),
+    },
+    {
+      id: 'whatsapp',
+      accessorKey: 'whatsapp',
+      header: ({ column }) => <SortableHeader column={column} title="WhatsApp" />,
+      cell: ({ row }) => {
+        const whatsapp = row.original.whatsapp;
+        if (!whatsapp) return <span className="text-muted-foreground/50">-</span>;
+        
+        const cleanNumber = whatsapp.replace(/\D/g, '');
+        
+        return (
+          <a
+            href={`https://wa.me/${cleanNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-sm text-emerald-600 hover:text-emerald-500 transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageCircle className="h-3 w-3" />
+            {whatsapp}
+          </a>
+        );
+      },
     },
     {
       id: 'email',
