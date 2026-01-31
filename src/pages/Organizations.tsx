@@ -53,6 +53,10 @@ export default function Organizations() {
     const saved = localStorage.getItem('org-tag-filter');
     return saved ? JSON.parse(saved) : [];
   });
+  
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   // Persist tag filter to localStorage
   useEffect(() => {
@@ -174,6 +178,31 @@ export default function Organizations() {
     setPrimaryContactMutation.mutate({ orgId, contactId });
   };
 
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success(`${selectedIds.length} organização(ões) excluída(s) com sucesso!`);
+      setSelectedIds([]);
+      setBulkDeleteOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir organizações: ' + error.message);
+    },
+  });
+
+  const handleBulkDelete = () => {
+    bulkDeleteMutation.mutate(selectedIds);
+  };
+
   const handleEdit = (org: OrganizationWithContact) => {
     setEditingOrg(org);
     setIsDialogOpen(true);
@@ -292,6 +321,9 @@ export default function Organizations() {
               onDelete={handleDelete}
               onSetPrimaryContact={handleSetPrimaryContact}
               isSettingPrimaryContact={setPrimaryContactMutation.isPending}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              onBulkDelete={() => setBulkDeleteOpen(true)}
             />
           </div>
         )}
@@ -304,6 +336,16 @@ export default function Organizations() {
           itemName={deleteTarget?.name}
           onConfirm={confirmDelete}
           isDeleting={deleteMutation.isPending}
+        />
+
+        {/* Bulk Delete Confirmation Dialog */}
+        <DeleteConfirmDialog
+          open={bulkDeleteOpen}
+          onOpenChange={setBulkDeleteOpen}
+          title="Excluir Organizações"
+          itemCount={selectedIds.length}
+          onConfirm={handleBulkDelete}
+          isDeleting={bulkDeleteMutation.isPending}
         />
     </div>
   );
