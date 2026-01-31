@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -259,7 +260,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete }: PeopleTablePr
       cell: ({ row }) => (
         row.original.organizations?.cnpj ? (
           <span className="text-muted-foreground font-mono text-xs">
-            {row.original.organizations.cnpj}
+            {formatCnpj(row.original.organizations.cnpj)}
           </span>
         ) : <span className="text-muted-foreground/50">-</span>
       ),
