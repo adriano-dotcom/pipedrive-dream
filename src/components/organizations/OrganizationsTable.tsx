@@ -39,7 +39,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -65,6 +66,8 @@ interface OrganizationsTableProps {
   isAdmin: boolean;
   onEdit: (org: OrganizationWithContact) => void;
   onDelete: (org: OrganizationWithContact) => void;
+  onSetPrimaryContact?: (orgId: string, contactId: string) => void;
+  isSettingPrimaryContact?: boolean;
 }
 
 const COLUMN_ORDER_KEY = 'org-table-column-order';
@@ -134,6 +137,8 @@ export function OrganizationsTable({
   isAdmin,
   onEdit,
   onDelete,
+  onSetPrimaryContact,
+  isSettingPrimaryContact,
 }: OrganizationsTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -225,7 +230,7 @@ export function OrganizationsTable({
         accessorFn: (row) => row.primary_contact?.name ?? '',
         header: ({ column }) => <SortableHeader column={column} title="Contato Principal" />,
         cell: ({ row }) => {
-          const { primary_contact, primary_contact_id, is_fallback_contact, fallback_contact_id } = row.original;
+          const { primary_contact, primary_contact_id, is_fallback_contact, fallback_contact_id, id: orgId } = row.original;
           
           if (!primary_contact) {
             return <span className="text-muted-foreground">-</span>;
@@ -233,15 +238,38 @@ export function OrganizationsTable({
           
           const contactId = is_fallback_contact ? fallback_contact_id : primary_contact_id;
           
-          if (is_fallback_contact) {
+          if (is_fallback_contact && fallback_contact_id) {
             return (
-              <Link
-                to={`/people/${contactId}`}
-                className="text-muted-foreground hover:text-primary hover:underline transition-colors italic"
-              >
-                {primary_contact.name}
-                <span className="text-xs ml-1 not-italic opacity-70">(vinculado)</span>
-              </Link>
+              <div className="flex items-center gap-1">
+                <Link
+                  to={`/people/${contactId}`}
+                  className="text-muted-foreground hover:text-primary hover:underline transition-colors italic"
+                >
+                  {primary_contact.name}
+                  <span className="text-xs ml-1 not-italic opacity-70">(vinculado)</span>
+                </Link>
+                {onSetPrimaryContact && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSetPrimaryContact(orgId, fallback_contact_id);
+                          }}
+                          disabled={isSettingPrimaryContact}
+                        >
+                          <Star className="h-3.5 w-3.5 text-muted-foreground hover:text-amber-500 transition-colors" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Definir como contato principal</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             );
           }
           
@@ -345,7 +373,7 @@ export function OrganizationsTable({
         ),
       },
     ],
-    [isAdmin, onEdit, onDelete]
+    [isAdmin, onEdit, onDelete, onSetPrimaryContact, isSettingPrimaryContact]
   );
 
   const table = useReactTable({
@@ -377,7 +405,16 @@ export function OrganizationsTable({
 
   // Mobile view
   if (isMobile) {
-    return <OrganizationsMobileList organizations={organizations} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />;
+    return (
+      <OrganizationsMobileList 
+        organizations={organizations} 
+        isAdmin={isAdmin} 
+        onEdit={onEdit} 
+        onDelete={onDelete}
+        onSetPrimaryContact={onSetPrimaryContact}
+        isSettingPrimaryContact={isSettingPrimaryContact}
+      />
+    );
   }
 
   return (

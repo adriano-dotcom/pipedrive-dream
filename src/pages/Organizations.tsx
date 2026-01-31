@@ -153,6 +153,27 @@ export default function Organizations() {
     },
   });
 
+  const setPrimaryContactMutation = useMutation({
+    mutationFn: async ({ orgId, contactId }: { orgId: string; contactId: string }) => {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ primary_contact_id: contactId })
+        .eq('id', orgId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      toast.success('Contato principal definido com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao definir contato principal: ' + error.message);
+    },
+  });
+
+  const handleSetPrimaryContact = (orgId: string, contactId: string) => {
+    setPrimaryContactMutation.mutate({ orgId, contactId });
+  };
+
   const handleEdit = (org: OrganizationWithContact) => {
     setEditingOrg(org);
     setIsDialogOpen(true);
@@ -269,6 +290,8 @@ export default function Organizations() {
               isAdmin={isAdmin}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onSetPrimaryContact={handleSetPrimaryContact}
+              isSettingPrimaryContact={setPrimaryContactMutation.isPending}
             />
           </div>
         )}
