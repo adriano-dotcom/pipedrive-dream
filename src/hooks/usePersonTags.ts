@@ -154,3 +154,48 @@ export function useRemovePersonTag() {
     },
   });
 }
+
+// Hook para atualizar uma tag existente
+export function useUpdatePersonTag() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
+      const { data, error } = await supabase
+        .from('person_tags')
+        .update({ name: name.trim(), color })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data as PersonTag;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person-tags'] });
+      queryClient.invalidateQueries({ queryKey: ['person-tag-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+    },
+  });
+}
+
+// Hook para excluir uma tag
+export function useDeletePersonTag() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (tagId: string) => {
+      const { error } = await supabase
+        .from('person_tags')
+        .delete()
+        .eq('id', tagId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person-tags'] });
+      queryClient.invalidateQueries({ queryKey: ['person-tag-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+    },
+  });
+}
