@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Users, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Search, Users, Loader2, Sparkles, GitMerge } from 'lucide-react';
 import { ImportButton } from '@/components/import/ImportButton';
 import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
@@ -19,6 +19,7 @@ import { PeopleTable } from '@/components/people/PeopleTable';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { usePersonTags } from '@/hooks/usePersonTags';
+import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -43,6 +44,7 @@ export default function People() {
   const [deleteTarget, setDeleteTarget] = useState<PersonWithOrg | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('people-tag-filter');
     return saved ? JSON.parse(saved) : [];
@@ -248,6 +250,21 @@ export default function People() {
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           onBulkDelete={() => setBulkDeleteOpen(true)}
+          onMerge={() => setMergeDialogOpen(true)}
+        />
+      )}
+
+      {/* Merge Contacts Dialog */}
+      {selectedIds.length === 2 && (
+        <MergeContactsDialog
+          open={mergeDialogOpen}
+          onOpenChange={setMergeDialogOpen}
+          person1={filteredPeople.find(p => p.id === selectedIds[0])!}
+          person2={filteredPeople.find(p => p.id === selectedIds[1])!}
+          onSuccess={() => {
+            setSelectedIds([]);
+            setMergeDialogOpen(false);
+          }}
         />
       )}
 
