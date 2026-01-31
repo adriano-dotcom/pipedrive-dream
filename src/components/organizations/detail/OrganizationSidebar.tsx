@@ -36,6 +36,8 @@ import {
   MessageCircle,
   Pencil,
   Unlink,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { EmailButton } from '@/components/email/EmailButton';
 import { supabase } from '@/integrations/supabase/client';
@@ -113,6 +115,8 @@ export function OrganizationSidebar({
   const [isLoadingPerson, setIsLoadingPerson] = useState(false);
   const [unlinkingPerson, setUnlinkingPerson] = useState<OrganizationPerson | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
+  const [deletingPerson, setDeletingPerson] = useState<OrganizationPerson | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleEditPerson = async (e: React.MouseEvent, personId: string) => {
     e.preventDefault();
@@ -170,6 +174,41 @@ export function OrganizationSidebar({
     } finally {
       setIsUnlinking(false);
       setUnlinkingPerson(null);
+    }
+  };
+
+  const handleDeletePerson = async () => {
+    if (!deletingPerson) return;
+    
+    setIsDeleting(true);
+    try {
+      // Se a pessoa era o contato principal, limpar o primary_contact_id
+      if (deletingPerson.is_primary) {
+        const { error: orgError } = await supabase
+          .from('organizations')
+          .update({ primary_contact_id: null })
+          .eq('id', organization.id);
+        
+        if (orgError) throw orgError;
+      }
+      
+      // Excluir a pessoa permanentemente
+      const { error } = await supabase
+        .from('people')
+        .delete()
+        .eq('id', deletingPerson.id);
+      
+      if (error) throw error;
+      
+      toast.success(`${deletingPerson.name} excluído permanentemente`);
+      queryClient.invalidateQueries({ queryKey: ['organization-people', organization.id] });
+      queryClient.invalidateQueries({ queryKey: ['organization', organization.id] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+    } catch (error) {
+      toast.error('Erro ao excluir pessoa');
+    } finally {
+      setIsDeleting(false);
+      setDeletingPerson(null);
     }
   };
 
@@ -459,6 +498,18 @@ export function OrganizationSidebar({
                         >
                           <Unlink className="h-3.5 w-3.5" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDeletingPerson(person);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </Link>
                   </TooltipTrigger>
@@ -550,6 +601,36 @@ export function OrganizationSidebar({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isUnlinking ? 'Desvinculando...' : 'Desvincular'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Person Confirmation */}
+      <AlertDialog open={!!deletingPerson} onOpenChange={(open) => !open && setDeletingPerson(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir pessoa permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{deletingPerson?.name}</strong> permanentemente?
+              Esta ação não pode ser desfeita. Todos os dados da pessoa, incluindo atividades, notas e arquivos vinculados, serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePerson}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                'Excluir'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
