@@ -1,191 +1,167 @@
 
-
-# Etiquetas para Pessoas
+# Editar e Excluir Etiquetas
 
 ## Objetivo
 
-Criar um sistema completo de etiquetas (tags) para Pessoas, permitindo categorizar contatos com multiplas etiquetas coloridas, similar ao Pipedrive.
+Adicionar a funcionalidade de editar (nome e cor) e excluir etiquetas existentes no sistema de tags de Pessoas.
 
 ---
 
-## Arquitetura do Sistema
+## Funcionalidades a Implementar
 
-O sistema sera composto por:
+### 1. Editar Etiqueta
+- Alterar nome da etiqueta
+- Alterar cor da etiqueta
+- Validar nome duplicado
+- Feedback visual ao salvar
 
-1. **Tabela `person_tags`** - armazena as etiquetas disponiveis
-2. **Tabela `person_tag_assignments`** - relacionamento N:N entre pessoas e tags
-3. **Componente `PersonTagsSelector`** - UI para selecionar/criar etiquetas
-4. **Exibicao nas listagens e detalhes**
-
----
-
-## Estrutura do Banco de Dados
-
-### Tabela: person_tags
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | UUID | Chave primaria |
-| name | VARCHAR(100) | Nome da etiqueta (unico) |
-| color | VARCHAR(20) | Cor (hex ou nome: red, green, blue, etc) |
-| created_at | TIMESTAMP | Data de criacao |
-| created_by | UUID | Usuario que criou |
-
-### Tabela: person_tag_assignments
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | UUID | Chave primaria |
-| person_id | UUID | FK para people |
-| tag_id | UUID | FK para person_tags |
-| created_at | TIMESTAMP | Data de atribuicao |
+### 2. Excluir Etiqueta
+- Confirmar exclusao antes de remover
+- Informar que a tag sera removida de todas as pessoas
+- Feedback visual durante exclusao
 
 ---
 
-## Componentes UI
+## Interface do Usuario
 
-### 1. PersonTagsSelector
+O popover de etiquetas tera um botao de "Gerenciar" que abre uma nova visualizacao:
 
-Componente com popover que permite:
-- Buscar etiquetas existentes
-- Selecionar/deselecionar multiplas
-- Criar nova etiqueta inline
-- Visualizar etiquetas selecionadas como badges coloridos
+```text
+┌────────────────────────────────────┐
+│ Gerenciar Etiquetas          [X]  │
+├────────────────────────────────────┤
+│ [●] Cliente VIP     [Editar] [🗑] │
+│ [●] Lead Quente     [Editar] [🗑] │
+│ [●] Parceiro        [Editar] [🗑] │
+│ [●] Fornecedor      [Editar] [🗑] │
+├────────────────────────────────────┤
+│         [+ Criar Nova]            │
+└────────────────────────────────────┘
 
-### 2. PersonTagBadge
-
-Badge individual com cor personalizada para exibir uma etiqueta.
-
-### 3. Integracao nos Formularios e Detalhes
-
-- **PersonForm.tsx**: Adicionar campo de etiquetas
-- **PersonSidebar.tsx**: Exibir etiquetas atribuidas
-- **PeopleTable.tsx**: Coluna de etiquetas com badges
-
----
-
-## Cores Disponiveis
-
-Paleta pre-definida para facilitar a selecao:
-
-| Nome | Cor | Uso Sugerido |
-|------|-----|--------------|
-| Vermelho | #ef4444 | Urgente/Hot |
-| Laranja | #f97316 | Atencao |
-| Amarelo | #eab308 | Pendente |
-| Verde | #22c55e | Confirmado |
-| Azul | #3b82f6 | Informativo |
-| Roxo | #8b5cf6 | VIP |
-| Rosa | #ec4899 | Marketing |
-| Cinza | #6b7280 | Neutro |
+Ao clicar em Editar:
+┌────────────────────────────────────┐
+│ Editar Etiqueta              [X]  │
+├────────────────────────────────────┤
+│ Nome: [________________]          │
+│ Cor:  ● ● ● ● ● ● ● ●            │
+│                                   │
+│     [Cancelar]  [Salvar]          │
+└────────────────────────────────────┘
+```
 
 ---
 
 ## Fluxo de Uso
 
 ```text
-Usuario abre formulario de Pessoa
-        |
+Usuario abre seletor de etiquetas
+        │
         v
-Clica no campo "Etiquetas"
-        |
+Clica em "Gerenciar etiquetas" (icone de engrenagem)
+        │
         v
-Popover abre com:
-- Campo de busca
-- Lista de etiquetas existentes
-- Opcao "+ Adicionar etiqueta"
-        |
-        v
-Seleciona etiquetas (checkbox)
-        |
-        v
-Badges aparecem no campo
-        |
-        v
-Ao salvar, grava em person_tag_assignments
+Lista de todas as etiquetas com acoes
+        │
+        ├── Editar → Formulario inline → Salvar
+        │
+        └── Excluir → Modal de confirmacao → Confirmar
 ```
 
 ---
 
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar/Criar
 
 | Arquivo | Acao | Descricao |
 |---------|------|-----------|
-| Migration SQL | Criar | Tabelas person_tags e person_tag_assignments |
-| `src/components/people/PersonTagsSelector.tsx` | Criar | Componente de selecao de tags |
-| `src/components/people/PersonTagBadge.tsx` | Criar | Badge colorido individual |
-| `src/components/people/PersonForm.tsx` | Modificar | Adicionar campo de etiquetas |
-| `src/components/people/detail/PersonSidebar.tsx` | Modificar | Exibir etiquetas |
-| `src/components/people/PeopleTable.tsx` | Modificar | Coluna de etiquetas |
-| `src/hooks/usePersonTags.ts` | Criar | Hook para CRUD de tags |
+| `src/hooks/usePersonTags.ts` | Modificar | Adicionar hooks useUpdatePersonTag e useDeletePersonTag |
+| `src/components/people/PersonTagsSelector.tsx` | Modificar | Adicionar modo "gerenciar" com opcoes de editar/excluir |
 
 ---
 
 ## Secao Tecnica
 
-### Migration SQL
-
-```sql
--- Tabela de etiquetas
-CREATE TABLE person_tags (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL UNIQUE,
-  color VARCHAR(20) NOT NULL DEFAULT 'blue',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_by UUID REFERENCES auth.users(id)
-);
-
--- Tabela de relacionamento
-CREATE TABLE person_tag_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  person_id UUID NOT NULL REFERENCES people(id) ON DELETE CASCADE,
-  tag_id UUID NOT NULL REFERENCES person_tags(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(person_id, tag_id)
-);
-
--- Indices
-CREATE INDEX idx_person_tag_assignments_person ON person_tag_assignments(person_id);
-CREATE INDEX idx_person_tag_assignments_tag ON person_tag_assignments(tag_id);
-
--- RLS
-ALTER TABLE person_tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE person_tag_assignments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view all tags" ON person_tags FOR SELECT USING (true);
-CREATE POLICY "Authenticated users can create tags" ON person_tags FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-CREATE POLICY "Users can manage tag assignments" ON person_tag_assignments FOR ALL USING (auth.uid() IS NOT NULL);
-```
-
-### Hook usePersonTags
+### Novos Hooks no usePersonTags.ts
 
 ```typescript
-// Funcoes principais:
-// - usePersonTags(): lista todas as tags
-// - usePersonTagAssignments(personId): tags de uma pessoa
-// - createTag(name, color): criar nova tag
-// - assignTag(personId, tagId): atribuir tag
-// - removeTag(personId, tagId): remover tag
+// Hook para atualizar uma tag existente
+export function useUpdatePersonTag() {
+  return useMutation({
+    mutationFn: async ({ id, name, color }) => {
+      const { data, error } = await supabase
+        .from('person_tags')
+        .update({ name, color })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person-tags'] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+    },
+  });
+}
+
+// Hook para excluir uma tag
+export function useDeletePersonTag() {
+  return useMutation({
+    mutationFn: async (tagId: string) => {
+      const { error } = await supabase
+        .from('person_tags')
+        .delete()
+        .eq('id', tagId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['person-tags'] });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+    },
+  });
+}
 ```
 
-### PersonTagsSelector Component
+### Alteracoes no PersonTagsSelector.tsx
+
+1. **Novo estado**: `showManageView` para alternar entre selecao e gerenciamento
+2. **Novo estado**: `editingTag` para armazenar a tag sendo editada
+3. **Novo estado**: `tagToDelete` para armazenar a tag a ser excluida
+4. **Componente de lista editavel**: Mostrar todas as tags com botoes de acao
+5. **Formulario de edicao inline**: Similar ao de criacao
+6. **Integracao com DeleteConfirmDialog**: Para confirmar exclusao
+
+### Estrutura do Componente Atualizado
 
 ```typescript
-// Props:
-// - personId?: string (para edicao)
-// - selectedTags: string[] (IDs das tags selecionadas)
-// - onTagsChange: (tagIds: string[]) => void
+// Estados adicionais
+const [showManageView, setShowManageView] = useState(false);
+const [editingTag, setEditingTag] = useState<PersonTag | null>(null);
+const [tagToDelete, setTagToDelete] = useState<PersonTag | null>(null);
 
-// Features:
-// - Popover com Command (cmdk) para busca
-// - Lista de checkboxes para selecao multipla
-// - Formulario inline para criar nova tag
-// - Picker de cor simplificado
+// Condicoes de renderizacao
+if (showManageView && editingTag) {
+  // Formulario de edicao
+}
+if (showManageView) {
+  // Lista de tags com botoes editar/excluir
+}
+// else: Lista de selecao (atual)
 ```
 
 ---
 
-## Notas sobre o Campo Label Existente
+## Consideracoes de Seguranca
 
-O campo `label` atual (Quente/Morno/Frio) sera mantido como "Status/Temperatura" para compatibilidade. As etiquetas sao um sistema complementar e mais flexivel.
+As politicas RLS ja estao configuradas:
+- `Admins can update tags` - Apenas admins podem editar
+- `Admins can delete tags` - Apenas admins podem excluir
 
+A UI deve mostrar os botoes de editar/excluir apenas para usuarios admin, mas o backend ja protege as operacoes.
+
+---
+
+## Tratamento de Erros
+
+- **Nome duplicado**: Validar antes de salvar e mostrar mensagem
+- **Exclusao em cascata**: ON DELETE CASCADE ja esta configurado para person_tag_assignments
+- **Sem permissao**: Capturar erro e mostrar mensagem apropriada
