@@ -1,65 +1,107 @@
 
-# Corrigir Formatacao do CNPJ na Pagina de Detalhes
+# Exibir Contato na Coluna Mesmo Sem Contato Principal Definido
 
 ## Problema
 
-O CNPJ esta sendo exibido sem formatacao na pagina de detalhes de Organizacoes. Na tabela de listagem o formato esta correto (`26.872.410/0001-16`), mas na pagina de detalhes aparece sem mascara (`26872410000116`).
+A coluna "Contato Principal" na tabela de organizações está vazia mesmo quando existem pessoas vinculadas à organização. Isso ocorre porque:
 
-## Locais Afetados
+1. A query atual busca apenas `primary_contact:people!primary_contact_id(...)` - ou seja, só quando `primary_contact_id` está preenchido
+2. Organizações como CATEDRAL e PRAGON têm pessoas vinculadas via `organization_id`, mas não possuem `primary_contact_id` definido
+3. O usuário espera ver pelo menos uma pessoa de contato, mesmo que não seja o "principal"
 
-1. **Cabecalho da pagina** (`OrganizationDetails.tsx` linha 237)
-   - Exibe: `CNPJ: 26872410000116`
-   - Deveria: `CNPJ: 26.872.410/0001-16`
+## Solução Proposta
 
-2. **Card de Resumo na Sidebar** (`OrganizationSidebar.tsx` linha 194)
-   - Exibe: `26872410000116`
-   - Deveria: `26.872.410/0001-16`
-
-## Solucao
-
-Importar e utilizar a funcao `formatCnpj` que ja existe em `src/lib/utils.ts`.
+Modificar a lógica para exibir:
+1. **Primeiro**: O contato principal (`primary_contact_id`), se definido
+2. **Fallback**: Caso não haja contato principal, mostrar a primeira pessoa vinculada à organização
 
 ## Arquivos a Modificar
 
-| Arquivo | Modificacao |
+| Arquivo | Modificação |
 |---------|-------------|
-| `src/pages/OrganizationDetails.tsx` | Importar `formatCnpj` e aplicar na linha 237 |
-| `src/components/organizations/detail/OrganizationSidebar.tsx` | Importar `formatCnpj` e aplicar na linha 194 |
+| `src/pages/Organizations.tsx` | Alterar query para incluir pessoas vinculadas como fallback |
 
-## Alteracoes Especificas
+## Alterações Técnicas
 
-### OrganizationDetails.tsx
+### Nova Query
 
-Adicionar import:
+Modificar a query de organizações para incluir tanto o `primary_contact` quanto as pessoas vinculadas:
+
 ```typescript
-import { formatCnpj } from '@/lib/utils';
+const query = supabase
+  .from('organizations')
+  .select(`
+    *,
+    primary_contact:people!primary_contact_id(
+      id, name, phone, email
+    ),
+    linked_people:people!people_organization_id_fkey(
+      id, name, phone, email
+    )
+  `)
+  .order('created_at', { ascending: false });
 ```
 
-Alterar linha 237:
-```typescript
-// De:
-<p className="text-sm text-muted-foreground">CNPJ: {organization.cnpj}</p>
+### Lógica de Fallback
 
-// Para:
-<p className="text-sm text-muted-foreground">CNPJ: {formatCnpj(organization.cnpj)}</p>
+Após buscar os dados, processar para usar fallback:
+
+```typescript
+const processedData = data.map(org => ({
+  ...org,
+  primary_contact: org.primary_contact || 
+    (org.linked_people?.[0] ? {
+      id: org.linked_people[0].id,
+      name: org.linked_people[0].name,
+      phone: org.linked_people[0].phone,
+      email: org.linked_people[0].email,
+    } : null),
+  // Indicador visual se é fallback (não é primary)
+  is_fallback_contact: !org.primary_contact && org.linked_people?.length > 0,
+}));
 ```
 
-### OrganizationSidebar.tsx
+### Atualização do Tipo
 
-Adicionar import:
 ```typescript
-import { formatCnpj } from '@/lib/utils';
+type OrganizationWithContact = Organization & {
+  primary_contact: {
+    id?: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+  } | null;
+  linked_people?: {
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+  }[];
+  is_fallback_contact?: boolean;
+};
 ```
 
-Alterar linha 194:
-```typescript
-// De:
-<span className="font-medium">{organization.cnpj || '—'}</span>
+### Indicação Visual (Opcional)
 
-// Para:
-<span className="font-medium">{organization.cnpj ? formatCnpj(organization.cnpj) : '—'}</span>
+Na tabela, quando for contato de fallback (não definido como principal), mostrar com estilo diferente:
+
+```typescript
+// Na célula de contact_name
+{row.original.is_fallback_contact ? (
+  <span className="text-muted-foreground italic">
+    {row.original.primary_contact?.name}
+    <span className="text-xs ml-1">(vinculado)</span>
+  </span>
+) : (
+  <Link ...>{row.original.primary_contact?.name}</Link>
+)}
 ```
 
 ## Resultado Esperado
 
-Apos as alteracoes, o CNPJ sera exibido formatado em todos os locais da pagina de detalhes, seguindo o padrao `XX.XXX.XXX/XXXX-XX`.
+| Antes | Depois |
+|-------|--------|
+| CATEDRAL: Contato Principal = `-` | CATEDRAL: Contato Principal = `Hamilton (vinculado)` |
+| PRAGON: Contato Principal = `-` | PRAGON: Contato Principal = `Fernando (vinculado)` |
+
+Organizações com `primary_contact_id` definido continuam exibindo normalmente. Organizações sem `primary_contact_id` mas com pessoas vinculadas mostram o primeiro contato vinculado com indicação visual diferenciada.
