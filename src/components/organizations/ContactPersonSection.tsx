@@ -30,6 +30,8 @@ export function ContactPersonSection({
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deletingPerson, setDeletingPerson] = useState<Person | null>(null);
+  const [linkedInfo, setLinkedInfo] = useState<{ deals: number; activities: number } | null>(null);
+  const [isCheckingLinks, setIsCheckingLinks] = useState(false);
 
   // Fetch linked contacts for existing organization
   const { data: linkedContacts, isLoading } = useQuery({
@@ -124,13 +126,37 @@ export function ContactPersonSection({
     }
   };
 
-  const handleDelete = (person: Person) => {
-    setDeletingPerson(person);
+  const handleDelete = async (person: Person) => {
+    setIsCheckingLinks(true);
+    try {
+      // Buscar contagens de vínculos em paralelo
+      const [dealsResult, activitiesResult] = await Promise.all([
+        supabase.from('deals').select('id', { count: 'exact', head: true }).eq('person_id', person.id),
+        supabase.from('activities').select('id', { count: 'exact', head: true }).eq('person_id', person.id),
+      ]);
+      
+      setLinkedInfo({
+        deals: dealsResult.count || 0,
+        activities: activitiesResult.count || 0,
+      });
+      setDeletingPerson(person);
+    } catch (error) {
+      toast.error('Erro ao verificar vínculos da pessoa');
+    } finally {
+      setIsCheckingLinks(false);
+    }
   };
 
   const confirmDelete = () => {
     if (deletingPerson) {
       deleteMutation.mutate(deletingPerson.id);
+    }
+  };
+
+  const handleCloseDeleteDialog = (open: boolean) => {
+    if (!open) {
+      setDeletingPerson(null);
+      setLinkedInfo(null);
     }
   };
 
@@ -214,11 +240,12 @@ export function ContactPersonSection({
 
       <DeleteConfirmDialog
         open={!!deletingPerson}
-        onOpenChange={(open) => !open && setDeletingPerson(null)}
+        onOpenChange={handleCloseDeleteDialog}
         title="Excluir pessoa?"
-        description={`Tem certeza que deseja excluir "${deletingPerson?.name}" permanentemente? Esta ação não pode ser desfeita. Todos os dados da pessoa, incluindo atividades, notas e arquivos vinculados, serão removidos.`}
+        itemName={deletingPerson?.name}
         onConfirm={confirmDelete}
         isDeleting={deleteMutation.isPending}
+        linkedInfo={linkedInfo}
       />
     </div>
   );
