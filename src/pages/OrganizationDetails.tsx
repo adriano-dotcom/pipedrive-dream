@@ -17,9 +17,12 @@ import { OrganizationEmails } from '@/components/organizations/detail/Organizati
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
+import { MergeUndoBanner } from '@/components/shared/MergeUndoBanner';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { OrganizationSearchDialog } from '@/components/organizations/OrganizationSearchDialog';
 import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
+import { useMergeBackups } from '@/hooks/useMergeBackups';
+import { useUndoMergeOrganization } from '@/hooks/useUndoMergeOrganization';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,6 +94,10 @@ export default function OrganizationDetails() {
   } = useOrganizationFiles(id || '');
 
   const { emails } = useSentEmails('organization', id || '');
+
+  // Merge backup for undo functionality
+  const { data: mergeBackup } = useMergeBackups(id || '', 'organization');
+  const { undoMerge, isUndoing } = useUndoMergeOrganization();
 
   // Fetch default pipeline for new deals
   const { data: defaultPipeline } = useQuery({
@@ -207,6 +214,16 @@ export default function OrganizationDetails() {
   return (
     <ErrorBoundary>
       <div className="space-y-6 p-6 max-w-7xl mx-auto animate-fade-in">
+      {/* Merge Undo Banner */}
+      {mergeBackup && (
+        <MergeUndoBanner
+          backup={mergeBackup}
+          entityName={organization.name}
+          onUndo={undoMerge}
+          isUndoing={isUndoing}
+        />
+      )}
+
       {/* Breadcrumbs */}
       <PageBreadcrumbs
         items={[

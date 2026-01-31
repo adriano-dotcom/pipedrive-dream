@@ -13,15 +13,104 @@ interface MergeContactsParams {
   mergedData: Partial<Person>;
 }
 
+interface MergeResult {
+  keepPersonId: string;
+  backupId?: string;
+}
+
 export function useMergeContacts() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const mergeMutation = useMutation({
-    mutationFn: async ({ keepPersonId, deletePersonId, deletePersonName, mergedData }: MergeContactsParams) => {
+    mutationFn: async ({ keepPersonId, deletePersonId, deletePersonName, mergedData }: MergeContactsParams): Promise<MergeResult> => {
       if (!user) throw new Error('Usuário não autenticado');
 
-      // 1. Atualizar o registro mantido com os dados mesclados
+      // ========== BACKUP BEFORE MERGE ==========
+      
+      // 1. Fetch complete data of person being deleted
+      const { data: deletedPersonData, error: fetchDeletedError } = await supabase
+        .from('people')
+        .select('*')
+        .eq('id', deletePersonId)
+        .single();
+
+      if (fetchDeletedError) throw fetchDeletedError;
+
+      // 2. Fetch current data of person being kept (before changes)
+      const { data: keptPersonPreviousData, error: fetchKeptError } = await supabase
+        .from('people')
+        .select('*')
+        .eq('id', keepPersonId)
+        .single();
+
+      if (fetchKeptError) throw fetchKeptError;
+
+      // 3. Fetch IDs of relations that will be transferred
+      const { data: activitiesToTransfer } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('person_id', deletePersonId);
+
+      const { data: dealsToTransfer } = await supabase
+        .from('deals')
+        .select('id')
+        .eq('person_id', deletePersonId);
+
+      const { data: notesToTransfer } = await supabase
+        .from('people_notes')
+        .select('id')
+        .eq('person_id', deletePersonId);
+
+      const { data: filesToTransfer } = await supabase
+        .from('people_files')
+        .select('id')
+        .eq('person_id', deletePersonId);
+
+      const { data: tagsToTransfer } = await supabase
+        .from('person_tag_assignments')
+        .select('tag_id')
+        .eq('person_id', deletePersonId);
+
+      const { data: emailsToTransfer } = await supabase
+        .from('sent_emails')
+        .select('id')
+        .eq('entity_type', 'person')
+        .eq('entity_id', deletePersonId);
+
+      const { data: orgsPrimaryContact } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('primary_contact_id', deletePersonId);
+
+      // 4. Save backup
+      const { data: backupData, error: backupError } = await supabase
+        .from('merge_backups')
+        .insert({
+          entity_type: 'person',
+          kept_entity_id: keepPersonId,
+          deleted_entity_id: deletePersonId,
+          deleted_entity_data: deletedPersonData,
+          kept_entity_previous_data: keptPersonPreviousData,
+          transferred_relations: {
+            activities: activitiesToTransfer?.map(a => a.id) || [],
+            deals: dealsToTransfer?.map(d => d.id) || [],
+            notes: notesToTransfer?.map(n => n.id) || [],
+            files: filesToTransfer?.map(f => f.id) || [],
+            tags: tagsToTransfer?.map(t => t.tag_id) || [],
+            emails: emailsToTransfer?.map(e => e.id) || [],
+            orgs_primary_contact: orgsPrimaryContact?.map(o => o.id) || [],
+          },
+          merged_by: user.id,
+        })
+        .select('id')
+        .single();
+
+      if (backupError) throw backupError;
+
+      // ========== PROCEED WITH MERGE ==========
+
+      // 5. Update the kept record with merged data
       const { error: updateError } = await supabase
         .from('people')
         .update(mergedData)
@@ -137,7 +226,7 @@ export function useMergeContacts() {
 
       if (deleteError) throw deleteError;
 
-      return { keepPersonId };
+      return { keepPersonId, backupId: backupData?.id };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['people'] });

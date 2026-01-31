@@ -443,6 +443,48 @@ export type Database = {
         }
         Relationships: []
       }
+      merge_backups: {
+        Row: {
+          created_at: string | null
+          deleted_entity_data: Json
+          deleted_entity_id: string
+          entity_type: string
+          expires_at: string | null
+          id: string
+          is_restored: boolean | null
+          kept_entity_id: string
+          kept_entity_previous_data: Json
+          merged_by: string | null
+          transferred_relations: Json
+        }
+        Insert: {
+          created_at?: string | null
+          deleted_entity_data: Json
+          deleted_entity_id: string
+          entity_type: string
+          expires_at?: string | null
+          id?: string
+          is_restored?: boolean | null
+          kept_entity_id: string
+          kept_entity_previous_data: Json
+          merged_by?: string | null
+          transferred_relations?: Json
+        }
+        Update: {
+          created_at?: string | null
+          deleted_entity_data?: Json
+          deleted_entity_id?: string
+          entity_type?: string
+          expires_at?: string | null
+          id?: string
+          is_restored?: boolean | null
+          kept_entity_id?: string
+          kept_entity_previous_data?: Json
+          merged_by?: string | null
+          transferred_relations?: Json
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
