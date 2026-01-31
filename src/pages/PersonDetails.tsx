@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, User, Calendar } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, User, Calendar, MoreHorizontal, GitMerge, Trash } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { PersonSidebar } from '@/components/people/detail/PersonSidebar';
 import { PersonTimeline } from '@/components/people/detail/PersonTimeline';
 import { PersonNotes } from '@/components/people/detail/PersonNotes';
@@ -17,11 +24,27 @@ import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
+import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
+import { ContactSearchDialog } from '@/components/people/ContactSearchDialog';
 import { usePersonDetails } from '@/hooks/usePersonDetails';
 import { usePersonFiles } from '@/hooks/usePersonFiles';
 import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Person = Tables<'people'>;
+
+interface PersonWithOrg extends Person {
+  organizations?: {
+    id: string;
+    name: string;
+    cnpj: string | null;
+    address_city: string | null;
+    address_state: string | null;
+    automotores: number | null;
+  } | null;
+}
 
 const getLabelColor = (label: string | null) => {
   switch (label) {
@@ -42,6 +65,9 @@ export default function PersonDetails() {
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
+  const [contactSearchOpen, setContactSearchOpen] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [selectedMergePerson, setSelectedMergePerson] = useState<PersonWithOrg | null>(null);
 
   const {
     person,
@@ -206,6 +232,20 @@ export default function PersonDetails() {
           >
             <Pencil className="h-4 w-4" />
           </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setContactSearchOpen(true)}>
+                <GitMerge className="h-4 w-4 mr-2" />
+                Mesclar com outro contato...
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -316,6 +356,33 @@ export default function PersonDetails() {
         onOpenChange={setEditSheetOpen}
         person={person}
       />
+
+      {/* Contact Search Dialog for Merge */}
+      <ContactSearchDialog
+        open={contactSearchOpen}
+        onOpenChange={setContactSearchOpen}
+        excludeId={id || ''}
+        onSelect={(selectedPerson) => {
+          setSelectedMergePerson(selectedPerson);
+          setMergeDialogOpen(true);
+        }}
+      />
+
+      {/* Merge Contacts Dialog */}
+      {person && selectedMergePerson && (
+        <MergeContactsDialog
+          open={mergeDialogOpen}
+          onOpenChange={setMergeDialogOpen}
+          person1={person as PersonWithOrg}
+          person2={selectedMergePerson}
+          onSuccess={(keepPersonId) => {
+            setMergeDialogOpen(false);
+            setSelectedMergePerson(null);
+            // Redirect to the kept person
+            navigate(`/people/${keepPersonId}`);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -41,7 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge } from 'lucide-react';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -72,6 +72,7 @@ interface PeopleTableProps {
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
   onBulkDelete?: () => void;
+  onMerge?: () => void;
 }
 
 const STORAGE_KEY = 'people-table-column-order';
@@ -127,7 +128,7 @@ function SortableHeader({ column, title }: { column: Column<PersonWithOrg>; titl
   );
 }
 
-export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [], onSelectionChange, onBulkDelete }: PeopleTableProps) {
+export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [], onSelectionChange, onBulkDelete, onMerge }: PeopleTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
@@ -531,6 +532,17 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
               <span className="text-sm text-muted-foreground">
                 {selectedIds.length} selecionada(s)
               </span>
+              {selectedIds.length === 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onMerge}
+                  className="h-8"
+                >
+                  <GitMerge className="h-4 w-4 mr-1.5" />
+                  Mesclar
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="sm"
