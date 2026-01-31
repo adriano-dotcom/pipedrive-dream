@@ -9,7 +9,38 @@ interface PhoneInputProps extends Omit<PatternFormatProps, 'format' | 'mask' | '
   onBlur?: () => void;
 }
 
+// Verifica se o valor pode ser formatado com a máscara brasileira
+function canUseBrazilianMask(value: string | null | undefined): boolean {
+  if (!value) return true; // Valores vazios podem usar máscara
+  
+  // Se contém separadores (múltiplos telefones), não usar máscara
+  if (value.includes(',') || value.includes(';')) return false;
+  
+  // Extrair apenas dígitos
+  const digits = value.replace(/\D/g, '');
+  
+  // Telefone brasileiro tem 10-11 dígitos (com DDD) ou 12-13 (com código país)
+  // Se tem mais que isso, provavelmente é formato especial
+  if (digits.length > 13) return false;
+  
+  return true;
+}
+
 export function PhoneInput({ value, onValueChange, className, onBlur, ...props }: PhoneInputProps) {
+  // Se o valor não pode usar máscara brasileira, usar input simples
+  if (!canUseBrazilianMask(value)) {
+    return (
+      <Input
+        value={value || ''}
+        onChange={(e) => onValueChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder="Telefone"
+        className={cn(className)}
+        {...props}
+      />
+    );
+  }
+
   return (
     <PatternFormat
       format="(##) #####-####"
