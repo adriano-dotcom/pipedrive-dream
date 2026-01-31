@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -24,6 +24,8 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InsuranceFieldsSection } from './InsuranceFieldsSection';
 import { ContactPersonSection } from './ContactPersonSection';
+import { OrganizationTagsSelector } from './OrganizationTagsSelector';
+import { useOrganizationTagAssignments, useAssignOrganizationTags } from '@/hooks/useOrganizationTags';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -111,6 +113,18 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     organization?.primary_contact_id || null
   );
   const [pendingContacts, setPendingContacts] = useState<Person[]>([]);
+  
+  // Tags state
+  const { data: existingTagAssignments = [] } = useOrganizationTagAssignments(organization?.id);
+  const assignTagsMutation = useAssignOrganizationTags();
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  
+  // Sync tags when existing assignments load
+  useEffect(() => {
+    if (existingTagAssignments.length > 0) {
+      setSelectedTagIds(existingTagAssignments.map(a => a.tag_id));
+    }
+  }, [existingTagAssignments]);
 
   const {
     register,
@@ -273,6 +287,14 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         }
       }
       
+      // Save tags
+      if (selectedTagIds.length > 0) {
+        await assignTagsMutation.mutateAsync({
+          organizationId: newOrg.id,
+          tagIds: selectedTagIds,
+        });
+      }
+      
       return newOrg;
     },
     onSuccess: () => {
@@ -331,13 +353,18 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     },
   });
 
-  const onSubmit = (data: OrganizationFormData) => {
+  const onSubmit = async (data: OrganizationFormData) => {
     // Clean empty strings to null
     const cleanedData = Object.fromEntries(
       Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])
     ) as OrganizationFormData;
 
     if (organization) {
+      // Save tags for existing organization
+      await assignTagsMutation.mutateAsync({
+        organizationId: organization.id,
+        tagIds: selectedTagIds,
+      });
       updateMutation.mutate(cleanedData);
     } else {
       createMutation.mutate(cleanedData);
@@ -432,6 +459,12 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
                 <SelectItem value="Frio">❄️ Frio</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="sm:col-span-2">
+            <OrganizationTagsSelector
+              selectedTagIds={selectedTagIds}
+              onTagsChange={setSelectedTagIds}
+            />
           </div>
         </div>
       </div>

@@ -11,6 +11,8 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Trash2, Trophy, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NumericFormat } from 'react-number-format';
+import { DealTagsSelector } from './DealTagsSelector';
+import { useDealTagAssignments, useAssignDealTags } from '@/hooks/useDealTags';
 
 import {
   Sheet,
@@ -129,7 +131,20 @@ export function DealFormSheet({
   // State for pipeline change confirmation
   const [isConfirmingPipelineChange, setIsConfirmingPipelineChange] = useState(false);
   const [pendingPipelineId, setPendingPipelineId] = useState<string | null>(null);
-
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  
+  // Tags
+  const { data: existingTagAssignments = [] } = useDealTagAssignments(deal?.id);
+  const assignTagsMutation = useAssignDealTags();
+  
+  // Sync tags when existing assignments load
+  useEffect(() => {
+    if (deal?.id && existingTagAssignments.length > 0) {
+      setSelectedTagIds(existingTagAssignments.map(a => a.tag_id));
+    } else if (!deal?.id) {
+      setSelectedTagIds([]);
+    }
+  }, [existingTagAssignments, deal?.id]);
   const form = useForm<DealFormValues>({
     resolver: zodResolver(dealSchema),
     defaultValues: {
@@ -312,13 +327,27 @@ export function DealFormSheet({
           .update(dealData)
           .eq('id', deal.id);
         if (error) throw error;
+        
+        // Save tags for existing deal
+        await assignTagsMutation.mutateAsync({
+          dealId: deal.id,
+          tagIds: selectedTagIds,
+        });
       } else {
-        const { error } = await supabase.from('deals').insert({
+        const { data: newDeal, error } = await supabase.from('deals').insert({
           ...dealData,
           owner_id: user?.id,
           created_by: user?.id,
-        });
+        }).select().single();
         if (error) throw error;
+        
+        // Save tags for new deal
+        if (selectedTagIds.length > 0 && newDeal) {
+          await assignTagsMutation.mutateAsync({
+            dealId: newDeal.id,
+            tagIds: selectedTagIds,
+          });
+        }
       }
     },
     onSuccess: () => {
@@ -817,6 +846,12 @@ export function DealFormSheet({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            {/* Tags */}
+            <DealTagsSelector
+              selectedTagIds={selectedTagIds}
+              onTagsChange={setSelectedTagIds}
             />
 
             {/* Actions */}
