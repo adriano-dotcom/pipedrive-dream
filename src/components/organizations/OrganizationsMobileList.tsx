@@ -9,10 +9,13 @@ type Organization = Tables<'organizations'>;
 
 type OrganizationWithContact = Organization & {
   primary_contact: {
+    id?: string;
     name: string;
     phone: string | null;
     email: string | null;
   } | null;
+  is_fallback_contact?: boolean;
+  fallback_contact_id?: string;
 };
 
 interface OrganizationsMobileListProps {
@@ -94,12 +97,17 @@ export function OrganizationsMobileList({
           {/* Primary Contact */}
           {org.primary_contact && (
             <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">Contato Principal</div>
+              <div className="text-xs font-medium text-muted-foreground">
+                {org.is_fallback_contact ? 'Contato Vinculado' : 'Contato Principal'}
+              </div>
               <Link 
-                to={`/people/${org.primary_contact_id}`}
-                className="text-sm font-medium hover:text-primary"
+                to={`/people/${org.is_fallback_contact ? org.fallback_contact_id : org.primary_contact_id}`}
+                className={`text-sm font-medium hover:text-primary ${org.is_fallback_contact ? 'italic' : ''}`}
               >
                 {org.primary_contact.name}
+                {org.is_fallback_contact && (
+                  <span className="text-xs ml-1 not-italic opacity-70">(vinculado)</span>
+                )}
               </Link>
               <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                 {org.primary_contact.phone && (
