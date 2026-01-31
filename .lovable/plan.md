@@ -1,164 +1,327 @@
 
+# Funcionalidade de Mesclar Contatos (Pessoas)
 
-# Corrigir Exibição de Telefone no Formulário de Edição
+## Objetivo
 
-## Problema Identificado
-
-O campo telefone no banco de dados contém um valor em formato não-padrão (importado do Pipedrive):
-
-| Campo | Valor no Banco |
-|-------|----------------|
-| phone | `5543991407114, (43) 9140-7114` |
-| whatsapp | `null` |
-
-Quando esse valor passa pelo componente `PhoneInput` que usa máscara fixa `(##) #####-####`:
-- A máscara espera exatamente 11 dígitos
-- O valor real tem 28+ caracteres (dois telefones separados por vírgula)
-- Resultado: apenas os primeiros 11 dígitos são exibidos → `(55) 43991-4071`
-- Os dados restantes são perdidos na edição
-
-**Na sidebar (visualização)**: Exibe o valor bruto do banco → `5543991407114, (43) 9140-7114`
-**No formulário (edição)**: A máscara corta para → `(55) 43991-4071`
+Implementar uma funcionalidade similar ao Pipedrive para mesclar duas pessoas (contatos) duplicadas em um unico registro, combinando todos os dados e relacionamentos.
 
 ---
 
-## Solução Proposta
+## Cenario de Uso
 
-Modificar o `PhoneInput` para detectar quando o valor não se encaixa no padrão brasileiro e, nesses casos, usar um input de texto simples em vez da máscara.
+1. Usuario identifica dois contatos que sao a mesma pessoa (ex: "Wilson" e "Wilson teste")
+2. Um registro tem email, outro tem telefone - ambos incompletos
+3. Usuario seleciona os dois contatos e escolhe "Mesclar"
+4. Sistema combina os dados em um unico registro, mantendo o mais completo de cada campo
 
-### Lógica de Detecção
+---
+
+## Interface do Usuario
+
+### 1. Acesso a Funcionalidade
+
+A mesclagem pode ser iniciada de duas formas:
+
+**Opcao A - Na lista de contatos:**
+- Selecionar exatamente 2 contatos com checkbox
+- Botao "Mesclar" aparece na barra de acoes
+
+**Opcao B - Na pagina de detalhes:**
+- Menu "..." no header com opcao "Mesclar com outro contato..."
+- Abre busca para selecionar segundo contato
+
+### 2. Dialog de Mesclagem
 
 ```text
-Se o valor:
-  - Contém vírgula ou ponto-e-vírgula (múltiplos telefones)
-  - Tem mais de 11 dígitos após limpar
-  - Começa com código de país diferente de 55
-
-→ Usar Input simples (sem máscara)
-→ Caso contrário, usar PhoneInput com máscara normal
+┌──────────────────────────────────────────────────────────────────────┐
+│ 🔀 Mesclar Contatos                                            [X]  │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Selecione qual valor manter para cada campo:                        │
+│                                                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │ Campo         │ Wilson (manter)      │ Wilson teste            │ │
+│  ├───────────────┼──────────────────────┼─────────────────────────┤ │
+│  │ Nome          │ ● Wilson             │ ○ Wilson teste          │ │
+│  │ Email         │ ● wilson@gmail.com   │ ○ -                     │ │
+│  │ Telefone      │ ○ -                  │ ● (43) 99999-9999       │ │
+│  │ WhatsApp      │ ○ -                  │ ● (43) 99999-9999       │ │
+│  │ Cargo         │ ● Gerente            │ ○ -                     │ │
+│  │ Organizacao   │ ● Empresa ABC        │ ○ -                     │ │
+│  │ Status        │ ○ Quente             │ ● Morno                 │ │
+│  │ CPF           │ ○ -                  │ ○ -                     │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+│                                                                      │
+│  ℹ️ Notas, arquivos, atividades e negocios serao combinados.         │
+│  ⚠️ O contato "Wilson teste" sera excluido apos a mesclagem.        │
+│                                                                      │
+│  [Cancelar]                              [Mesclar Contatos]          │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Arquivos a Modificar
+## Dados a Serem Mesclados
 
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/components/ui/phone-input.tsx` | Detectar valores não-padrão e usar Input simples |
+### Campos da Pessoa (escolha campo a campo)
+
+| Campo | Logica |
+|-------|--------|
+| name | Usuario escolhe |
+| email | Usuario escolhe |
+| phone | Usuario escolhe |
+| whatsapp | Usuario escolhe |
+| cpf | Usuario escolhe |
+| job_title | Usuario escolhe |
+| organization_id | Usuario escolhe |
+| label | Usuario escolhe |
+| lead_source | Usuario escolhe |
+| utm_source, utm_medium, utm_campaign | Usuario escolhe |
+| notes | Combinar (concatenar) |
+
+### Relacionamentos (transferir automaticamente)
+
+| Tabela | Acao |
+|--------|------|
+| activities | Atualizar person_id para o registro mantido |
+| deals | Atualizar person_id para o registro mantido |
+| people_notes | Transferir todas para o registro mantido |
+| people_files | Transferir todos para o registro mantido |
+| people_history | Transferir todo historico + adicionar evento de mesclagem |
+| person_tag_assignments | Combinar tags de ambos (sem duplicar) |
+| sent_emails (entity_type='person') | Atualizar entity_id |
+| organizations.primary_contact_id | Se o contato excluido era principal, atualizar para o mantido |
 
 ---
 
-## Detalhes Técnicos
+## Arquivos a Criar/Modificar
 
-### phone-input.tsx - Nova Implementação
+| Arquivo | Tipo | Descricao |
+|---------|------|-----------|
+| `src/components/people/MergeContactsDialog.tsx` | Criar | Dialog principal de mesclagem |
+| `src/components/people/MergeFieldSelector.tsx` | Criar | Componente para selecionar valores de cada campo |
+| `src/hooks/useMergeContacts.ts` | Criar | Hook com logica de mesclagem |
+| `src/pages/PersonDetails.tsx` | Modificar | Adicionar opcao "Mesclar" no menu |
+| `src/pages/People.tsx` | Modificar | Adicionar botao "Mesclar" na barra de selecao |
+| `src/components/people/PeopleTable.tsx` | Modificar | Passar handler de mesclagem |
+
+---
+
+## Detalhes Tecnicos
+
+### 1. Hook useMergeContacts.ts
 
 ```typescript
-import { PatternFormat, PatternFormatProps } from 'react-number-format';
-import { Input } from './input';
-import { cn } from '@/lib/utils';
-
-interface PhoneInputProps extends Omit<PatternFormatProps, 'format' | 'mask' | 'customInput' | 'onValueChange'> {
-  value: string;
-  onValueChange: (value: string) => void;
-  className?: string;
-  onBlur?: () => void;
+interface MergeContactsParams {
+  keepPersonId: string;      // ID do contato que sera mantido
+  deletePersonId: string;    // ID do contato que sera excluido
+  mergedData: Partial<Person>; // Dados finais escolhidos pelo usuario
 }
 
-// Verifica se o valor pode ser formatado com a máscara brasileira
-function canUseBrazilianMask(value: string | null | undefined): boolean {
-  if (!value) return true; // Valores vazios podem usar máscara
+async function mergeContacts(params: MergeContactsParams) {
+  // 1. Atualizar o registro mantido com os dados mesclados
+  await supabase.from('people').update(mergedData).eq('id', keepPersonId);
   
-  // Se contém separadores (múltiplos telefones), não usar máscara
-  if (value.includes(',') || value.includes(';')) return false;
+  // 2. Transferir atividades
+  await supabase.from('activities')
+    .update({ person_id: keepPersonId })
+    .eq('person_id', deletePersonId);
   
-  // Extrair apenas dígitos
-  const digits = value.replace(/\D/g, '');
+  // 3. Transferir negocios
+  await supabase.from('deals')
+    .update({ person_id: keepPersonId })
+    .eq('person_id', deletePersonId);
   
-  // Telefone brasileiro tem 10-11 dígitos (com DDD) ou 12-13 (com código país)
-  // Se tem mais que isso, provavelmente é formato especial
-  if (digits.length > 13) return false;
+  // 4. Transferir notas
+  await supabase.from('people_notes')
+    .update({ person_id: keepPersonId })
+    .eq('person_id', deletePersonId);
   
-  return true;
-}
-
-export function PhoneInput({ value, onValueChange, className, onBlur, ...props }: PhoneInputProps) {
-  // Se o valor não pode usar máscara brasileira, usar input simples
-  if (!canUseBrazilianMask(value)) {
-    return (
-      <Input
-        value={value || ''}
-        onChange={(e) => onValueChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder="Telefone"
-        className={cn(className)}
-        {...props}
-      />
-    );
+  // 5. Transferir arquivos
+  await supabase.from('people_files')
+    .update({ person_id: keepPersonId })
+    .eq('person_id', deletePersonId);
+  
+  // 6. Transferir historico
+  await supabase.from('people_history')
+    .update({ person_id: keepPersonId })
+    .eq('person_id', deletePersonId);
+  
+  // 7. Combinar tags (remover duplicatas)
+  const existingTags = await supabase.from('person_tag_assignments')
+    .select('tag_id')
+    .eq('person_id', keepPersonId);
+  
+  const otherTags = await supabase.from('person_tag_assignments')
+    .select('tag_id')
+    .eq('person_id', deletePersonId);
+  
+  // Adicionar tags que nao existem no mantido
+  const newTags = otherTags.filter(t => !existingTags.includes(t.tag_id));
+  if (newTags.length > 0) {
+    await supabase.from('person_tag_assignments')
+      .insert(newTags.map(t => ({ person_id: keepPersonId, tag_id: t.tag_id })));
   }
-
-  return (
-    <PatternFormat
-      format="(##) #####-####"
-      mask="_"
-      customInput={Input}
-      value={value}
-      onValueChange={(values) => onValueChange(values.value)}
-      onBlur={onBlur}
-      placeholder="(00) 00000-0000"
-      className={cn(className)}
-      {...props}
-    />
-  );
+  
+  // Remover assignments do contato excluido
+  await supabase.from('person_tag_assignments')
+    .delete()
+    .eq('person_id', deletePersonId);
+  
+  // 8. Transferir emails enviados
+  await supabase.from('sent_emails')
+    .update({ entity_id: keepPersonId })
+    .eq('entity_type', 'person')
+    .eq('entity_id', deletePersonId);
+  
+  // 9. Atualizar primary_contact_id nas organizacoes
+  await supabase.from('organizations')
+    .update({ primary_contact_id: keepPersonId })
+    .eq('primary_contact_id', deletePersonId);
+  
+  // 10. Registrar evento no historico
+  await supabase.from('people_history').insert({
+    person_id: keepPersonId,
+    event_type: 'contacts_merged',
+    description: `Contato mesclado com "${deletedPersonName}"`,
+    metadata: { deleted_person_id: deletePersonId }
+  });
+  
+  // 11. Excluir o contato duplicado
+  await supabase.from('people').delete().eq('id', deletePersonId);
 }
+```
+
+### 2. MergeContactsDialog.tsx
+
+```typescript
+interface MergeContactsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  person1: Person;
+  person2: Person;
+  onSuccess: () => void;
+}
+
+// Lista de campos para mesclagem
+const MERGE_FIELDS = [
+  { key: 'name', label: 'Nome' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Telefone' },
+  { key: 'whatsapp', label: 'WhatsApp' },
+  { key: 'cpf', label: 'CPF' },
+  { key: 'job_title', label: 'Cargo' },
+  { key: 'organization_id', label: 'Organizacao' },
+  { key: 'label', label: 'Status' },
+  { key: 'lead_source', label: 'Origem' },
+  { key: 'notes', label: 'Observacoes' },
+];
+
+// Estado inicial: selecionar automaticamente o valor nao-vazio mais antigo
+```
+
+### 3. Modificar PersonDetails.tsx
+
+Adicionar botao no DropdownMenu do header:
+```typescript
+<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant="outline" size="icon">
+      <MoreHorizontal className="h-4 w-4" />
+    </Button>
+  </DropdownMenuTrigger>
+  <DropdownMenuContent align="end">
+    <DropdownMenuItem onClick={() => setMergeDialogOpen(true)}>
+      <GitMerge className="h-4 w-4 mr-2" />
+      Mesclar com outro contato...
+    </DropdownMenuItem>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem className="text-destructive">
+      <Trash className="h-4 w-4 mr-2" />
+      Excluir contato
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+### 4. Adicionar Busca de Segundo Contato
+
+Quando iniciado da pagina de detalhes, mostrar um dialog de busca:
+```typescript
+<ContactSearchDialog
+  open={searchOpen}
+  onOpenChange={setSearchOpen}
+  excludeId={person.id}
+  onSelect={(selectedPerson) => {
+    setSecondPerson(selectedPerson);
+    setMergeDialogOpen(true);
+  }}
+/>
 ```
 
 ---
 
-## Comportamento Esperado
-
-### Caso 1: Telefone Padrão Brasileiro
-- Entrada: `43991407114`
-- Exibição: `(43) 99140-7114` (com máscara)
-- Ao digitar: Máscara aplicada automaticamente
-
-### Caso 2: Múltiplos Telefones (Pipedrive)
-- Entrada: `5543991407114, (43) 9140-7114`
-- Exibição: `5543991407114, (43) 9140-7114` (sem máscara, valor completo)
-- Ao digitar: Input livre sem formatação
-
-### Caso 3: Telefone Internacional
-- Entrada: `+1 555 123 4567`
-- Exibição: `+1 555 123 4567` (sem máscara)
-- Ao digitar: Input livre
-
----
-
-## Benefícios
-
-1. **Preserva dados**: Valores importados não são mais corrompidos ao editar
-2. **Retrocompatível**: Telefones no formato brasileiro continuam com máscara
-3. **Flexível**: Suporta formatos internacionais e múltiplos telefones
-4. **Sem perda de dados**: O usuário vê exatamente o que está no banco
-
----
-
-## Fluxo Visual
+## Fluxo de Mesclagem
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ Formulário de Edição                                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│ Telefone                                                    │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ 5543991407114, (43) 9140-7114                           │ │  ← Valor completo
-│ └─────────────────────────────────────────────────────────┘ │
-│                                                             │
-│ WhatsApp                                                    │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ (00) 00000-0000                                         │ │  ← Com máscara (vazio)
-│ └─────────────────────────────────────────────────────────┘ │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Usuario seleciona 2 contatos ou clica "Mesclar" na pagina   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. Dialog abre mostrando campos lado a lado                    │
+│    - Usuario escolhe qual valor manter para cada campo         │
+│    - Sistema pre-seleciona valores nao-vazios automaticamente  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. Usuario confirma a mesclagem                                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. Sistema executa:                                            │
+│    a) Atualiza registro mantido com dados escolhidos           │
+│    b) Transfere todas as relacoes (atividades, negocios, etc)  │
+│    c) Registra evento no historico                             │
+│    d) Exclui registro duplicado                                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 5. Redireciona para pagina do contato mesclado                 │
+│    - Toast de sucesso com detalhes                             │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## Validacoes e Seguranca
+
+1. **Permissao**: Apenas usuarios autenticados podem mesclar
+2. **Confirmacao**: Dialog de confirmacao antes de executar
+3. **Reversibilidade**: Nao reversivel - avisar usuario claramente
+4. **Historico**: Registrar evento de mesclagem para auditoria
+5. **Transacao**: Idealmente usar transacao do banco (ou rollback manual em caso de erro)
+
+---
+
+## Resumo da Implementacao
+
+1. **Criar MergeContactsDialog.tsx**: Interface de selecao de campos
+2. **Criar useMergeContacts.ts**: Hook com toda a logica de mesclagem
+3. **Modificar PersonDetails.tsx**: Adicionar menu com opcao de mesclagem
+4. **Modificar People.tsx**: Adicionar botao na barra de selecao
+5. **Criar ContactSearchDialog.tsx**: Para buscar segundo contato quando iniciado da pagina de detalhes
+
+---
+
+## Beneficios
+
+- Elimina contatos duplicados mantendo todos os dados
+- Consolida historico, notas, arquivos e negocios
+- Interface intuitiva para escolher qual valor manter
+- Compativel com dados importados do Pipedrive
+- Auditoria completa via historico
