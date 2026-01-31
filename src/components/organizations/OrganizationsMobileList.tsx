@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Phone, Mail, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { Phone, Mail, MapPin, Pencil, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatCnpj } from '@/lib/utils';
@@ -23,6 +23,8 @@ interface OrganizationsMobileListProps {
   isAdmin: boolean;
   onEdit: (org: OrganizationWithContact) => void;
   onDelete: (org: OrganizationWithContact) => void;
+  onSetPrimaryContact?: (orgId: string, contactId: string) => void;
+  isSettingPrimaryContact?: boolean;
 }
 
 const getLabelColor = (label: string | null) => {
@@ -42,7 +44,9 @@ export function OrganizationsMobileList({
   organizations, 
   isAdmin, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onSetPrimaryContact,
+  isSettingPrimaryContact,
 }: OrganizationsMobileListProps) {
   if (organizations.length === 0) {
     return (
@@ -97,8 +101,22 @@ export function OrganizationsMobileList({
           {/* Primary Contact */}
           {org.primary_contact && (
             <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">
-                {org.is_fallback_contact ? 'Contato Vinculado' : 'Contato Principal'}
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-muted-foreground">
+                  {org.is_fallback_contact ? 'Contato Vinculado' : 'Contato Principal'}
+                </div>
+                {org.is_fallback_contact && org.fallback_contact_id && onSetPrimaryContact && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-muted-foreground hover:text-amber-500 px-2"
+                    onClick={() => onSetPrimaryContact(org.id, org.fallback_contact_id!)}
+                    disabled={isSettingPrimaryContact}
+                  >
+                    <Star className="h-3 w-3 mr-1" />
+                    Tornar Principal
+                  </Button>
+                )}
               </div>
               <Link 
                 to={`/people/${org.is_fallback_contact ? org.fallback_contact_id : org.primary_contact_id}`}
