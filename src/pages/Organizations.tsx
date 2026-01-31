@@ -19,6 +19,7 @@ import { OrganizationsTable } from '@/components/organizations/OrganizationsTabl
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { useOrganizationTags } from '@/hooks/useOrganizationTags';
+import { OrganizationsFilters, OrganizationsFiltersState, defaultOrganizationsFilters } from '@/components/organizations/OrganizationsFilters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -42,6 +43,8 @@ type OrganizationWithContact = Organization & {
   fallback_contact_id?: string;
 };
 
+const STORAGE_KEY = 'org-advanced-filters';
+
 export default function Organizations() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -54,9 +57,36 @@ export default function Organizations() {
     return saved ? JSON.parse(saved) : [];
   });
   
+  // Advanced filters state with localStorage persistence
+  const [advancedFilters, setAdvancedFilters] = useState<OrganizationsFiltersState>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Convert date strings back to Date objects
+        return {
+          ...defaultOrganizationsFilters,
+          ...parsed,
+          dateRange: {
+            from: parsed.dateRange?.from ? new Date(parsed.dateRange.from) : null,
+            to: parsed.dateRange?.to ? new Date(parsed.dateRange.to) : null,
+          },
+        };
+      }
+    } catch (e) {
+      console.error('Error loading filters from localStorage:', e);
+    }
+    return defaultOrganizationsFilters;
+  });
+  
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  // Persist advanced filters to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(advancedFilters));
+  }, [advancedFilters]);
 
   // Persist tag filter to localStorage
   useEffect(() => {
@@ -133,13 +163,86 @@ export default function Organizations() {
     enabled: selectedTagIds.length > 0,
   });
 
-  // Filter organizations based on tags
+  // Filter organizations based on tags and advanced filters
   const filteredOrganizations = useMemo(() => {
     if (!organizations) return [];
-    if (selectedTagIds.length === 0) return organizations;
-    const validIds = new Set(tagAssignments);
-    return organizations.filter((o) => validIds.has(o.id));
-  }, [organizations, selectedTagIds, tagAssignments]);
+    
+    return organizations.filter((org) => {
+      // Tag filter
+      if (selectedTagIds.length > 0) {
+        const validIds = new Set(tagAssignments);
+        if (!validIds.has(org.id)) return false;
+      }
+
+      // Label filter
+      if (advancedFilters.labels.length > 0 && !advancedFilters.labels.includes(org.label || '')) {
+        return false;
+      }
+
+      // City filter
+      if (advancedFilters.cities.length > 0 && !advancedFilters.cities.includes(org.address_city || '')) {
+        return false;
+      }
+
+      // State filter
+      if (advancedFilters.states.length > 0 && !advancedFilters.states.includes(org.address_state || '')) {
+        return false;
+      }
+
+      // Insurance branches filter
+      if (advancedFilters.insuranceBranches.length > 0) {
+        const orgBranches = org.insurance_branches || [];
+        const hasMatchingBranch = advancedFilters.insuranceBranches.some(b => orgBranches.includes(b));
+        if (!hasMatchingBranch) return false;
+      }
+
+      // Current insurer filter
+      if (advancedFilters.currentInsurers.length > 0 && !advancedFilters.currentInsurers.includes(org.current_insurer || '')) {
+        return false;
+      }
+
+      // Risk profile filter
+      if (advancedFilters.riskProfiles.length > 0 && !advancedFilters.riskProfiles.includes(org.risk_profile || '')) {
+        return false;
+      }
+
+      // Fleet type filter
+      if (advancedFilters.fleetTypes.length > 0 && !advancedFilters.fleetTypes.includes(org.fleet_type || '')) {
+        return false;
+      }
+
+      // Renewal month filter
+      if (advancedFilters.renewalMonths.length > 0 && !advancedFilters.renewalMonths.includes(org.policy_renewal_month || 0)) {
+        return false;
+      }
+
+      // Owner filter
+      if (advancedFilters.ownerId && org.owner_id !== advancedFilters.ownerId) {
+        return false;
+      }
+
+      // Date range filter
+      if (advancedFilters.dateRange.from || advancedFilters.dateRange.to) {
+        const createdAt = new Date(org.created_at);
+        if (advancedFilters.dateRange.from && createdAt < advancedFilters.dateRange.from) return false;
+        if (advancedFilters.dateRange.to) {
+          const endOfDay = new Date(advancedFilters.dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          if (createdAt > endOfDay) return false;
+        }
+      }
+
+      // Has CNPJ filter
+      if (advancedFilters.hasCnpj === true && !org.cnpj) return false;
+      if (advancedFilters.hasCnpj === false && org.cnpj) return false;
+
+      // Has claims history filter
+      if (advancedFilters.hasClaimsHistory === true && !org.has_claims_history) return false;
+      if (advancedFilters.hasClaimsHistory === false && org.has_claims_history) return false;
+
+      return true;
+    });
+  }, [organizations, selectedTagIds, tagAssignments, advancedFilters]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -223,6 +326,25 @@ export default function Organizations() {
     setEditingOrg(null);
   };
 
+  // Check if any advanced filter is active
+  const hasActiveAdvancedFilters = useMemo(() => {
+    return (
+      advancedFilters.labels.length > 0 ||
+      advancedFilters.cities.length > 0 ||
+      advancedFilters.states.length > 0 ||
+      advancedFilters.insuranceBranches.length > 0 ||
+      advancedFilters.currentInsurers.length > 0 ||
+      advancedFilters.riskProfiles.length > 0 ||
+      advancedFilters.fleetTypes.length > 0 ||
+      advancedFilters.renewalMonths.length > 0 ||
+      advancedFilters.ownerId !== null ||
+      advancedFilters.dateRange.from !== null ||
+      advancedFilters.dateRange.to !== null ||
+      advancedFilters.hasCnpj !== null ||
+      advancedFilters.hasClaimsHistory !== null
+    );
+  }, [advancedFilters]);
+
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
         {/* Header */}
@@ -263,25 +385,32 @@ export default function Organizations() {
           </div>
         </div>
 
-        {/* Search & Tag Filter */}
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, CNPJ ou email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 bg-card/50"
+        {/* Search & Tag Filter & Advanced Filters */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, CNPJ ou email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 bg-card/50"
+              />
+            </div>
+            <TagFilterPopover
+              tags={organizationTags}
+              isLoading={tagsLoading}
+              selectedTagIds={selectedTagIds}
+              onTagsChange={setSelectedTagIds}
+              placeholder="Etiquetas"
+              emptyMessage="Nenhuma etiqueta criada"
+            />
+            <OrganizationsFilters
+              filters={advancedFilters}
+              onFiltersChange={setAdvancedFilters}
+              organizations={organizations || []}
             />
           </div>
-          <TagFilterPopover
-            tags={organizationTags}
-            isLoading={tagsLoading}
-            selectedTagIds={selectedTagIds}
-            onTagsChange={setSelectedTagIds}
-            placeholder="Etiquetas"
-            emptyMessage="Nenhuma etiqueta criada"
-          />
         </div>
 
         {/* Table */}
@@ -303,9 +432,9 @@ export default function Organizations() {
             </div>
             <h3 className="text-lg font-semibold mb-1">Nenhuma organização encontrada</h3>
             <p className="text-muted-foreground mb-6 max-w-sm">
-              {search || selectedTagIds.length > 0 ? 'Tente ajustar sua busca ou filtros' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
+              {search || selectedTagIds.length > 0 || hasActiveAdvancedFilters ? 'Tente ajustar sua busca ou filtros' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
             </p>
-            {!search && selectedTagIds.length === 0 && (
+            {!search && selectedTagIds.length === 0 && !hasActiveAdvancedFilters && (
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Criar Primeira Organização

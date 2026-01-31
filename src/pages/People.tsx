@@ -20,6 +20,7 @@ import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { usePersonTags } from '@/hooks/usePersonTags';
 import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
+import { PeopleFilters, PeopleFiltersState, defaultPeopleFilters } from '@/components/people/PeopleFilters';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -35,6 +36,8 @@ interface PersonWithOrg extends Person {
   } | null;
 }
 
+const STORAGE_KEY = 'people-advanced-filters';
+
 export default function People() {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -49,6 +52,33 @@ export default function People() {
     const saved = localStorage.getItem('people-tag-filter');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Advanced filters state with localStorage persistence
+  const [advancedFilters, setAdvancedFilters] = useState<PeopleFiltersState>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Convert date strings back to Date objects
+        return {
+          ...defaultPeopleFilters,
+          ...parsed,
+          dateRange: {
+            from: parsed.dateRange?.from ? new Date(parsed.dateRange.from) : null,
+            to: parsed.dateRange?.to ? new Date(parsed.dateRange.to) : null,
+          },
+        };
+      }
+    } catch (e) {
+      console.error('Error loading filters from localStorage:', e);
+    }
+    return defaultPeopleFilters;
+  });
+
+  // Persist advanced filters to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(advancedFilters));
+  }, [advancedFilters]);
 
   // Persist tag filter to localStorage
   useEffect(() => {
@@ -91,13 +121,64 @@ export default function People() {
     enabled: selectedTagIds.length > 0,
   });
 
-  // Filter people based on tags
+  // Filter people based on tags and advanced filters
   const filteredPeople = useMemo(() => {
     if (!people) return [];
-    if (selectedTagIds.length === 0) return people;
-    const validIds = new Set(tagAssignments);
-    return people.filter((p) => validIds.has(p.id));
-  }, [people, selectedTagIds, tagAssignments]);
+    
+    return people.filter((person) => {
+      // Tag filter
+      if (selectedTagIds.length > 0) {
+        const validIds = new Set(tagAssignments);
+        if (!validIds.has(person.id)) return false;
+      }
+
+      // Label filter
+      if (advancedFilters.labels.length > 0 && !advancedFilters.labels.includes(person.label || '')) {
+        return false;
+      }
+
+      // Lead source filter
+      if (advancedFilters.leadSources.length > 0 && !advancedFilters.leadSources.includes(person.lead_source || '')) {
+        return false;
+      }
+
+      // Job title filter
+      if (advancedFilters.jobTitles.length > 0 && !advancedFilters.jobTitles.includes(person.job_title || '')) {
+        return false;
+      }
+
+      // Organization filter
+      if (advancedFilters.organizationId && person.organization_id !== advancedFilters.organizationId) {
+        return false;
+      }
+
+      // Owner filter
+      if (advancedFilters.ownerId && person.owner_id !== advancedFilters.ownerId) {
+        return false;
+      }
+
+      // Date range filter
+      if (advancedFilters.dateRange.from || advancedFilters.dateRange.to) {
+        const createdAt = new Date(person.created_at);
+        if (advancedFilters.dateRange.from && createdAt < advancedFilters.dateRange.from) return false;
+        if (advancedFilters.dateRange.to) {
+          const endOfDay = new Date(advancedFilters.dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          if (createdAt > endOfDay) return false;
+        }
+      }
+
+      // Has email filter
+      if (advancedFilters.hasEmail === true && !person.email) return false;
+      if (advancedFilters.hasEmail === false && person.email) return false;
+
+      // Has phone filter
+      if (advancedFilters.hasPhone === true && !person.phone) return false;
+      if (advancedFilters.hasPhone === false && person.phone) return false;
+
+      return true;
+    });
+  }, [people, selectedTagIds, tagAssignments, advancedFilters]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -192,25 +273,32 @@ export default function People() {
         </div>
       </div>
 
-      {/* Search & Tag Filter */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, email ou telefone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 bg-card/50"
+      {/* Search & Tag Filter & Advanced Filters */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome, email ou telefone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 bg-card/50"
+            />
+          </div>
+          <TagFilterPopover
+            tags={personTags}
+            isLoading={tagsLoading}
+            selectedTagIds={selectedTagIds}
+            onTagsChange={setSelectedTagIds}
+            placeholder="Etiquetas"
+            emptyMessage="Nenhuma etiqueta criada"
+          />
+          <PeopleFilters
+            filters={advancedFilters}
+            onFiltersChange={setAdvancedFilters}
+            people={people || []}
           />
         </div>
-        <TagFilterPopover
-          tags={personTags}
-          isLoading={tagsLoading}
-          selectedTagIds={selectedTagIds}
-          onTagsChange={setSelectedTagIds}
-          placeholder="Etiquetas"
-          emptyMessage="Nenhuma etiqueta criada"
-        />
       </div>
 
       {/* Table */}
@@ -232,9 +320,9 @@ export default function People() {
           </div>
           <h3 className="text-lg font-semibold mb-1">Nenhuma pessoa encontrada</h3>
           <p className="text-muted-foreground mb-6 max-w-sm">
-            {search || selectedTagIds.length > 0 ? 'Tente ajustar sua busca ou filtros' : 'Adicione seu primeiro contato para começar'}
+            {search || selectedTagIds.length > 0 || advancedFilters !== defaultPeopleFilters ? 'Tente ajustar sua busca ou filtros' : 'Adicione seu primeiro contato para começar'}
           </p>
-          {!search && selectedTagIds.length === 0 && (
+          {!search && selectedTagIds.length === 0 && advancedFilters === defaultPeopleFilters && (
             <Button onClick={() => setIsDialogOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Criar Primeiro Contato
