@@ -45,6 +45,7 @@ import type { Tables } from '@/integrations/supabase/types';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { OrganizationPerson } from '@/hooks/useOrganizationDetails';
+import { formatCnpj } from '@/lib/utils';
 
 interface OrganizationSidebarProps {
   organization: {
@@ -191,7 +192,7 @@ export function OrganizationSidebar({
         <CardContent className="space-y-3 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">CNPJ</span>
-            <span className="font-medium">{organization.cnpj || '—'}</span>
+            <span className="font-medium">{organization.cnpj ? formatCnpj(organization.cnpj) : '—'}</span>
           </div>
           
           {organization.phone && (
