@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Filter, X, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Filter, X, Calendar, ChevronDown, ChevronUp, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -19,6 +19,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import { useDealTags } from '@/hooks/useDealTags';
+import { TagBadge } from '@/components/shared/TagBadge';
 
 const INSURANCE_TYPES = [
   'Carga',
@@ -42,6 +44,7 @@ export interface KanbanFiltersState {
   labels: string[];
   dateRange: { from: Date | null; to: Date | null };
   ownerId: string | null;
+  tagIds: string[];
 }
 
 interface KanbanFiltersProps {
@@ -51,6 +54,9 @@ interface KanbanFiltersProps {
 
 export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Fetch deal tags
+  const { data: dealTags = [], isLoading: tagsLoading } = useDealTags();
 
   // Fetch profiles for owner filter
   const { data: profiles = [] } = useQuery({
@@ -70,7 +76,8 @@ export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) 
     filters.insuranceTypes.length +
     filters.labels.length +
     (filters.dateRange.from || filters.dateRange.to ? 1 : 0) +
-    (filters.ownerId ? 1 : 0);
+    (filters.ownerId ? 1 : 0) +
+    (filters.tagIds?.length || 0);
 
   const handleInsuranceTypeToggle = (type: string) => {
     const newTypes = filters.insuranceTypes.includes(type)
@@ -94,12 +101,21 @@ export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) 
     onFiltersChange({ ...filters, ownerId: userId });
   };
 
+  const handleTagToggle = (tagId: string) => {
+    const currentTagIds = filters.tagIds || [];
+    const newTagIds = currentTagIds.includes(tagId)
+      ? currentTagIds.filter((t) => t !== tagId)
+      : [...currentTagIds, tagId];
+    onFiltersChange({ ...filters, tagIds: newTagIds });
+  };
+
   const clearAllFilters = () => {
     onFiltersChange({
       insuranceTypes: [],
       labels: [],
       dateRange: { from: null, to: null },
       ownerId: null,
+      tagIds: [],
     });
   };
 
@@ -193,6 +209,18 @@ export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) 
                 </button>
               </Badge>
             )}
+            {(filters.tagIds || []).map((tagId) => {
+              const tag = dealTags.find((t) => t.id === tagId);
+              if (!tag) return null;
+              return (
+                <TagBadge
+                  key={tagId}
+                  name={tag.name}
+                  color={tag.color}
+                  onRemove={() => handleTagToggle(tagId)}
+                />
+              );
+            })}
             <Button
               variant="ghost"
               size="sm"
@@ -353,6 +381,69 @@ export function KanbanFilters({ filters, onFiltersChange }: KanbanFiltersProps) 
                   </div>
                 </PopoverContent>
               </Popover>
+            </div>
+
+            {/* Deal Tags Filter */}
+            <div className="space-y-2 sm:col-span-2 lg:col-span-4">
+              <label className="text-sm font-medium">Etiquetas do Negócio</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-auto justify-between gap-2">
+                    <Tag className="h-4 w-4" />
+                    {(filters.tagIds || []).length > 0
+                      ? `${filters.tagIds.length} etiqueta(s)`
+                      : 'Selecionar etiquetas...'}
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="start">
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {tagsLoading ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Carregando...
+                      </div>
+                    ) : dealTags.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Nenhuma etiqueta criada
+                      </div>
+                    ) : (
+                      dealTags.map((tag) => (
+                        <label
+                          key={tag.id}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={(filters.tagIds || []).includes(tag.id)}
+                            onCheckedChange={() => handleTagToggle(tag.id)}
+                          />
+                          <span
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <span className="text-sm truncate">{tag.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {/* Show selected tags inline */}
+              {(filters.tagIds || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {filters.tagIds.map((tagId) => {
+                    const tag = dealTags.find((t) => t.id === tagId);
+                    if (!tag) return null;
+                    return (
+                      <TagBadge
+                        key={tagId}
+                        name={tag.name}
+                        color={tag.color}
+                        onRemove={() => handleTagToggle(tagId)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
