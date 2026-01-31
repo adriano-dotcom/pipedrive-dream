@@ -117,6 +117,8 @@ export function OrganizationSidebar({
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [deletingPerson, setDeletingPerson] = useState<OrganizationPerson | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [personLinkedInfo, setPersonLinkedInfo] = useState<{ deals: number; activities: number } | null>(null);
+  const [isCheckingLinks, setIsCheckingLinks] = useState(false);
 
   const handleEditPerson = async (e: React.MouseEvent, personId: string) => {
     e.preventDefault();
@@ -177,6 +179,30 @@ export function OrganizationSidebar({
     }
   };
 
+  const handleOpenDeleteDialog = async (e: React.MouseEvent, person: OrganizationPerson) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCheckingLinks(true);
+    
+    try {
+      // Buscar contagens de vínculos em paralelo
+      const [dealsResult, activitiesResult] = await Promise.all([
+        supabase.from('deals').select('id', { count: 'exact', head: true }).eq('person_id', person.id),
+        supabase.from('activities').select('id', { count: 'exact', head: true }).eq('person_id', person.id),
+      ]);
+      
+      setPersonLinkedInfo({
+        deals: dealsResult.count || 0,
+        activities: activitiesResult.count || 0,
+      });
+      setDeletingPerson(person);
+    } catch (error) {
+      toast.error('Erro ao verificar vínculos da pessoa');
+    } finally {
+      setIsCheckingLinks(false);
+    }
+  };
+
   const handleDeletePerson = async () => {
     if (!deletingPerson) return;
     
@@ -209,6 +235,14 @@ export function OrganizationSidebar({
     } finally {
       setIsDeleting(false);
       setDeletingPerson(null);
+      setPersonLinkedInfo(null);
+    }
+  };
+  
+  const handleCloseDeleteDialog = (open: boolean) => {
+    if (!open) {
+      setDeletingPerson(null);
+      setPersonLinkedInfo(null);
     }
   };
 
@@ -502,11 +536,8 @@ export function OrganizationSidebar({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setDeletingPerson(person);
-                          }}
+                          disabled={isCheckingLinks}
+                          onClick={(e) => handleOpenDeleteDialog(e, person)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -607,13 +638,41 @@ export function OrganizationSidebar({
       </AlertDialog>
 
       {/* Delete Person Confirmation */}
-      <AlertDialog open={!!deletingPerson} onOpenChange={(open) => !open && setDeletingPerson(null)}>
+      <AlertDialog open={!!deletingPerson} onOpenChange={handleCloseDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir pessoa permanentemente?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir <strong>{deletingPerson?.name}</strong> permanentemente?
-              Esta ação não pode ser desfeita. Todos os dados da pessoa, incluindo atividades, notas e arquivos vinculados, serão removidos.
+            <AlertDialogTitle>
+              {personLinkedInfo && (personLinkedInfo.deals > 0 || personLinkedInfo.activities > 0)
+                ? 'Atenção: Esta pessoa possui vínculos'
+                : 'Excluir pessoa permanentemente?'
+              }
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                {personLinkedInfo && (personLinkedInfo.deals > 0 || personLinkedInfo.activities > 0) ? (
+                  <div className="space-y-3">
+                    <p>
+                      <span className="font-medium text-foreground">"{deletingPerson?.name}"</span> está vinculado a:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-sm">
+                      {personLinkedInfo.deals > 0 && (
+                        <li>{personLinkedInfo.deals} {personLinkedInfo.deals === 1 ? 'negócio' : 'negócios'}</li>
+                      )}
+                      {personLinkedInfo.activities > 0 && (
+                        <li>{personLinkedInfo.activities} {personLinkedInfo.activities === 1 ? 'atividade' : 'atividades'}</li>
+                      )}
+                    </ul>
+                    <p className="text-sm">
+                      Ao excluir, esses registros perderão a referência a esta pessoa e ficarão sem pessoa de contato vinculada. Esta ação não pode ser desfeita.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    Tem certeza que deseja excluir <strong>{deletingPerson?.name}</strong> permanentemente?
+                    Esta ação não pode ser desfeita.
+                  </>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -628,6 +687,8 @@ export function OrganizationSidebar({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Excluindo...
                 </>
+              ) : personLinkedInfo && (personLinkedInfo.deals > 0 || personLinkedInfo.activities > 0) ? (
+                'Excluir mesmo assim'
               ) : (
                 'Excluir'
               )}
