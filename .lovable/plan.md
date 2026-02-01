@@ -1,113 +1,361 @@
 
-# Analise do Problema: Navegacao para Detalhes de Contato
+# Implementacao de Paginacao Server-Side (Cursor-Based)
 
-## Diagnostico
+## Analise do Estado Atual
 
-Apos analise profunda do codigo e das imagens enviadas, identifiquei o seguinte:
+### Problemas Identificados
 
-### O que esta funcionando
-- O Link do react-router-dom esta configurado corretamente em `PeopleTable.tsx` (linha 252-258)
-- A rota `/people/:id` existe em `App.tsx` (linha 81-88)
-- A navegacao **ESTA acontecendo** - a URL muda para `/people/56131188-...` como mostrado na segunda imagem
-- O contato existe no banco de dados (confirmado via network requests)
+| Componente | Problema | Impacto |
+|------------|----------|---------|
+| `People.tsx` | Carrega TODOS os registros de uma vez | 984 pessoas carregadas na memoria |
+| `Organizations.tsx` | Carrega TODOS os registros de uma vez | 841 organizacoes carregadas na memoria |
+| `Deals.tsx` | Carrega TODOS os registros de uma vez | Problema menor (apenas 2 deals atualmente) |
+| `DealsListView.tsx` | Carrega TODOS os deals do pipeline | Mesma logica |
 
-### Problema identificado
-A navegacao ocorre, mas a **pagina de detalhes (PersonDetails.tsx) pode nao estar renderizando corretamente**. Possiveis causas:
+### Arquitetura Atual
 
-1. **Loading infinito**: O componente pode estar preso no estado de loading
-2. **Query falhando**: O hook `usePersonDetails` pode estar retornando null
-3. **Erro silencioso**: Alguma query relacionada pode estar falhando sem exibir erro
-
-## Verificacao adicional necessaria
-
-Para confirmar a causa raiz, seria necessario:
-- Ver o conteudo exato da tela apos a navegacao (tela branca? loading? mensagem de erro?)
-- Verificar os logs do console no momento do acesso a pagina de detalhes
-- Verificar se ha erros de rede nas requests de `/people/:id`
-
-## Plano de correcao
-
-Se confirmado que o problema e na renderizacao da pagina de detalhes:
-
-### 1. Adicionar tratamento de erro robusto em PersonDetails.tsx
-
-Melhorar o feedback visual para estados de erro:
-
-| Cenario | Comportamento Atual | Comportamento Proposto |
-|---------|--------------------|-----------------------|
-| Loading | Mostra skeleton | Manter skeleton + timeout de 10s |
-| Erro de query | Nao tratado | Mostrar mensagem + botao recarregar |
-| Pessoa nao encontrada | Mostra mensagem | Manter + adicionar mais contexto |
-
-### 2. Melhorar o hook usePersonDetails
-
-Adicionar estado de erro explicito:
-
-```typescript
-const { data: person, isLoading, isError, error, refetch } = useQuery({
-  queryKey: ['person', personId],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('people')
-      .select(`...`)
-      .eq('id', personId)
-      .maybeSingle();
-    
-    if (error) throw error;
-    return data;
-  },
-  enabled: !!personId,
-  retry: 2,
-  retryDelay: 1000,
-});
-
-// Retornar isError e refetch
-return {
-  person,
-  isLoading,
-  isError,
-  error,
-  refetch,
-  // ... resto
-};
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    PAGINACAO CLIENT-SIDE (ATUAL)                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Supabase ──(todos registros)──> React Query ──> Memoria       │
+│                                                                  │
+│   1. Busca SELECT * FROM people (984 rows)                       │
+│   2. Carrega tudo na memoria do navegador                        │
+│   3. TanStack Table faz paginacao no frontend                    │
+│   4. Filtragem tambem acontece client-side                       │
+│                                                                  │
+│   Problemas:                                                     │
+│   • Tempo de carregamento inicial alto                           │
+│   • Uso excessivo de memoria                                     │
+│   • Limite de 1000 rows do Supabase (nao escalavel)             │
+│   • Travamentos com 20K+ registros                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Atualizar PersonDetails.tsx para tratar erros
+### O que ja funciona
+
+- TanStack Table configurado com `getPaginationRowModel()`
+- UI de paginacao implementada (botoes, seletor de page size)
+- Persistencia de `pageSize` no localStorage
+
+---
+
+## Solucao Proposta: Paginacao Server-Side
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    PAGINACAO SERVER-SIDE (PROPOSTA)             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   Browser                  Supabase                              │
+│      │                        │                                  │
+│      │──(page=0, size=25)────>│                                 │
+│      │<──(25 rows + count)────│                                 │
+│      │                        │                                  │
+│      │──(page=1, size=25)────>│                                 │
+│      │<──(25 rows + count)────│                                 │
+│                                                                  │
+│   Beneficios:                                                    │
+│   • Carrega apenas dados visiveis                                │
+│   • Suporta milhoes de registros                                 │
+│   • Filtragem server-side (eficiente)                           │
+│   • Menor uso de memoria                                         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Componentes a Criar/Modificar
+
+### 1. Hook Generico de Paginacao
+
+Criar `src/hooks/usePaginatedQuery.ts`:
 
 ```typescript
-if (isError) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
-      <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-      <h2 className="text-xl font-semibold mb-2">Erro ao carregar pessoa</h2>
-      <p className="text-muted-foreground mb-4">
-        Nao foi possivel carregar os dados. Tente novamente.
-      </p>
-      <div className="flex gap-2">
-        <Button onClick={() => refetch()}>
-          <RotateCcw className="h-4 w-4 mr-2" />
-          Tentar novamente
-        </Button>
-        <Button variant="outline" onClick={() => navigate('/people')}>
-          Voltar para Pessoas
-        </Button>
-      </div>
-    </div>
-  );
+interface PaginatedQueryOptions<T> {
+  queryKey: string[];
+  tableName: string;
+  selectColumns: string;
+  orderBy: { column: string; ascending: boolean };
+  filters?: QueryFilter[];
+  searchColumn?: string;
+  searchValue?: string;
+  pageSize?: number;
+}
+
+interface PaginatedResult<T> {
+  data: T[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  isLoading: boolean;
+  isFetching: boolean;
+  goToPage: (page: number) => void;
+  nextPage: () => void;
+  previousPage: () => void;
+  setPageSize: (size: number) => void;
 }
 ```
 
-## Arquivos a modificar
+Este hook encapsula:
+- Query com `.range(start, end)` do Supabase
+- Contagem total com `{ count: 'exact', head: true }`
+- Estado de paginacao
+- Cache inteligente por pagina
 
-| Arquivo | Modificacao |
-|---------|-------------|
-| `src/hooks/usePersonDetails.ts` | Adicionar isError, error, refetch ao retorno |
-| `src/pages/PersonDetails.tsx` | Adicionar tratamento de erro + timeout de loading |
+### 2. Modificar Pagina People.tsx
 
-## Proximos passos
+**Antes:**
+```typescript
+const { data: people, isLoading } = useQuery({
+  queryKey: ['people', search],
+  queryFn: async () => {
+    let query = supabase
+      .from('people')
+      .select('*, organizations:...')
+      .order('created_at', { ascending: false });
+    // Retorna TODOS os registros
+    const { data, error } = await query;
+    return data;
+  },
+});
+```
 
-Para prosseguir com a correcao, preciso confirmar:
-1. **O que aparece na tela apos clicar no contato?** (branco? loading infinito? erro?)
-2. **Ha algum erro no console do navegador apos a navegacao?**
+**Depois:**
+```typescript
+const {
+  data: people,
+  totalCount,
+  currentPage,
+  pageCount,
+  isLoading,
+  goToPage,
+  nextPage,
+  previousPage,
+  setPageSize,
+} = usePaginatedQuery({
+  queryKey: ['people'],
+  tableName: 'people',
+  selectColumns: '*, organizations:...',
+  orderBy: { column: 'created_at', ascending: false },
+  searchColumn: 'name,email,phone',
+  searchValue: search,
+  filters: buildFiltersFromState(advancedFilters),
+  pageSize: 25,
+});
+```
 
-Com essas informacoes, posso implementar a correcao apropriada.
+### 3. Modificar PeopleTable.tsx
+
+Remover paginacao client-side do TanStack Table:
+
+**Antes:**
+```typescript
+const table = useReactTable({
+  data: people,
+  getPaginationRowModel: getPaginationRowModel(), // Client-side
+});
+```
+
+**Depois:**
+```typescript
+const table = useReactTable({
+  data: people,
+  manualPagination: true, // Server-side
+  pageCount: pageCount,   // Vem do hook
+});
+```
+
+### 4. Filtros Server-Side
+
+Mover filtragem do frontend para queries do Supabase:
+
+```typescript
+// Construir query com filtros server-side
+function buildQuery(filters: FiltersState) {
+  let query = supabase.from('people').select('...');
+  
+  if (filters.labels.length > 0) {
+    query = query.in('label', filters.labels);
+  }
+  
+  if (filters.hasEmail === true) {
+    query = query.not('email', 'is', null);
+  }
+  
+  if (filters.dateRange.from) {
+    query = query.gte('created_at', filters.dateRange.from.toISOString());
+  }
+  
+  return query;
+}
+```
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Acao | Complexidade |
+|---------|------|--------------|
+| `src/hooks/usePaginatedQuery.ts` | CRIAR | Media |
+| `src/pages/People.tsx` | Substituir useQuery por hook paginado | Media |
+| `src/pages/Organizations.tsx` | Substituir useQuery por hook paginado | Media |
+| `src/components/people/PeopleTable.tsx` | Usar paginacao manual | Baixa |
+| `src/components/organizations/OrganizationsTable.tsx` | Usar paginacao manual | Baixa |
+| `src/components/deals/DealsTable.tsx` | Usar paginacao manual | Baixa |
+| `src/components/deals/DealsListView.tsx` | Usar paginacao manual | Baixa |
+
+---
+
+## Detalhes Tecnicos
+
+### Estrutura do Hook usePaginatedQuery
+
+```typescript
+import { useState, useCallback } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+interface UsePaginatedQueryOptions<T> {
+  queryKey: string[];
+  queryFn: (range: { from: number; to: number }) => Promise<{ data: T[]; count: number }>;
+  pageSize?: number;
+  initialPage?: number;
+}
+
+export function usePaginatedQuery<T>(options: UsePaginatedQueryOptions<T>) {
+  const [page, setPage] = useState(options.initialPage || 0);
+  const [pageSize, setPageSize] = useState(options.pageSize || 25);
+  
+  const from = page * pageSize;
+  const to = from + pageSize - 1;
+  
+  const query = useQuery({
+    queryKey: [...options.queryKey, page, pageSize],
+    queryFn: () => options.queryFn({ from, to }),
+    placeholderData: keepPreviousData, // Mantem dados anteriores enquanto carrega
+    staleTime: 30000,
+  });
+  
+  const totalCount = query.data?.count || 0;
+  const pageCount = Math.ceil(totalCount / pageSize);
+  
+  const goToPage = useCallback((newPage: number) => {
+    setPage(Math.max(0, Math.min(newPage, pageCount - 1)));
+  }, [pageCount]);
+  
+  return {
+    data: query.data?.data || [],
+    totalCount,
+    pageCount,
+    currentPage: page,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    goToPage,
+    nextPage: () => goToPage(page + 1),
+    previousPage: () => goToPage(page - 1),
+    canNextPage: page < pageCount - 1,
+    canPreviousPage: page > 0,
+    setPageSize: (size: number) => {
+      setPageSize(size);
+      setPage(0); // Reset para primeira pagina
+    },
+  };
+}
+```
+
+### Query Supabase com Range
+
+```typescript
+// Busca paginada com contagem total
+const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
+  // Query para dados
+  const { data, error } = await supabase
+    .from('people')
+    .select('*, organizations:organizations!people_organization_id_fkey(...)', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+    
+  if (error) throw error;
+  
+  return { 
+    data: data || [], 
+    count: // count vem automaticamente quando usamos { count: 'exact' }
+  };
+};
+```
+
+### Filtro de Tags (Server-Side)
+
+Para filtros por tags, usar subquery ou join:
+
+```typescript
+// Opcao 1: Buscar IDs primeiro, depois paginar
+const taggedPersonIds = await supabase
+  .from('person_tag_assignments')
+  .select('person_id')
+  .in('tag_id', selectedTagIds);
+
+// Depois usar .in('id', taggedPersonIds) na query principal
+
+// Opcao 2: Para performance, criar uma VIEW ou RPC no Supabase
+```
+
+---
+
+## Plano de Execucao
+
+### Fase 1: Criar Infraestrutura (Hook)
+1. Criar `usePaginatedQuery.ts` com logica base
+2. Testar isoladamente
+
+### Fase 2: Migrar People
+1. Modificar `People.tsx` para usar novo hook
+2. Atualizar `PeopleTable.tsx` para paginacao manual
+3. Mover filtros para server-side
+
+### Fase 3: Migrar Organizations
+1. Modificar `Organizations.tsx`
+2. Atualizar `OrganizationsTable.tsx`
+
+### Fase 4: Migrar Deals
+1. Modificar `DealsListView.tsx`
+2. Atualizar `DealsTable.tsx`
+
+---
+
+## Melhorias de UX
+
+### Indicadores de Loading
+
+```typescript
+// Mostrar skeleton durante fetch, manter dados anteriores
+{isFetching && !isLoading && (
+  <div className="absolute inset-0 bg-background/50 backdrop-blur-sm" />
+)}
+```
+
+### Prefetch da Proxima Pagina
+
+```typescript
+// Carregar proxima pagina em background
+queryClient.prefetchQuery({
+  queryKey: ['people', page + 1, pageSize],
+  queryFn: () => fetchPeople({ from: (page + 1) * pageSize, to: ... }),
+});
+```
+
+---
+
+## Metricas de Sucesso
+
+| Metrica | Antes | Depois (esperado) |
+|---------|-------|-------------------|
+| Tempo inicial de carga | 3-5s (984 rows) | < 500ms (25 rows) |
+| Memoria usada | ~50MB (grande dataset) | ~5MB (pagina atual) |
+| Suporte a registros | 1000 (limite Supabase) | Ilimitado |
+| Responsividade ao filtrar | Lenta (client-side) | Rapida (server-side) |
