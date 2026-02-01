@@ -3,159 +3,188 @@
 
 ## Problema Identificado
 
-A ordenação na tabela de organizações **não funciona corretamente** porque:
+A ordenação server-side foi implementada mas **não está funcionando**. Analisando o código e as network requests, identifiquei que:
 
-1. A paginação é **server-side** (`manualPagination: true`)
-2. A ordenação no servidor está **fixada** como `created_at DESC`
-3. O TanStack Table aplica ordenação **apenas nos dados da página atual** (25 registros)
-4. Os dados com maiores/menores valores podem estar em outras páginas
-
-**Exemplo:** Se o usuário clicar em "Automotores" para ordenar de maior para menor, o sistema só reordena os 25 registros atuais, não busca os registros com mais automotores de toda a base.
+1. Todas as queries ao banco usam `order=created_at.desc` (ordenação padrão)
+2. Quando o usuário clica em uma coluna para ordenar, a nova ordenação **não é aplicada na query**
 
 ---
 
-## Solução Proposta
+## Causa Raiz
 
-Implementar **ordenação server-side** sincronizada com a interface.
+O problema está na **sincronização entre o estado de ordenação e o React Query**. Especificamente:
 
----
+1. A função `fetchOrganizations` é criada com `useCallback` e captura `sorting` em seu closure
+2. Quando `sorting` muda, o `useCallback` recria a função (dependência correta)
+3. A `queryKey` inclui `JSON.stringify(sorting)`, então muda quando sorting muda
+4. **MAS** o React Query está fazendo cache hit da função antiga ao invés de usar a nova
 
-## Alterações Necessárias
-
-### 1. Hook `usePaginatedQuery.ts` - Adicionar Suporte a Ordenação
-
-Adicionar parâmetro de ordenação na interface e passá-lo para a queryFn:
+O problema específico está no `usePaginatedQuery` hook que usa uma **queryKey composta** que inclui os parâmetros de paginação:
 
 ```typescript
-interface SortingState {
-  id: string;
-  desc: boolean;
-}
+// usePaginatedQuery.ts linha 80
+queryKey: [...queryKey, 'paginated', pagination.pageIndex, pagination.pageSize],
+```
 
+Quando a ordenação muda, a `queryKey` base muda, mas como os parâmetros de paginação permanecem os mesmos, o React Query pode estar usando dados do cache incorretamente.
+
+---
+
+## Solução
+
+### Correção 1: Resetar página quando ordenação mudar
+
+No `Organizations.tsx`, quando a ordenação mudar, devemos voltar para a página 0:
+
+```typescript
+// Adicionar useEffect para resetar página quando sorting mudar
+useEffect(() => {
+  goToPage(0); // Voltar para primeira página ao mudar ordenação
+}, [sorting]);
+```
+
+**Problema**: `goToPage` vem do hook `usePaginatedQuery` que é definido depois deste useEffect.
+
+### Correção 2 (Melhor): Passar sorting como resetador de página no hook
+
+Modificar `usePaginatedQuery` para aceitar um parâmetro `resetKeys` que quando mudar, reseta para página 0:
+
+```typescript
+// usePaginatedQuery.ts
 interface UsePaginatedQueryOptions<T> {
-  // ... existentes
-  sorting?: SortingState[];
+  // ...existing
+  resetOnChange?: unknown[]; // Quando esses valores mudarem, resetar para página 0
 }
 
-// Passar sorting para queryFn
-queryFn: (range: { from: number; to: number; sorting?: SortingState[] }) => Promise<...>
+// No hook:
+const resetHash = JSON.stringify(resetOnChange || []);
+useEffect(() => {
+  setPagination(prev => ({ ...prev, pageIndex: 0 }));
+}, [resetHash]);
 ```
 
-### 2. Tabela `OrganizationsTable.tsx` - Expor Estado de Ordenação
+### Correção 3 (Mais simples): Mover goToPage(0) para o callback onSortingChange
 
-Adicionar callback para notificar a página pai quando a ordenação mudar:
+No `Organizations.tsx`, modificar como passamos o `setSorting`:
 
 ```typescript
-interface OrganizationsTableProps {
-  // ... existentes
-  sorting?: SortingState;
-  onSortingChange?: (sorting: SortingState[]) => void;
-}
+// Ao invés de passar setSorting diretamente:
+onSortingChange={setSorting}
+
+// Passar uma função que também reseta a página:
+onSortingChange={(newSorting) => {
+  setSorting(newSorting);
+  goToPage(0);
+}}
 ```
 
-Configurar TanStack Table para usar ordenação manual:
-```typescript
-useReactTable({
-  // ...
-  manualSorting: true, // Ordenação será feita pelo servidor
-  onSortingChange: (updater) => {
-    const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
-    setSorting(newSorting);
-    onSortingChange?.(newSorting);
-  },
-});
-```
+**Problema**: Isso cria dependência circular porque `goToPage` vem do mesmo hook que depende de `sorting`.
 
-### 3. Página `Organizations.tsx` - Ordenação Dinâmica no Servidor
+### Correção 4 (Correta): Incluir sorting no estado de paginação
 
-Adicionar estado de ordenação e passar para a query:
+A solução mais robusta é garantir que quando `sorting` mudar, a página seja resetada automaticamente:
+
+**Arquivo: `src/pages/Organizations.tsx`**
+
+Adicionar um `useEffect` que monitora mudanças em `sorting` e chama `goToPage(0)`:
 
 ```typescript
-const [sorting, setSorting] = useState<SortingState[]>([]);
-
-// Na função fetchOrganizations:
-const fetchOrganizations = async ({ from, to }: { from: number; to: number }) => {
-  let query = supabase.from('organizations').select(...);
-  
-  // Ordenação dinâmica baseada na coluna selecionada
+// Reset para página 0 quando a ordenação mudar
+const sortingKey = JSON.stringify(sorting);
+useEffect(() => {
   if (sorting.length > 0) {
-    const { id: column, desc } = sorting[0];
-    
-    // Mapear IDs de colunas para campos do banco
-    const columnMap: Record<string, string> = {
-      name: 'name',
-      cnpj: 'cnpj',
-      automotores: 'automotores',
-      label: 'label',
-      city: 'address_city',
-      // contact_name, contact_phone, contact_email são de relacionamento
-    };
-    
-    const dbColumn = columnMap[column];
-    if (dbColumn) {
-      query = query.order(dbColumn, { ascending: !desc, nullsFirst: false });
-    }
-  } else {
-    // Default: ordenar por data de criação
-    query = query.order('created_at', { ascending: false });
+    goToPage(0);
   }
-  
-  // ... resto dos filtros e paginação
-};
+}, [sortingKey, goToPage]);
 ```
 
-Passar sorting para a queryKey para invalidar cache:
+**Mas espere** - o problema pode ser outro. Vou verificar se o callback `onSortingChange` está sendo realmente chamado.
+
+---
+
+## Diagnóstico Adicional Necessário
+
+Preciso verificar se:
+1. O botão de ordenação no header da tabela está realmente chamando `column.toggleSorting()`
+2. O `handleSortingChange` está sendo executado
+3. A mudança de `sorting` está invalidando a query corretamente
+
+Analisando o código do `SortableHeader`:
+
 ```typescript
-usePaginatedQuery({
-  queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(sorting)],
-  // ...
-});
+function SortableHeader({ column, title }: { column: Column<OrganizationWithContact>; title: string }) {
+  const sorted = column.getIsSorted();
+  
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => column.toggleSorting(sorted === 'asc')}
+      // ...
+    >
 ```
+
+Isso está correto. O `toggleSorting` deveria chamar `onSortingChange` do TanStack Table.
 
 ---
 
-## Mapeamento de Colunas
+## Problema Real Encontrado
 
-| Coluna na Tabela | Campo no Banco | Ordenável Server-Side |
-|------------------|----------------|----------------------|
-| Nome | `name` | Sim |
-| CNPJ | `cnpj` | Sim |
-| Automotores | `automotores` | Sim |
-| Status | `label` | Sim |
-| Cidade | `address_city` | Sim |
-| Contato Principal | `primary_contact.name` | Não (relacionamento) |
-| Telefone | `primary_contact.phone` | Não (relacionamento) |
-| Email | `primary_contact.email` | Não (relacionamento) |
+Depois de análise detalhada, o problema está no **tipo de dados**: O `SortableHeader` usa `column.toggleSorting()` que internamente dispara `onSortingChange`. Mas a função `handleSortingChange` recebe um `Updater<SortingState>` que pode ser uma função ou valor direto.
 
-Para colunas de relacionamento (contato), a ordenação permanecerá client-side na página atual.
+O código atual:
+```typescript
+const handleSortingChange = (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+  const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
+```
+
+Está correto, mas o tipo no TanStack Table é `OnChangeFn<SortingState>` que recebe `Updater<SortingState>`.
+
+O problema real pode ser que **a query não está sendo refetched** porque o React Query está usando cache.
 
 ---
 
-## Fluxo de Funcionamento
+## Correção Final
 
+A correção deve abordar dois pontos:
+
+### 1. Garantir que o reset de página aconteça
+
+**Arquivo: `src/pages/Organizations.tsx`**
+
+```typescript
+// Wrapper para setSorting que também reseta a página
+const handleSortingChange = useCallback((newSorting: SortingState) => {
+  setSorting(newSorting);
+  // goToPage será chamado pelo useEffect abaixo
+}, []);
+
+// Reset pagination when sorting changes
+useEffect(() => {
+  if (sorting.length > 0) {
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
+  }
+}, [JSON.stringify(sorting)]);
 ```
-Usuário clica em "Automotores" ↓
-         │
-         ▼
-OrganizationsTable atualiza estado de sorting
-         │
-         ▼
-Notifica Organizations.tsx via onSortingChange
-         │
-         ▼
-queryKey muda, invalida cache
-         │
-         ▼
-fetchOrganizations é chamado novamente
-         │
-         ▼
-Query ao banco inclui: .order('automotores', { ascending: false })
-         │
-         ▼
-Servidor retorna dados já ordenados
-         │
-         ▼
-Tabela exibe dados corretamente ordenados
+
+**Problema**: `setPagination` não é exposto pelo hook `usePaginatedQuery`.
+
+### 2. Expor setPagination no hook ou adicionar lógica de reset
+
+**Arquivo: `src/hooks/usePaginatedQuery.ts`**
+
+Adicionar lógica para resetar página quando queryKey base mudar:
+
+```typescript
+// Detectar mudança na queryKey base (excluindo paginação)
+const baseQueryKeyHash = JSON.stringify(queryKey);
+const prevBaseQueryKeyHash = useRef(baseQueryKeyHash);
+
+useEffect(() => {
+  if (prevBaseQueryKeyHash.current !== baseQueryKeyHash) {
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    prevBaseQueryKeyHash.current = baseQueryKeyHash;
+  }
+}, [baseQueryKeyHash]);
 ```
 
 ---
@@ -164,15 +193,55 @@ Tabela exibe dados corretamente ordenados
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/usePaginatedQuery.ts` | Adicionar suporte a parâmetro de ordenação |
-| `src/components/organizations/OrganizationsTable.tsx` | Adicionar `manualSorting: true` e callback `onSortingChange` |
-| `src/pages/Organizations.tsx` | Gerenciar estado de ordenação e aplicar na query |
+| `src/hooks/usePaginatedQuery.ts` | Adicionar reset automático de página quando queryKey base mudar |
+| `src/pages/Organizations.tsx` | Garantir que callback de sorting use tipo correto |
 
 ---
 
-## Benefícios
+## Código das Correções
 
-1. Ordenação correta em toda a base de dados
-2. Usuário verá os registros com maiores/menores valores nas primeiras páginas
-3. Consistência entre paginação e ordenação
-4. Persistência opcional do estado de ordenação no localStorage
+### Arquivo: `src/hooks/usePaginatedQuery.ts`
+
+Adicionar após a declaração de `pagination`:
+
+```typescript
+// Reset to page 0 when base queryKey changes (e.g., sorting, filters)
+const baseQueryKeyHash = JSON.stringify(queryKey);
+const prevBaseQueryKeyRef = useRef(baseQueryKeyHash);
+
+useEffect(() => {
+  if (prevBaseQueryKeyRef.current !== baseQueryKeyHash) {
+    setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    prevBaseQueryKeyRef.current = baseQueryKeyHash;
+  }
+}, [baseQueryKeyHash]);
+```
+
+Adicionar import de `useRef`:
+```typescript
+import { useState, useCallback, useEffect, useRef } from 'react';
+```
+
+### Arquivo: `src/pages/Organizations.tsx`
+
+Verificar se o callback está correto:
+```typescript
+<OrganizationsTable
+  // ...
+  sorting={sorting}
+  onSortingChange={setSorting}  // Isso deve funcionar com a correção acima
+/>
+```
+
+---
+
+## Resultado Esperado
+
+1. Usuário clica na coluna "Automotores" para ordenar
+2. `OrganizationsTable` dispara `onSortingChange([{ id: 'automotores', desc: true }])`
+3. `Organizations.tsx` atualiza `sorting` via `setSorting`
+4. A `queryKey` muda para incluir a nova ordenação
+5. `usePaginatedQuery` detecta mudança na queryKey base e reseta para página 0
+6. React Query faz nova requisição com a função `fetchOrganizations` atualizada
+7. A query inclui `.order('automotores', { ascending: false })`
+8. Dados retornam ordenados do servidor
