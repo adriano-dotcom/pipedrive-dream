@@ -341,6 +341,108 @@ export function OrganizationSidebar({
         </CardContent>
       </Card>
 
+      {/* People Card */}
+      {people.length > 0 && (
+        <Card className="glass border-border/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              Pessoas ({people.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <TooltipProvider>
+              {people.map((person) => (
+                <Tooltip key={person.id}>
+                  <TooltipTrigger asChild>
+                    <Link 
+                      to={`/people/${person.id}`}
+                      className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block group"
+                    >
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
+                        {person.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm truncate">{person.name}</span>
+                          {person.is_primary && (
+                            <Badge variant="secondary" className="text-xs">Principal</Badge>
+                          )}
+                        </div>
+                        {person.job_title && (
+                          <p className="text-xs text-muted-foreground">{person.job_title}</p>
+                        )}
+                        {person.phone && (
+                          <p className="text-xs text-muted-foreground truncate">{person.phone}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => handleEditPerson(e, person.id)}
+                          disabled={isLoadingPerson}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setUnlinkingPerson(person);
+                          }}
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          disabled={isCheckingLinks}
+                          onClick={(e) => handleOpenDeleteDialog(e, person)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs">
+                    <div className="space-y-1.5 py-1">
+                      <p className="font-medium">{person.name}</p>
+                      {person.job_title && (
+                        <p className="text-xs text-muted-foreground">{person.job_title}</p>
+                      )}
+                      {person.email && (
+                        <p className="text-xs flex items-center gap-1.5">
+                          <Mail className="h-3 w-3 text-muted-foreground" /> 
+                          {person.email}
+                        </p>
+                      )}
+                      {person.phone && (
+                        <p className="text-xs flex items-center gap-1.5">
+                          <Phone className="h-3 w-3 text-muted-foreground" /> 
+                          {person.phone}
+                        </p>
+                      )}
+                      {person.whatsapp && (
+                        <p className="text-xs flex items-center gap-1.5">
+                          <MessageCircle className="h-3 w-3 text-muted-foreground" /> 
+                          {person.whatsapp}
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </TooltipProvider>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Overview Card */}
       <Card className="glass border-border/50">
         <CardHeader className="pb-3">
@@ -489,108 +591,6 @@ export function OrganizationSidebar({
                 <span className="font-medium">{organization.rntrc_antt}</span>
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* People Card */}
-      {people.length > 0 && (
-        <Card className="glass border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" />
-              Pessoas ({people.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <TooltipProvider>
-              {people.map((person) => (
-                <Tooltip key={person.id}>
-                  <TooltipTrigger asChild>
-                    <Link 
-                      to={`/people/${person.id}`}
-                      className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors block group"
-                    >
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
-                        {person.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">{person.name}</span>
-                          {person.is_primary && (
-                            <Badge variant="secondary" className="text-xs">Principal</Badge>
-                          )}
-                        </div>
-                        {person.job_title && (
-                          <p className="text-xs text-muted-foreground">{person.job_title}</p>
-                        )}
-                        {person.phone && (
-                          <p className="text-xs text-muted-foreground truncate">{person.phone}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(e) => handleEditPerson(e, person.id)}
-                          disabled={isLoadingPerson}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setUnlinkingPerson(person);
-                          }}
-                        >
-                          <Unlink className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          disabled={isCheckingLinks}
-                          onClick={(e) => handleOpenDeleteDialog(e, person)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="left" className="max-w-xs">
-                    <div className="space-y-1.5 py-1">
-                      <p className="font-medium">{person.name}</p>
-                      {person.job_title && (
-                        <p className="text-xs text-muted-foreground">{person.job_title}</p>
-                      )}
-                      {person.email && (
-                        <p className="text-xs flex items-center gap-1.5">
-                          <Mail className="h-3 w-3 text-muted-foreground" /> 
-                          {person.email}
-                        </p>
-                      )}
-                      {person.phone && (
-                        <p className="text-xs flex items-center gap-1.5">
-                          <Phone className="h-3 w-3 text-muted-foreground" /> 
-                          {person.phone}
-                        </p>
-                      )}
-                      {person.whatsapp && (
-                        <p className="text-xs flex items-center gap-1.5">
-                          <MessageCircle className="h-3 w-3 text-muted-foreground" /> 
-                          {person.whatsapp}
-                        </p>
-                      )}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </TooltipProvider>
           </CardContent>
         </Card>
       )}
