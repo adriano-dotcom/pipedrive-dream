@@ -392,7 +392,14 @@ export default function Organizations() {
               <Building2 className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Organizações</h1>
+              <h1 className="text-2xl font-bold tracking-tight">
+                Organizações
+                {!isLoading && totalCount > 0 && (
+                  <span className="ml-2 text-lg font-normal text-muted-foreground">
+                    ({totalCount.toLocaleString('pt-BR')})
+                  </span>
+                )}
+              </h1>
               <p className="text-muted-foreground text-sm">
                 Gerencie empresas e clientes da sua corretora
               </p>
