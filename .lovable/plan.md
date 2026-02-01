@@ -1,185 +1,113 @@
 
-# Validacao antes de Excluir Pessoa
+# Analise do Problema: Navegacao para Detalhes de Contato
 
-## Objetivo
+## Diagnostico
 
-Antes de excluir uma pessoa permanentemente, verificar se ela possui negocios ou atividades vinculadas e informar o usuario com opcoes claras de como prosseguir.
+Apos analise profunda do codigo e das imagens enviadas, identifiquei o seguinte:
 
----
+### O que esta funcionando
+- O Link do react-router-dom esta configurado corretamente em `PeopleTable.tsx` (linha 252-258)
+- A rota `/people/:id` existe em `App.tsx` (linha 81-88)
+- A navegacao **ESTA acontecendo** - a URL muda para `/people/56131188-...` como mostrado na segunda imagem
+- O contato existe no banco de dados (confirmado via network requests)
 
-## Comportamento Proposto
+### Problema identificado
+A navegacao ocorre, mas a **pagina de detalhes (PersonDetails.tsx) pode nao estar renderizando corretamente**. Possiveis causas:
 
-### Cenario 1: Pessoa SEM vinculos
-- Dialog padrao de confirmacao de exclusao
-- Usuario confirma e pessoa e excluida
+1. **Loading infinito**: O componente pode estar preso no estado de loading
+2. **Query falhando**: O hook `usePersonDetails` pode estar retornando null
+3. **Erro silencioso**: Alguma query relacionada pode estar falhando sem exibir erro
 
-### Cenario 2: Pessoa COM negocios/atividades
-- Dialog mostra aviso com detalhes dos vinculos
-- Exemplo: "Esta pessoa possui 3 negocios e 5 atividades vinculadas"
-- Usuario e informado que esses registros ficarao orfaos
-- Duas opcoes: "Cancelar" ou "Excluir mesmo assim"
+## Verificacao adicional necessaria
 
----
+Para confirmar a causa raiz, seria necessario:
+- Ver o conteudo exato da tela apos a navegacao (tela branca? loading? mensagem de erro?)
+- Verificar os logs do console no momento do acesso a pagina de detalhes
+- Verificar se ha erros de rede nas requests de `/people/:id`
 
-## Fluxo Visual
+## Plano de correcao
 
-```text
-Usuario clica no icone de lixeira
-              |
-              v
-    Buscar vinculos da pessoa
-    (deals + activities count)
-              |
-              v
-    ┌─────────────────────────┐
-    │  Possui vinculos?       │
-    └─────────────────────────┘
-        |             |
-        Sim           Nao
-        |             |
-        v             v
-    Dialog com     Dialog simples
-    detalhes       de confirmacao
-```
+Se confirmado que o problema e na renderizacao da pagina de detalhes:
 
----
+### 1. Adicionar tratamento de erro robusto em PersonDetails.tsx
 
-## Interface do Dialog com Vinculos
+Melhorar o feedback visual para estados de erro:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  ⚠️ Atenção: Esta pessoa possui vínculos                         │
-│                                                                  │
-│  "Wilson Teste" está vinculado a:                                │
-│                                                                  │
-│    • 3 negócios                                                  │
-│    • 5 atividades                                                │
-│                                                                  │
-│  Ao excluir, esses registros perderão a referência a esta       │
-│  pessoa. Esta ação não pode ser desfeita.                        │
-│                                                                  │
-│                    [Cancelar]  [Excluir mesmo assim]             │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Cenario | Comportamento Atual | Comportamento Proposto |
+|---------|--------------------|-----------------------|
+| Loading | Mostra skeleton | Manter skeleton + timeout de 10s |
+| Erro de query | Nao tratado | Mostrar mensagem + botao recarregar |
+| Pessoa nao encontrada | Mostra mensagem | Manter + adicionar mais contexto |
 
----
+### 2. Melhorar o hook usePersonDetails
 
-## Arquivos a Modificar
-
-| Arquivo | Modificacao |
-|---------|-------------|
-| `src/components/shared/DeleteConfirmDialog.tsx` | Adicionar props para exibir info de vinculos |
-| `src/components/organizations/ContactPersonSection.tsx` | Buscar vinculos antes de abrir dialog |
-| `src/components/organizations/detail/OrganizationSidebar.tsx` | Buscar vinculos antes de abrir dialog |
-
----
-
-## Detalhes Tecnicos
-
-### 1. Estender DeleteConfirmDialog.tsx
-
-Adicionar novas props opcionais para mostrar informacoes de vinculos:
+Adicionar estado de erro explicito:
 
 ```typescript
-interface DeleteConfirmDialogProps {
-  // ... props existentes
-  linkedInfo?: {
-    deals: number;
-    activities: number;
-  };
+const { data: person, isLoading, isError, error, refetch } = useQuery({
+  queryKey: ['person', personId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from('people')
+      .select(`...`)
+      .eq('id', personId)
+      .maybeSingle();
+    
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!personId,
+  retry: 2,
+  retryDelay: 1000,
+});
+
+// Retornar isError e refetch
+return {
+  person,
+  isLoading,
+  isError,
+  error,
+  refetch,
+  // ... resto
+};
+```
+
+### 3. Atualizar PersonDetails.tsx para tratar erros
+
+```typescript
+if (isError) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+      <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+      <h2 className="text-xl font-semibold mb-2">Erro ao carregar pessoa</h2>
+      <p className="text-muted-foreground mb-4">
+        Nao foi possivel carregar os dados. Tente novamente.
+      </p>
+      <div className="flex gap-2">
+        <Button onClick={() => refetch()}>
+          <RotateCcw className="h-4 w-4 mr-2" />
+          Tentar novamente
+        </Button>
+        <Button variant="outline" onClick={() => navigate('/people')}>
+          Voltar para Pessoas
+        </Button>
+      </div>
+    </div>
+  );
 }
 ```
 
-Quando `linkedInfo` estiver presente e tiver valores > 0, mostrar a lista de vinculos no dialog.
+## Arquivos a modificar
 
-### 2. Modificar ContactPersonSection.tsx
+| Arquivo | Modificacao |
+|---------|-------------|
+| `src/hooks/usePersonDetails.ts` | Adicionar isError, error, refetch ao retorno |
+| `src/pages/PersonDetails.tsx` | Adicionar tratamento de erro + timeout de loading |
 
-Antes de abrir o dialog de exclusao, buscar contagem de vinculos:
+## Proximos passos
 
-```typescript
-const handleDelete = async (person: Person) => {
-  // Buscar contagens em paralelo
-  const [dealsResult, activitiesResult] = await Promise.all([
-    supabase.from('deals').select('id', { count: 'exact', head: true })
-      .eq('person_id', person.id),
-    supabase.from('activities').select('id', { count: 'exact', head: true })
-      .eq('person_id', person.id),
-  ]);
-  
-  // Guardar pessoa e vinculos no estado
-  setDeletingPerson(person);
-  setLinkedInfo({
-    deals: dealsResult.count || 0,
-    activities: activitiesResult.count || 0,
-  });
-};
-```
+Para prosseguir com a correcao, preciso confirmar:
+1. **O que aparece na tela apos clicar no contato?** (branco? loading infinito? erro?)
+2. **Ha algum erro no console do navegador apos a navegacao?**
 
-### 3. Modificar OrganizationSidebar.tsx
-
-Mesmo padrao - buscar vinculos antes de abrir dialog:
-
-```typescript
-const handleOpenDeleteDialog = async (person: OrganizationPerson) => {
-  const [dealsResult, activitiesResult] = await Promise.all([
-    supabase.from('deals').select('id', { count: 'exact', head: true })
-      .eq('person_id', person.id),
-    supabase.from('activities').select('id', { count: 'exact', head: true })
-      .eq('person_id', person.id),
-  ]);
-  
-  setDeletingPerson(person);
-  setPersonLinkedInfo({
-    deals: dealsResult.count || 0,
-    activities: activitiesResult.count || 0,
-  });
-};
-```
-
----
-
-## Estrutura do Estado
-
-```typescript
-// Estado adicional nos componentes
-const [linkedInfo, setLinkedInfo] = useState<{
-  deals: number;
-  activities: number;
-} | null>(null);
-
-const [isCheckingLinks, setIsCheckingLinks] = useState(false);
-```
-
----
-
-## Estados de Loading
-
-1. Ao clicar no botao de excluir, mostrar loading enquanto busca vinculos
-2. Apos busca, abrir dialog com informacoes
-3. Durante exclusao, mostrar loading no botao "Excluir"
-
----
-
-## Texto do Dialog por Cenario
-
-### Sem vinculos:
-> Tem certeza que deseja excluir "Wilson Teste" permanentemente? Esta ação não pode ser desfeita.
-
-### Com vinculos:
-> **Atenção: Esta pessoa possui vínculos**
->
-> "Wilson Teste" está vinculado a:
-> - 3 negócios
-> - 5 atividades
->
-> Ao excluir, esses registros perderão a referência a esta pessoa e ficarão sem pessoa de contato vinculada. Esta ação não pode ser desfeita.
-
----
-
-## Resumo de Implementacao
-
-1. **DeleteConfirmDialog.tsx**: Adicionar prop `linkedInfo` para mostrar lista de vinculos
-2. **ContactPersonSection.tsx**: Buscar deals/activities count antes de abrir dialog
-3. **OrganizationSidebar.tsx**: Buscar deals/activities count antes de abrir dialog
-4. Adicionar estado `isCheckingLinks` para loading durante busca
-5. Ajustar texto do botao de confirmacao quando houver vinculos
+Com essas informacoes, posso implementar a correcao apropriada.
