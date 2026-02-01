@@ -9,7 +9,6 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
@@ -43,7 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Pencil, Trash2, Eye, Building2, User, Flame, Thermometer, Snowflake, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreHorizontal, Pencil, Trash2, Eye, Building2, User, Flame, Thermometer, Snowflake, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -88,6 +87,14 @@ interface DealsTableProps {
   onEdit: (deal: Deal) => void;
   onDelete?: (deal: Deal) => void;
   isLoading?: boolean;
+  // Server-side pagination props
+  totalCount?: number;
+  pageCount?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  isFetching?: boolean;
 }
 
 const labelConfig = {
@@ -142,6 +149,14 @@ export function DealsTable({
   onEdit,
   onDelete,
   isLoading,
+  // Server-side pagination props
+  totalCount = 0,
+  pageCount = 1,
+  currentPage = 0,
+  pageSize = 25,
+  onPageChange,
+  onPageSizeChange,
+  isFetching = false,
 }: DealsTableProps) {
   const navigate = useNavigate();
   const [sorting, setSorting] = useState<SortingState>([
@@ -150,6 +165,9 @@ export function DealsTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState('');
+
+  // Check if server-side pagination is being used
+  const useServerPagination = onPageChange !== undefined;
 
   // Export columns configuration
   const statusLabels: Record<string, string> = {
@@ -430,16 +448,15 @@ export function DealsTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       globalFilter,
     },
-    initialState: {
-      pagination: { pageSize: 20 },
-    },
+    // Manual pagination when using server-side
+    manualPagination: useServerPagination,
+    pageCount: useServerPagination ? pageCount : undefined,
   });
 
   const stageFilter = columnFilters.find(f => f.id === 'stage')?.value as string || 'all';
@@ -447,8 +464,19 @@ export function DealsTable({
   const labelFilter = columnFilters.find(f => f.id === 'label')?.value as string || 'all';
   const insuranceFilter = columnFilters.find(f => f.id === 'insurance_type')?.value as string || 'all';
 
+  // Calculate display range for pagination info
+  const startIndex = currentPage * pageSize + 1;
+  const endIndex = Math.min((currentPage + 1) * pageSize, totalCount);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      {/* Loading overlay when fetching */}
+      {isFetching && (
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Filters and Export */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -616,32 +644,106 @@ export function DealsTable({
         </Table>
       </div>
 
-      {/* Pagination */}
+      {/* Pagination - Server-side or Client-side */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} negócio(s)
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">
-            Página {table.getState().pagination.pageIndex + 1} de{' '}
-            {table.getPageCount()}
+            {useServerPagination 
+              ? `Mostrando ${totalCount === 0 ? 0 : startIndex} a ${endIndex} de ${totalCount} negócio(s)`
+              : `${table.getFilteredRowModel().rows.length} negócio(s)`
+            }
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          
+          {useServerPagination && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Itens por página:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(value) => {
+                  onPageSizeChange?.(Number(value));
+                }}
+              >
+                <SelectTrigger className="h-8 w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {useServerPagination ? (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange?.(0)}
+                disabled={currentPage === 0}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange?.(currentPage - 1)}
+                disabled={currentPage === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="px-3 text-sm text-muted-foreground">
+                Página {currentPage + 1} de {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange?.(currentPage + 1)}
+                disabled={currentPage >= pageCount - 1}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange?.(pageCount - 1)}
+                disabled={currentPage >= pageCount - 1}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Página {table.getState().pagination.pageIndex + 1} de{' '}
+                {table.getPageCount()}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -5,10 +5,8 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
-  getPaginationRowModel,
   flexRender,
   ColumnDef,
-  PaginationState,
   SortingState,
   VisibilityState,
   RowSelectionState,
@@ -41,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2 } from 'lucide-react';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -73,10 +71,17 @@ interface PeopleTableProps {
   onSelectionChange?: (ids: string[]) => void;
   onBulkDelete?: () => void;
   onMerge?: () => void;
+  // Server-side pagination props
+  totalCount?: number;
+  pageCount?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  isFetching?: boolean;
 }
 
 const STORAGE_KEY = 'people-table-column-order';
-const PAGE_SIZE_KEY = 'people-table-page-size';
 const COLUMN_VISIBILITY_KEY = 'people-table-column-visibility';
 
 const columnLabels: Record<string, string> = {
@@ -128,7 +133,24 @@ function SortableHeader({ column, title }: { column: Column<PersonWithOrg>; titl
   );
 }
 
-export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [], onSelectionChange, onBulkDelete, onMerge }: PeopleTableProps) {
+export function PeopleTable({ 
+  people, 
+  isAdmin, 
+  onEdit, 
+  onDelete, 
+  selectedIds = [], 
+  onSelectionChange, 
+  onBulkDelete, 
+  onMerge,
+  // Server-side pagination props
+  totalCount = 0,
+  pageCount = 1,
+  currentPage = 0,
+  pageSize = 25,
+  onPageChange,
+  onPageSizeChange,
+  isFetching = false,
+}: PeopleTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
@@ -142,10 +164,6 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
     } catch {
       return {};
     }
-  });
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
   });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -463,7 +481,6 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
       sorting,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
       columnVisibility,
-      pagination,
       rowSelection,
     },
     enableRowSelection: isAdmin,
@@ -472,10 +489,11 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Manual pagination - data is already paginated from server
+    manualPagination: true,
+    pageCount: pageCount,
   });
 
   const handleDragEnd = (result: DropResult) => {
@@ -515,8 +533,19 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
     );
   }
 
+  // Calculate display range for pagination info
+  const startIndex = currentPage * pageSize + 1;
+  const endIndex = Math.min((currentPage + 1) * pageSize, totalCount);
+
   return (
-    <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
+    <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30 relative">
+      {/* Loading overlay when fetching */}
+      {isFetching && (
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Barra de ferramentas */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
         <div className="flex items-center gap-4">
@@ -639,7 +668,7 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell colSpan={allColumns.length} className="h-24 text-center">
                   Nenhum resultado encontrado.
                 </TableCell>
               </TableRow>
@@ -662,27 +691,19 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
         </Table>
       </DragDropContext>
       
-      {/* Pagination Controls */}
+      {/* Pagination Controls - Server-side */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">
-            Mostrando {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
-            {" "}a{" "}
-            {Math.min(
-              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-              people.length
-            )}
-            {" "}de {people.length} registros
+            Mostrando {totalCount === 0 ? 0 : startIndex} a {endIndex} de {totalCount} registros
           </span>
           
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Itens por página:</span>
             <Select
-              value={String(pagination.pageSize)}
+              value={String(pageSize)}
               onValueChange={(value) => {
-                const newSize = Number(value);
-                setPagination(prev => ({ ...prev, pageSize: newSize, pageIndex: 0 }));
-                localStorage.setItem(PAGE_SIZE_KEY, value);
+                onPageSizeChange?.(Number(value));
               }}
             >
               <SelectTrigger className="h-8 w-20 bg-background">
@@ -703,8 +724,8 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => onPageChange?.(0)}
+            disabled={currentPage === 0}
           >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
@@ -712,22 +733,22 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => onPageChange?.(currentPage - 1)}
+            disabled={currentPage === 0}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           
           <span className="px-3 text-sm text-muted-foreground">
-            Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount() || 1}
+            Página {currentPage + 1} de {pageCount}
           </span>
           
           <Button
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => onPageChange?.(currentPage + 1)}
+            disabled={currentPage >= pageCount - 1}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -735,8 +756,8 @@ export function PeopleTable({ people, isAdmin, onEdit, onDelete, selectedIds = [
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
+            onClick={() => onPageChange?.(pageCount - 1)}
+            disabled={currentPage >= pageCount - 1}
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>

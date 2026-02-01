@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { usePersonTags } from '@/hooks/usePersonTags';
 import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
 import { PeopleFilters, PeopleFiltersState, defaultPeopleFilters } from '@/components/people/PeopleFilters';
+import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -37,11 +38,13 @@ interface PersonWithOrg extends Person {
 }
 
 const STORAGE_KEY = 'people-advanced-filters';
+const PAGE_SIZE_KEY = 'people-table-page-size';
 
 export default function People() {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<PersonWithOrg | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PersonWithOrg | null>(null);
@@ -59,7 +62,6 @@ export default function People() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Convert date strings back to Date objects
         return {
           ...defaultPeopleFilters,
           ...parsed,
@@ -75,6 +77,14 @@ export default function People() {
     return defaultPeopleFilters;
   });
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // Persist advanced filters to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(advancedFilters));
@@ -88,26 +98,8 @@ export default function People() {
   // Fetch all person tags
   const { data: personTags = [], isLoading: tagsLoading } = usePersonTags();
 
-  const { data: people, isLoading } = useQuery({
-    queryKey: ['people', search],
-    queryFn: async () => {
-      let query = supabase
-        .from('people')
-        .select('*, organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores)')
-        .order('created_at', { ascending: false });
-
-      if (search) {
-        query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as PersonWithOrg[];
-    },
-  });
-
-  // Fetch tag assignments for filtering
-  const { data: tagAssignments = [] } = useQuery({
+  // Fetch tag assignments for filtering (when tags are selected)
+  const { data: taggedPersonIds = [] } = useQuery({
     queryKey: ['person-tag-filter-assignments', selectedTagIds],
     queryFn: async () => {
       if (selectedTagIds.length === 0) return [];
@@ -121,64 +113,106 @@ export default function People() {
     enabled: selectedTagIds.length > 0,
   });
 
-  // Filter people based on tags and advanced filters
-  const filteredPeople = useMemo(() => {
-    if (!people) return [];
-    
-    return people.filter((person) => {
-      // Tag filter
-      if (selectedTagIds.length > 0) {
-        const validIds = new Set(tagAssignments);
-        if (!validIds.has(person.id)) return false;
-      }
+  // Build query function for server-side pagination
+  const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
+    let query = supabase
+      .from('people')
+      .select('*, organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores)', { count: 'exact' })
+      .order('created_at', { ascending: false });
 
-      // Label filter
-      if (advancedFilters.labels.length > 0 && !advancedFilters.labels.includes(person.label || '')) {
-        return false;
-      }
+    // Search filter (server-side)
+    if (debouncedSearch) {
+      query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
+    }
 
-      // Lead source filter
-      if (advancedFilters.leadSources.length > 0 && !advancedFilters.leadSources.includes(person.lead_source || '')) {
-        return false;
-      }
+    // Label filter (server-side)
+    if (advancedFilters.labels.length > 0) {
+      query = query.in('label', advancedFilters.labels);
+    }
 
-      // Job title filter
-      if (advancedFilters.jobTitles.length > 0 && !advancedFilters.jobTitles.includes(person.job_title || '')) {
-        return false;
-      }
+    // Lead source filter (server-side)
+    if (advancedFilters.leadSources.length > 0) {
+      query = query.in('lead_source', advancedFilters.leadSources);
+    }
 
-      // Organization filter
-      if (advancedFilters.organizationId && person.organization_id !== advancedFilters.organizationId) {
-        return false;
-      }
+    // Job title filter (server-side)
+    if (advancedFilters.jobTitles.length > 0) {
+      query = query.in('job_title', advancedFilters.jobTitles);
+    }
 
-      // Owner filter
-      if (advancedFilters.ownerId && person.owner_id !== advancedFilters.ownerId) {
-        return false;
-      }
+    // Organization filter (server-side)
+    if (advancedFilters.organizationId) {
+      query = query.eq('organization_id', advancedFilters.organizationId);
+    }
 
-      // Date range filter
-      if (advancedFilters.dateRange.from || advancedFilters.dateRange.to) {
-        const createdAt = new Date(person.created_at);
-        if (advancedFilters.dateRange.from && createdAt < advancedFilters.dateRange.from) return false;
-        if (advancedFilters.dateRange.to) {
-          const endOfDay = new Date(advancedFilters.dateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          if (createdAt > endOfDay) return false;
-        }
-      }
+    // Owner filter (server-side)
+    if (advancedFilters.ownerId) {
+      query = query.eq('owner_id', advancedFilters.ownerId);
+    }
 
-      // Has email filter
-      if (advancedFilters.hasEmail === true && !person.email) return false;
-      if (advancedFilters.hasEmail === false && person.email) return false;
+    // Date range filter (server-side)
+    if (advancedFilters.dateRange.from) {
+      query = query.gte('created_at', advancedFilters.dateRange.from.toISOString());
+    }
+    if (advancedFilters.dateRange.to) {
+      const endOfDay = new Date(advancedFilters.dateRange.to);
+      endOfDay.setHours(23, 59, 59, 999);
+      query = query.lte('created_at', endOfDay.toISOString());
+    }
 
-      // Has phone filter
-      if (advancedFilters.hasPhone === true && !person.phone) return false;
-      if (advancedFilters.hasPhone === false && person.phone) return false;
+    // Has email filter (server-side)
+    if (advancedFilters.hasEmail === true) {
+      query = query.not('email', 'is', null);
+    } else if (advancedFilters.hasEmail === false) {
+      query = query.is('email', null);
+    }
 
-      return true;
-    });
-  }, [people, selectedTagIds, tagAssignments, advancedFilters]);
+    // Has phone filter (server-side)
+    if (advancedFilters.hasPhone === true) {
+      query = query.not('phone', 'is', null);
+    } else if (advancedFilters.hasPhone === false) {
+      query = query.is('phone', null);
+    }
+
+    // Tag filter - filter by IDs if tags selected
+    if (selectedTagIds.length > 0 && taggedPersonIds.length > 0) {
+      query = query.in('id', taggedPersonIds);
+    } else if (selectedTagIds.length > 0 && taggedPersonIds.length === 0) {
+      // No people match the selected tags, return empty
+      return { data: [], count: 0 };
+    }
+
+    // Apply pagination
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return { data: data as PersonWithOrg[], count };
+  };
+
+  // Use paginated query hook
+  const {
+    data: people,
+    totalCount,
+    pageCount,
+    currentPage,
+    pageSize,
+    isLoading,
+    isFetching,
+    goToPage,
+    nextPage,
+    previousPage,
+    canNextPage,
+    canPreviousPage,
+    setPageSize,
+    pagination,
+    setPagination,
+  } = usePaginatedQuery<PersonWithOrg>({
+    queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedPersonIds)],
+    queryFn: fetchPeople,
+    pageSizeStorageKey: PAGE_SIZE_KEY,
+    pageSize: 25,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -232,6 +266,23 @@ export default function People() {
     setIsDialogOpen(false);
     setEditingPerson(null);
   };
+
+  // Check if filters are active
+  const hasActiveFilters = useMemo(() => {
+    return (
+      debouncedSearch.length > 0 ||
+      selectedTagIds.length > 0 ||
+      advancedFilters.labels.length > 0 ||
+      advancedFilters.leadSources.length > 0 ||
+      advancedFilters.jobTitles.length > 0 ||
+      advancedFilters.organizationId !== null ||
+      advancedFilters.ownerId !== null ||
+      advancedFilters.dateRange.from !== null ||
+      advancedFilters.dateRange.to !== null ||
+      advancedFilters.hasEmail !== null ||
+      advancedFilters.hasPhone !== null
+    );
+  }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
@@ -310,7 +361,7 @@ export default function People() {
           </div>
           <p className="text-sm text-muted-foreground mt-4">Carregando pessoas...</p>
         </div>
-      ) : filteredPeople.length === 0 ? (
+      ) : people.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="relative mb-6">
             <div className="absolute inset-0 rounded-2xl bg-muted/50 blur-xl" />
@@ -320,9 +371,9 @@ export default function People() {
           </div>
           <h3 className="text-lg font-semibold mb-1">Nenhuma pessoa encontrada</h3>
           <p className="text-muted-foreground mb-6 max-w-sm">
-            {search || selectedTagIds.length > 0 || advancedFilters !== defaultPeopleFilters ? 'Tente ajustar sua busca ou filtros' : 'Adicione seu primeiro contato para começar'}
+            {hasActiveFilters ? 'Tente ajustar sua busca ou filtros' : 'Adicione seu primeiro contato para começar'}
           </p>
-          {!search && selectedTagIds.length === 0 && advancedFilters === defaultPeopleFilters && (
+          {!hasActiveFilters && (
             <Button onClick={() => setIsDialogOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Criar Primeiro Contato
@@ -331,7 +382,7 @@ export default function People() {
         </div>
       ) : (
         <PeopleTable
-          people={filteredPeople}
+          people={people}
           isAdmin={isAdmin}
           onEdit={handleEdit}
           onDelete={handleDelete}
@@ -339,6 +390,14 @@ export default function People() {
           onSelectionChange={setSelectedIds}
           onBulkDelete={() => setBulkDeleteOpen(true)}
           onMerge={() => setMergeDialogOpen(true)}
+          // Server-side pagination props
+          totalCount={totalCount}
+          pageCount={pageCount}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={goToPage}
+          onPageSizeChange={setPageSize}
+          isFetching={isFetching}
         />
       )}
 
@@ -347,8 +406,8 @@ export default function People() {
         <MergeContactsDialog
           open={mergeDialogOpen}
           onOpenChange={setMergeDialogOpen}
-          person1={filteredPeople.find(p => p.id === selectedIds[0])!}
-          person2={filteredPeople.find(p => p.id === selectedIds[1])!}
+          person1={people.find(p => p.id === selectedIds[0])!}
+          person2={people.find(p => p.id === selectedIds[1])!}
           onSuccess={() => {
             setSelectedIds([]);
             setMergeDialogOpen(false);

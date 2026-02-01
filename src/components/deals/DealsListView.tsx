@@ -1,16 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DealsTable } from './DealsTable';
 import { DealFormSheet } from './DealFormSheet';
 import { KanbanFilters, KanbanFiltersState } from './KanbanFilters';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
-
-interface Pipeline {
-  id: string;
-  name: string;
-}
+import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 
 interface Stage {
   id: string;
@@ -25,9 +20,9 @@ interface DealsListViewProps {
   stages: Stage[];
 }
 
+const PAGE_SIZE_KEY = 'deals-list-page-size';
+
 export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<any>(null);
   const [filters, setFilters] = useState<KanbanFiltersState>(() => {
@@ -55,31 +50,6 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
     localStorage.setItem('kanban-filters', JSON.stringify(filters));
   }, [filters]);
 
-  // Fetch deals for the selected pipeline (all statuses)
-  const { data: deals = [], isLoading: dealsLoading } = useQuery({
-    queryKey: ['deals-list', pipelineId],
-    queryFn: async () => {
-      let query = supabase
-        .from('deals')
-        .select(`
-          *,
-          organization:organizations(id, name),
-          person:people(id, name),
-          stage:stages(id, name, color)
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (pipelineId) {
-        query = query.eq('pipeline_id', pipelineId);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!pipelineId,
-  });
-
   // Fetch profiles for owner display
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
@@ -93,8 +63,8 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
     },
   });
 
-  // Fetch deal tag assignments for filtering
-  const { data: dealTagAssignments = [] } = useQuery({
+  // Fetch deal tag assignments for filtering (when tags are selected)
+  const { data: taggedDealIds = [] } = useQuery({
     queryKey: ['deal-tag-filter-assignments-list', filters.tagIds],
     queryFn: async () => {
       if (!filters.tagIds || filters.tagIds.length === 0) return [];
@@ -108,37 +78,80 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
     enabled: (filters.tagIds?.length || 0) > 0,
   });
 
-  // Filter deals based on active filters
-  const filteredDeals = useMemo(() => {
-    const tagFilterSet = new Set(dealTagAssignments);
-    
-    return deals.filter((deal: any) => {
-      // Insurance type filter
-      if (filters.insuranceTypes.length > 0 && 
-          (!deal.insurance_type || !filters.insuranceTypes.includes(deal.insurance_type))) {
-        return false;
-      }
-      // Label filter
-      if (filters.labels.length > 0 && 
-          (!deal.label || !filters.labels.includes(deal.label))) {
-        return false;
-      }
-      // Date range filter (expected_close_date)
-      if (filters.dateRange.from && deal.expected_close_date) {
-        const dealDate = new Date(deal.expected_close_date);
-        if (dealDate < filters.dateRange.from) return false;
-      }
-      if (filters.dateRange.to && deal.expected_close_date) {
-        const dealDate = new Date(deal.expected_close_date);
-        if (dealDate > filters.dateRange.to) return false;
-      }
-      // Tag filter
-      if ((filters.tagIds?.length || 0) > 0 && !tagFilterSet.has(deal.id)) {
-        return false;
-      }
-      return true;
-    });
-  }, [deals, filters, dealTagAssignments]);
+  // Build query function for server-side pagination
+  const fetchDeals = async ({ from, to }: { from: number; to: number }) => {
+    if (!pipelineId) {
+      return { data: [], count: 0 };
+    }
+
+    let query = supabase
+      .from('deals')
+      .select(`
+        *,
+        organization:organizations(id, name),
+        person:people(id, name),
+        stage:stages(id, name, color)
+      `, { count: 'exact' })
+      .eq('pipeline_id', pipelineId)
+      .order('created_at', { ascending: false });
+
+    // Insurance type filter (server-side)
+    if (filters.insuranceTypes.length > 0) {
+      query = query.in('insurance_type', filters.insuranceTypes);
+    }
+
+    // Label filter (server-side)
+    if (filters.labels.length > 0) {
+      query = query.in('label', filters.labels);
+    }
+
+    // Date range filter on expected_close_date (server-side)
+    if (filters.dateRange.from) {
+      query = query.gte('expected_close_date', filters.dateRange.from.toISOString().split('T')[0]);
+    }
+    if (filters.dateRange.to) {
+      query = query.lte('expected_close_date', filters.dateRange.to.toISOString().split('T')[0]);
+    }
+
+    // Owner filter (server-side)
+    if (filters.ownerId) {
+      query = query.eq('owner_id', filters.ownerId);
+    }
+
+    // Tag filter - filter by IDs if tags selected
+    if ((filters.tagIds?.length || 0) > 0 && taggedDealIds.length > 0) {
+      query = query.in('id', taggedDealIds);
+    } else if ((filters.tagIds?.length || 0) > 0 && taggedDealIds.length === 0) {
+      // No deals match the selected tags, return empty
+      return { data: [], count: 0 };
+    }
+
+    // Apply pagination
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return { data: data || [], count };
+  };
+
+  // Use paginated query hook
+  const {
+    data: deals,
+    totalCount,
+    pageCount,
+    currentPage,
+    pageSize,
+    isLoading,
+    isFetching,
+    goToPage,
+    setPageSize,
+  } = usePaginatedQuery<any>({
+    queryKey: ['deals-list', pipelineId, JSON.stringify(filters), JSON.stringify(taggedDealIds)],
+    queryFn: fetchDeals,
+    pageSizeStorageKey: PAGE_SIZE_KEY,
+    pageSize: 25,
+    enabled: !!pipelineId,
+  });
 
   const handleEditDeal = (deal: any) => {
     setEditingDeal(deal);
@@ -150,7 +163,15 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
     setEditingDeal(null);
   };
 
-  if (dealsLoading) {
+  if (!pipelineId) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        Selecione um pipeline para ver os negócios
+      </div>
+    );
+  }
+
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <div className="flex gap-3">
@@ -170,11 +191,19 @@ export function DealsListView({ pipelineId, stages }: DealsListViewProps) {
 
       {/* Table */}
       <DealsTable
-        deals={filteredDeals}
+        deals={deals}
         stages={stages}
         profiles={profiles}
         onEdit={handleEditDeal}
-        isLoading={dealsLoading}
+        isLoading={isLoading}
+        // Server-side pagination props
+        totalCount={totalCount}
+        pageCount={pageCount}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={goToPage}
+        onPageSizeChange={setPageSize}
+        isFetching={isFetching}
       />
 
       {/* Deal Form Sheet */}
