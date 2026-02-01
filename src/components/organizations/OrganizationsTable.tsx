@@ -73,6 +73,7 @@ interface OrganizationsTableProps {
   onSelectionChange?: (ids: string[]) => void;
   onBulkDelete?: () => void;
   onMerge?: () => void;
+  onBulkEnrich?: () => void;
   // Server-side pagination props
   totalCount?: number;
   pageCount?: number;
@@ -155,6 +156,7 @@ export function OrganizationsTable({
   onSelectionChange,
   onBulkDelete,
   onMerge,
+  onBulkEnrich,
   // Server-side pagination props
   totalCount = 0,
   pageCount = 1,
@@ -546,6 +548,17 @@ export function OrganizationsTable({
               <span className="text-sm text-muted-foreground">
                 {selectedIds.length} selecionada(s)
               </span>
+              {onBulkEnrich && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onBulkEnrich}
+                  className="h-8"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1.5" />
+                  Atualizar RF
+                </Button>
+              )}
               {selectedIds.length === 2 && onMerge && (
                 <Button
                   variant="outline"

@@ -21,6 +21,7 @@ import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { useOrganizationTags } from '@/hooks/useOrganizationTags';
 import { OrganizationsFilters, OrganizationsFiltersState, defaultOrganizationsFilters } from '@/components/organizations/OrganizationsFilters';
 import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
+import { BulkEnrichDialog } from '@/components/organizations/BulkEnrichDialog';
 import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -88,6 +89,9 @@ export default function Organizations() {
   
   // Merge state
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  
+  // Bulk enrich state
+  const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -387,6 +391,22 @@ export default function Organizations() {
     );
   }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
+  // Get selected organizations with CNPJ for bulk enrich
+  const selectedOrgsWithCnpj = useMemo(() => {
+    return organizations
+      .filter(org => selectedIds.includes(org.id) && org.cnpj)
+      .map(org => ({ id: org.id, name: org.name, cnpj: org.cnpj! }));
+  }, [organizations, selectedIds]);
+
+  // Handle bulk enrich button click
+  const handleBulkEnrich = () => {
+    if (selectedOrgsWithCnpj.length === 0) {
+      toast.warning('Nenhuma organização selecionada possui CNPJ');
+      return;
+    }
+    setBulkEnrichOpen(true);
+  };
+
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
         {/* Header */}
@@ -503,6 +523,7 @@ export default function Organizations() {
               onSelectionChange={setSelectedIds}
               onBulkDelete={() => setBulkDeleteOpen(true)}
               onMerge={() => setMergeDialogOpen(true)}
+              onBulkEnrich={handleBulkEnrich}
               // Server-side pagination props
               totalCount={totalCount}
               pageCount={pageCount}
@@ -548,6 +569,14 @@ export default function Organizations() {
             }}
           />
         )}
+
+        {/* Bulk Enrich Dialog */}
+        <BulkEnrichDialog
+          open={bulkEnrichOpen}
+          onOpenChange={setBulkEnrichOpen}
+          organizations={selectedOrgsWithCnpj}
+          onComplete={() => setSelectedIds([])}
+        />
     </div>
   );
 }
