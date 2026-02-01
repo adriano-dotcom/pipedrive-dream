@@ -226,46 +226,48 @@ export function OrganizationsTable({
     { id: 'label', label: 'Status', accessor: (row: OrganizationWithContact) => row.label },
   ], []);
 
-  // Select column for bulk actions (only for admins)
-  const selectColumn: ColumnDef<OrganizationWithContact> = {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() || 
-          (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Selecionar todos"
-        className="translate-y-[2px]"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Selecionar linha"
-        className="translate-y-[2px]"
-        onClick={(e) => e.stopPropagation()}
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  };
+  // Flag for showing selection checkboxes
+  const showSelection = isAdmin && onSelectionChange;
 
   const baseColumns = useMemo<ColumnDef<OrganizationWithContact>[]>(
     () => [
       {
         id: 'name',
         accessorKey: 'name',
-        header: ({ column }) => <SortableHeader column={column} title="Nome" />,
+        header: ({ column, table }) => (
+          <div className="flex items-center gap-2">
+            {showSelection && (
+              <Checkbox
+                checked={
+                  table.getIsAllPageRowsSelected() || 
+                  (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
+                }
+                onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                aria-label="Selecionar todos"
+                className="translate-y-[2px]"
+              />
+            )}
+            <SortableHeader column={column} title="Nome" />
+          </div>
+        ),
         cell: ({ row }) => (
-          <Link 
-            to={`/organizations/${row.original.id}`}
-            className="font-medium text-primary hover:underline"
-          >
-            {row.original.name}
-          </Link>
+          <div className="flex items-center gap-2">
+            {showSelection && (
+              <Checkbox
+                checked={row.getIsSelected()}
+                onCheckedChange={(value) => row.toggleSelected(!!value)}
+                aria-label="Selecionar linha"
+                className="translate-y-[2px]"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+            <Link 
+              to={`/organizations/${row.original.id}`}
+              className="font-medium text-primary hover:underline"
+            >
+              {row.original.name}
+            </Link>
+          </div>
         ),
       },
       {
@@ -462,14 +464,11 @@ export function OrganizationsTable({
         },
       },
     ],
-    [isAdmin, onEdit, onDelete, onSetPrimaryContact, isSettingPrimaryContact]
+    [isAdmin, onEdit, onDelete, onSetPrimaryContact, isSettingPrimaryContact, showSelection]
   );
 
-  // Add select column for admins
-  const columns = useMemo(() => 
-    isAdmin && onSelectionChange ? [selectColumn, ...baseColumns] : baseColumns,
-    [isAdmin, baseColumns, onSelectionChange]
-  );
+  // Just use baseColumns directly (selection is now integrated in name column)
+  const columns = baseColumns;
 
   const table = useReactTable({
     data: organizations,
