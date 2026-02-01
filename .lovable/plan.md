@@ -1,137 +1,56 @@
 
+## Objetivo
+Fazer os cliques em **Organizações** (e também Pessoas) funcionarem de forma consistente, removendo a causa real que está “travando” a navegação/renderização.
 
-# Correção: Links de Navegação Não Funcionam nas Tabelas
+## O que encontrei (investigação a fundo)
+Nos logs do navegador apareceu repetidamente:
 
-## Problema Identificado
+- **“Warning: Maximum update depth exceeded”**
+- Stack trace apontando para **`DealFormSheet.tsx`** (componente de formulário de Negócio), renderizado dentro de páginas de detalhes (ex.: `PersonDetails`, e também `OrganizationDetails`).
 
-Ao clicar nos nomes de organizações ou pessoas na tabela, a navegação para a página de detalhes não funciona. O erro técnico identificado é "Node is detached from document", indicando que os elementos do DOM estão sendo removidos/recriados constantemente antes do clique ser processado.
+Isso é um sintoma de **loop infinito de re-render** (setState disparando toda renderização).  
+Quando você clica num link da tabela, o URL pode até mudar, mas a página de destino entra nesse loop e “não abre” (parece que o clique não funcionou).
 
-## Causa Raiz
+### Causa raiz provável (bem específica)
+Em `src/components/deals/DealFormSheet.tsx` há um `useEffect` que sincroniza tags:
 
-A `queryKey` do hook `usePaginatedQuery` inclui valores que estão causando re-renderizações excessivas:
+- Quando **`deal` é null** (novo negócio) ele faz `setSelectedTagIds([])`.
+- Esse `useEffect` roda por depender de `existingTagAssignments`, que pode mudar por referência (mesmo que continue “vazio”), e como `setSelectedTagIds([])` cria **um novo array** sempre, isso dispara re-render, que dispara o effect de novo, entrando no loop.
 
-**Código problemático em `People.tsx` (linha 211):**
-```typescript
-queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedPersonIds)],
-                                                                                                           ⬆️ PROBLEMA
-```
+Isso casa exatamente com o erro de “Maximum update depth exceeded”.
 
-**Código problemático em `Organizations.tsx` (linha 277):**
-```typescript
-queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedOrgIds)],
-                                                                                                                ⬆️ PROBLEMA
-```
+## Correção proposta (sem mudar UX)
+### 1) Tornar a sincronização de tags “idempotente” (não atualizar estado se não precisar)
+No `DealFormSheet.tsx`, ajustar o `useEffect` para:
+- Rodar **somente quando o Sheet estiver aberto (`open === true`)**  
+  (se o sheet está fechado, não faz sentido sincronizar estado interno e evita loop em páginas de detalhes)
+- Antes de chamar `setSelectedTagIds(...)`, comparar o “estado atual” vs “novo estado” e **só setar se mudou**  
+  (ex.: comparar com `join(',')` após ordenar, ou um helper `areArraysEqual`)
 
-### Por que isso causa o problema:
+### 2) Garantir que “novo negócio” (deal null) não dispara setState repetidamente
+Quando `deal` é null, em vez de sempre fazer `setSelectedTagIds([])`:
+- Só fazer isso quando:
+  - o Sheet abrir, ou
+  - o `deal?.id` mudar (ex.: de um id para null)
 
-```text
-Fluxo problemático:
-┌──────────────────────────────────────────────────────────────────┐
-│  1. Componente monta → taggedOrgIds = []                         │
-│  2. Query de tags executa em background                           │
-│  3. Tags retornam → taggedOrgIds = ['id1', 'id2']                │
-│  4. queryKey muda (porque taggedOrgIds mudou)                     │
-│  5. usePaginatedQuery recarrega com nova queryKey                 │
-│  6. Tabela é re-renderizada completamente                         │
-│  7. Links antigos são desmontados do DOM                          │
-│  8. Usuário tenta clicar → "Node is detached from document"      │
-└──────────────────────────────────────────────────────────────────┘
-```
+## Por que isso resolve o clique em Organizações/Pessoas
+- Ao navegar para `/organizations/:id` (ou `/people/:id`), a página deixa de entrar no loop infinito.
+- Sem loop, o React consegue montar a tela de detalhes normalmente, então o clique “funciona”.
 
-O `taggedOrgIds` e `taggedPersonIds` são valores **derivados** de `selectedTagIds` - não deveriam estar na queryKey porque:
+## Arquivos a alterar
+- `src/components/deals/DealFormSheet.tsx`
+  - Ajustar o `useEffect` de sincronização de tags para não causar loop (condicionar por `open` + comparar antes de setar).
 
-1. Já estão implícitos via `selectedTagIds`
-2. São usados **dentro** da `queryFn`, não para identificar a query
-3. Quando mudam, causam invalidação desnecessária
+## Checklist de teste (end-to-end)
+1) Em **/organizations**:
+   - clicar em 5 empresas diferentes e confirmar que abre **/organizations/:id** corretamente
+2) Em **/people**:
+   - clicar em 5 pessoas diferentes e confirmar que abre **/people/:id**
+3) Abrir “Novo Negócio” (DealFormSheet) a partir de OrganizationDetails e PersonDetails:
+   - confirmar que o modal abre sem travar
+4) Se existir edição de negócio:
+   - abrir edição e confirmar que tags pré-existentes carregam sem loop
+5) Abrir/fechar o DealFormSheet várias vezes e confirmar que não aparece mais o warning no console
 
----
-
-## Solução
-
-Remover `taggedOrgIds` e `taggedPersonIds` da queryKey e ajustar a lógica para aguardar a query de tags quando necessário.
-
-### Alterações em `src/pages/People.tsx`
-
-**Antes (linha 211):**
-```typescript
-queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedPersonIds)],
-```
-
-**Depois:**
-```typescript
-queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
-```
-
-Também adicionar condição `enabled` para aguardar a query de tags quando houver tags selecionadas:
-
-```typescript
-const isTagQueryReady = selectedTagIds.length === 0 || taggedPersonIds !== undefined;
-
-// Use paginated query hook
-const {
-  // ...
-} = usePaginatedQuery<PersonWithOrg>({
-  queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
-  queryFn: fetchPeople,
-  pageSizeStorageKey: PAGE_SIZE_KEY,
-  pageSize: 25,
-  enabled: isTagQueryReady, // Aguarda tags serem carregadas
-});
-```
-
-### Alterações em `src/pages/Organizations.tsx`
-
-**Antes (linha 277):**
-```typescript
-queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedOrgIds)],
-```
-
-**Depois:**
-```typescript
-queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
-```
-
-Com a mesma lógica de `enabled`:
-
-```typescript
-const isTagQueryReady = selectedTagIds.length === 0 || taggedOrgIds !== undefined;
-
-// Use paginated query hook
-const {
-  // ...
-} = usePaginatedQuery<OrganizationWithContact>({
-  queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
-  queryFn: fetchOrganizations,
-  pageSizeStorageKey: PAGE_SIZE_KEY,
-  pageSize: 25,
-  enabled: isTagQueryReady,
-});
-```
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/pages/People.tsx` | Remover `taggedPersonIds` da queryKey, adicionar lógica `enabled` |
-| `src/pages/Organizations.tsx` | Remover `taggedOrgIds` da queryKey, adicionar lógica `enabled` |
-
----
-
-## Por que isso resolve
-
-```text
-Fluxo corrigido:
-┌──────────────────────────────────────────────────────────────────┐
-│  1. Componente monta                                              │
-│  2. Se selectedTagIds > 0, enabled=false                         │
-│  3. Query de tags executa e retorna                               │
-│  4. enabled=true, query principal executa UMA vez                │
-│  5. Tabela renderiza e permanece estável                          │
-│  6. Links funcionam normalmente ✅                                │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-A queryKey agora depende apenas de valores que mudam por ação do usuário (busca, filtros, tags selecionadas), não de valores intermediários que mudam por si só.
-
+## Observação adicional (para estabilidade futura)
+Depois dessa correção, se ainda houver problema de clique “intermitente”, o próximo passo é capturar o erro exato no console no momento do clique (mas o log atual já aponta um culpado forte e consistente).
