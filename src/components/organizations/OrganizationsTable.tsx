@@ -4,11 +4,9 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
-  getPaginationRowModel,
   flexRender,
   ColumnDef,
   ColumnOrderState,
-  PaginationState,
   SortingState,
   VisibilityState,
   Column,
@@ -41,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star, GitMerge } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star, GitMerge, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -74,10 +72,17 @@ interface OrganizationsTableProps {
   onSelectionChange?: (ids: string[]) => void;
   onBulkDelete?: () => void;
   onMerge?: () => void;
+  // Server-side pagination props
+  totalCount?: number;
+  pageCount?: number;
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  isFetching?: boolean;
 }
 
 const COLUMN_ORDER_KEY = 'org-table-column-order';
-const PAGE_SIZE_KEY = 'organizations-table-page-size';
 const COLUMN_VISIBILITY_KEY = 'org-table-column-visibility';
 
 const defaultColumnOrder = [
@@ -145,10 +150,18 @@ export function OrganizationsTable({
   onDelete,
   onSetPrimaryContact,
   isSettingPrimaryContact,
-  selectedIds,
+  selectedIds = [],
   onSelectionChange,
   onBulkDelete,
   onMerge,
+  // Server-side pagination props
+  totalCount = 0,
+  pageCount = 1,
+  currentPage = 0,
+  pageSize = 25,
+  onPageChange,
+  onPageSizeChange,
+  isFetching = false,
 }: OrganizationsTableProps) {
   const isMobile = useIsMobile();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -165,16 +178,21 @@ export function OrganizationsTable({
       return {};
     }
   });
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: Number(localStorage.getItem(PAGE_SIZE_KEY)) || 25,
-  });
 
   // Sync row selection with parent callback
   useEffect(() => {
     const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
     onSelectionChange?.(selectedRowIds);
   }, [rowSelection, onSelectionChange]);
+
+  // Sync incoming selectedIds with local rowSelection state
+  useEffect(() => {
+    const newSelection: RowSelectionState = {};
+    selectedIds.forEach(id => {
+      newSelection[id] = true;
+    });
+    setRowSelection(newSelection);
+  }, [selectedIds]);
 
   useEffect(() => {
     if (columnOrder.length > 0) {
@@ -433,7 +451,6 @@ export function OrganizationsTable({
       sorting,
       columnOrder: columnOrder.length > 0 ? columnOrder : defaultColumnOrder,
       columnVisibility,
-      pagination,
       rowSelection,
     },
     enableRowSelection: isAdmin,
@@ -442,10 +459,11 @@ export function OrganizationsTable({
     onSortingChange: setSorting,
     onColumnOrderChange: setColumnOrder,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Manual pagination - data is already paginated from server
+    manualPagination: true,
+    pageCount: pageCount,
   });
 
   const handleDragEnd = (result: DropResult) => {
@@ -474,8 +492,19 @@ export function OrganizationsTable({
     );
   }
 
+  // Calculate display range for pagination info
+  const startIndex = currentPage * pageSize + 1;
+  const endIndex = Math.min((currentPage + 1) * pageSize, totalCount);
+
   return (
-    <div className="rounded-md border overflow-hidden">
+    <div className="rounded-md border overflow-hidden relative">
+      {/* Loading overlay when fetching */}
+      {isFetching && (
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Barra de ferramentas */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/10">
         <div className="flex items-center gap-4">
@@ -621,30 +650,19 @@ export function OrganizationsTable({
         </Table>
       </DragDropContext>
 
-      {/* Pagination Controls */}
+      {/* Pagination Controls - Server-side */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-border/50">
         <div className="flex flex-col sm:flex-row items-center gap-4">
           <span className="text-sm text-muted-foreground">
-            Mostrando{' '}
-            {table.getRowModel().rows.length === 0
-              ? 0
-              : table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}{' '}
-            a{' '}
-            {Math.min(
-              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-              table.getRowModel().rows.length + table.getState().pagination.pageIndex * table.getState().pagination.pageSize
-            )}{' '}
-            de {organizations.length} registros
+            Mostrando {totalCount === 0 ? 0 : startIndex} a {endIndex} de {totalCount} registros
           </span>
 
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Itens por página:</span>
             <Select
-              value={String(pagination.pageSize)}
+              value={String(pageSize)}
               onValueChange={(value) => {
-                const newSize = Number(value);
-                setPagination((prev) => ({ ...prev, pageSize: newSize, pageIndex: 0 }));
-                localStorage.setItem(PAGE_SIZE_KEY, value);
+                onPageSizeChange?.(Number(value));
               }}
             >
               <SelectTrigger className="h-8 w-20">
@@ -665,8 +683,8 @@ export function OrganizationsTable({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => onPageChange?.(0)}
+            disabled={currentPage === 0}
           >
             <ChevronsLeft className="h-4 w-4" />
           </Button>
@@ -674,23 +692,22 @@ export function OrganizationsTable({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => onPageChange?.(currentPage - 1)}
+            disabled={currentPage === 0}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
           <span className="px-3 text-sm text-muted-foreground">
-            Página {table.getState().pagination.pageIndex + 1} de{' '}
-            {table.getPageCount() || 1}
+            Página {currentPage + 1} de {pageCount}
           </span>
 
           <Button
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => onPageChange?.(currentPage + 1)}
+            disabled={currentPage >= pageCount - 1}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -698,8 +715,8 @@ export function OrganizationsTable({
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
+            onClick={() => onPageChange?.(pageCount - 1)}
+            disabled={currentPage >= pageCount - 1}
           >
             <ChevronsRight className="h-4 w-4" />
           </Button>

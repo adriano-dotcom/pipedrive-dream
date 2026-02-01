@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { TagFilterPopover } from '@/components/shared/TagFilterPopover';
 import { useOrganizationTags } from '@/hooks/useOrganizationTags';
 import { OrganizationsFilters, OrganizationsFiltersState, defaultOrganizationsFilters } from '@/components/organizations/OrganizationsFilters';
 import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
+import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -45,11 +46,13 @@ type OrganizationWithContact = Organization & {
 };
 
 const STORAGE_KEY = 'org-advanced-filters';
+const PAGE_SIZE_KEY = 'organizations-table-page-size';
 
 export default function Organizations() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrganizationWithContact | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrganizationWithContact | null>(null);
@@ -64,7 +67,6 @@ export default function Organizations() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Convert date strings back to Date objects
         return {
           ...defaultOrganizationsFilters,
           ...parsed,
@@ -87,6 +89,14 @@ export default function Organizations() {
   // Merge state
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // Persist advanced filters to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(advancedFilters));
@@ -100,60 +110,8 @@ export default function Organizations() {
   // Fetch all organization tags
   const { data: organizationTags = [], isLoading: tagsLoading } = useOrganizationTags();
 
-  const { data: organizations, isLoading } = useQuery({
-    queryKey: ['organizations', search],
-    queryFn: async () => {
-      let query = supabase
-        .from('organizations')
-        .select(`
-          *,
-          primary_contact:people!primary_contact_id(
-            id,
-            name,
-            phone,
-            email
-          ),
-          linked_people:people!people_organization_id_fkey(
-            id,
-            name,
-            phone,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (search) {
-        query = query.or(`name.ilike.%${search}%,cnpj.ilike.%${search}%,email.ilike.%${search}%`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      // Process data to apply fallback contact logic
-      const processedData = (data || []).map(org => {
-        const hasPrimaryContact = !!org.primary_contact;
-        const hasLinkedPeople = org.linked_people && org.linked_people.length > 0;
-        
-        return {
-          ...org,
-          primary_contact: org.primary_contact || 
-            (hasLinkedPeople ? {
-              id: org.linked_people![0].id,
-              name: org.linked_people![0].name,
-              phone: org.linked_people![0].phone,
-              email: org.linked_people![0].email,
-            } : null),
-          is_fallback_contact: !hasPrimaryContact && hasLinkedPeople,
-          fallback_contact_id: !hasPrimaryContact && hasLinkedPeople ? org.linked_people![0].id : undefined,
-        };
-      });
-      
-      return processedData as OrganizationWithContact[];
-    },
-  });
-
-  // Fetch tag assignments for filtering
-  const { data: tagAssignments = [] } = useQuery({
+  // Fetch tag assignments for filtering (when tags are selected)
+  const { data: taggedOrgIds = [] } = useQuery({
     queryKey: ['org-tag-filter-assignments', selectedTagIds],
     queryFn: async () => {
       if (selectedTagIds.length === 0) return [];
@@ -167,86 +125,160 @@ export default function Organizations() {
     enabled: selectedTagIds.length > 0,
   });
 
-  // Filter organizations based on tags and advanced filters
-  const filteredOrganizations = useMemo(() => {
-    if (!organizations) return [];
+  // Build query function for server-side pagination
+  const fetchOrganizations = async ({ from, to }: { from: number; to: number }) => {
+    let query = supabase
+      .from('organizations')
+      .select(`
+        *,
+        primary_contact:people!primary_contact_id(
+          id,
+          name,
+          phone,
+          email
+        ),
+        linked_people:people!people_organization_id_fkey(
+          id,
+          name,
+          phone,
+          email
+        )
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false });
+
+    // Search filter (server-side)
+    if (debouncedSearch) {
+      query = query.or(`name.ilike.%${debouncedSearch}%,cnpj.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%`);
+    }
+
+    // Label filter (server-side)
+    if (advancedFilters.labels.length > 0) {
+      query = query.in('label', advancedFilters.labels);
+    }
+
+    // City filter (server-side)
+    if (advancedFilters.cities.length > 0) {
+      query = query.in('address_city', advancedFilters.cities);
+    }
+
+    // State filter (server-side)
+    if (advancedFilters.states.length > 0) {
+      query = query.in('address_state', advancedFilters.states);
+    }
+
+    // Current insurer filter (server-side)
+    if (advancedFilters.currentInsurers.length > 0) {
+      query = query.in('current_insurer', advancedFilters.currentInsurers);
+    }
+
+    // Risk profile filter (server-side)
+    if (advancedFilters.riskProfiles.length > 0) {
+      query = query.in('risk_profile', advancedFilters.riskProfiles);
+    }
+
+    // Fleet type filter (server-side)
+    if (advancedFilters.fleetTypes.length > 0) {
+      query = query.in('fleet_type', advancedFilters.fleetTypes);
+    }
+
+    // Renewal month filter (server-side)
+    if (advancedFilters.renewalMonths.length > 0) {
+      query = query.in('policy_renewal_month', advancedFilters.renewalMonths);
+    }
+
+    // Owner filter (server-side)
+    if (advancedFilters.ownerId) {
+      query = query.eq('owner_id', advancedFilters.ownerId);
+    }
+
+    // Date range filter (server-side)
+    if (advancedFilters.dateRange.from) {
+      query = query.gte('created_at', advancedFilters.dateRange.from.toISOString());
+    }
+    if (advancedFilters.dateRange.to) {
+      const endOfDay = new Date(advancedFilters.dateRange.to);
+      endOfDay.setHours(23, 59, 59, 999);
+      query = query.lte('created_at', endOfDay.toISOString());
+    }
+
+    // Has CNPJ filter (server-side)
+    if (advancedFilters.hasCnpj === true) {
+      query = query.not('cnpj', 'is', null);
+    } else if (advancedFilters.hasCnpj === false) {
+      query = query.is('cnpj', null);
+    }
+
+    // Has claims history filter (server-side)
+    if (advancedFilters.hasClaimsHistory === true) {
+      query = query.eq('has_claims_history', true);
+    } else if (advancedFilters.hasClaimsHistory === false) {
+      query = query.or('has_claims_history.is.null,has_claims_history.eq.false');
+    }
+
+    // Tag filter - filter by IDs if tags selected
+    if (selectedTagIds.length > 0 && taggedOrgIds.length > 0) {
+      query = query.in('id', taggedOrgIds);
+    } else if (selectedTagIds.length > 0 && taggedOrgIds.length === 0) {
+      // No orgs match the selected tags, return empty
+      return { data: [], count: 0 };
+    }
+
+    // Insurance branches filter needs special handling (array contains)
+    // This is done client-side for now as Supabase array operators are complex
+
+    // Apply pagination
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
     
-    return organizations.filter((org) => {
-      // Tag filter
-      if (selectedTagIds.length > 0) {
-        const validIds = new Set(tagAssignments);
-        if (!validIds.has(org.id)) return false;
-      }
+    // Process data to apply fallback contact logic
+    let processedData = (data || []).map(org => {
+      const hasPrimaryContact = !!org.primary_contact;
+      const hasLinkedPeople = org.linked_people && org.linked_people.length > 0;
+      
+      return {
+        ...org,
+        primary_contact: org.primary_contact || 
+          (hasLinkedPeople ? {
+            id: org.linked_people![0].id,
+            name: org.linked_people![0].name,
+            phone: org.linked_people![0].phone,
+            email: org.linked_people![0].email,
+          } : null),
+        is_fallback_contact: !hasPrimaryContact && hasLinkedPeople,
+        fallback_contact_id: !hasPrimaryContact && hasLinkedPeople ? org.linked_people![0].id : undefined,
+      };
+    }) as OrganizationWithContact[];
 
-      // Label filter
-      if (advancedFilters.labels.length > 0 && !advancedFilters.labels.includes(org.label || '')) {
-        return false;
-      }
-
-      // City filter
-      if (advancedFilters.cities.length > 0 && !advancedFilters.cities.includes(org.address_city || '')) {
-        return false;
-      }
-
-      // State filter
-      if (advancedFilters.states.length > 0 && !advancedFilters.states.includes(org.address_state || '')) {
-        return false;
-      }
-
-      // Insurance branches filter
-      if (advancedFilters.insuranceBranches.length > 0) {
+    // Apply insurance branches filter client-side (complex array filter)
+    if (advancedFilters.insuranceBranches.length > 0) {
+      processedData = processedData.filter(org => {
         const orgBranches = org.insurance_branches || [];
-        const hasMatchingBranch = advancedFilters.insuranceBranches.some(b => orgBranches.includes(b));
-        if (!hasMatchingBranch) return false;
-      }
+        return advancedFilters.insuranceBranches.some(b => orgBranches.includes(b));
+      });
+    }
+    
+    return { data: processedData, count };
+  };
 
-      // Current insurer filter
-      if (advancedFilters.currentInsurers.length > 0 && !advancedFilters.currentInsurers.includes(org.current_insurer || '')) {
-        return false;
-      }
-
-      // Risk profile filter
-      if (advancedFilters.riskProfiles.length > 0 && !advancedFilters.riskProfiles.includes(org.risk_profile || '')) {
-        return false;
-      }
-
-      // Fleet type filter
-      if (advancedFilters.fleetTypes.length > 0 && !advancedFilters.fleetTypes.includes(org.fleet_type || '')) {
-        return false;
-      }
-
-      // Renewal month filter
-      if (advancedFilters.renewalMonths.length > 0 && !advancedFilters.renewalMonths.includes(org.policy_renewal_month || 0)) {
-        return false;
-      }
-
-      // Owner filter
-      if (advancedFilters.ownerId && org.owner_id !== advancedFilters.ownerId) {
-        return false;
-      }
-
-      // Date range filter
-      if (advancedFilters.dateRange.from || advancedFilters.dateRange.to) {
-        const createdAt = new Date(org.created_at);
-        if (advancedFilters.dateRange.from && createdAt < advancedFilters.dateRange.from) return false;
-        if (advancedFilters.dateRange.to) {
-          const endOfDay = new Date(advancedFilters.dateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          if (createdAt > endOfDay) return false;
-        }
-      }
-
-      // Has CNPJ filter
-      if (advancedFilters.hasCnpj === true && !org.cnpj) return false;
-      if (advancedFilters.hasCnpj === false && org.cnpj) return false;
-
-      // Has claims history filter
-      if (advancedFilters.hasClaimsHistory === true && !org.has_claims_history) return false;
-      if (advancedFilters.hasClaimsHistory === false && org.has_claims_history) return false;
-
-      return true;
-    });
-  }, [organizations, selectedTagIds, tagAssignments, advancedFilters]);
+  // Use paginated query hook
+  const {
+    data: organizations,
+    totalCount,
+    pageCount,
+    currentPage,
+    pageSize,
+    isLoading,
+    isFetching,
+    goToPage,
+    setPageSize,
+  } = usePaginatedQuery<OrganizationWithContact>({
+    queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedOrgIds)],
+    queryFn: fetchOrganizations,
+    pageSizeStorageKey: PAGE_SIZE_KEY,
+    pageSize: 25,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -330,9 +362,11 @@ export default function Organizations() {
     setEditingOrg(null);
   };
 
-  // Check if any advanced filter is active
-  const hasActiveAdvancedFilters = useMemo(() => {
+  // Check if any filter is active
+  const hasActiveFilters = useMemo(() => {
     return (
+      debouncedSearch.length > 0 ||
+      selectedTagIds.length > 0 ||
       advancedFilters.labels.length > 0 ||
       advancedFilters.cities.length > 0 ||
       advancedFilters.states.length > 0 ||
@@ -347,7 +381,7 @@ export default function Organizations() {
       advancedFilters.hasCnpj !== null ||
       advancedFilters.hasClaimsHistory !== null
     );
-  }, [advancedFilters]);
+  }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
@@ -426,7 +460,7 @@ export default function Organizations() {
             </div>
             <p className="text-sm text-muted-foreground mt-4">Carregando organizações...</p>
           </div>
-        ) : filteredOrganizations.length === 0 ? (
+        ) : organizations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="relative mb-6">
               <div className="absolute inset-0 rounded-2xl bg-muted/50 blur-xl" />
@@ -436,9 +470,9 @@ export default function Organizations() {
             </div>
             <h3 className="text-lg font-semibold mb-1">Nenhuma organização encontrada</h3>
             <p className="text-muted-foreground mb-6 max-w-sm">
-              {search || selectedTagIds.length > 0 || hasActiveAdvancedFilters ? 'Tente ajustar sua busca ou filtros' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
+              {hasActiveFilters ? 'Tente ajustar sua busca ou filtros' : 'Adicione sua primeira organização para começar a gerenciar seus clientes'}
             </p>
-            {!search && selectedTagIds.length === 0 && !hasActiveAdvancedFilters && (
+            {!hasActiveFilters && (
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Criar Primeira Organização
@@ -448,7 +482,7 @@ export default function Organizations() {
         ) : (
           <div className="rounded-xl border border-border/50 overflow-hidden bg-card/30">
             <OrganizationsTable
-              organizations={filteredOrganizations}
+              organizations={organizations}
               isAdmin={isAdmin}
               onEdit={handleEdit}
               onDelete={handleDelete}
@@ -458,6 +492,14 @@ export default function Organizations() {
               onSelectionChange={setSelectedIds}
               onBulkDelete={() => setBulkDeleteOpen(true)}
               onMerge={() => setMergeDialogOpen(true)}
+              // Server-side pagination props
+              totalCount={totalCount}
+              pageCount={pageCount}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={goToPage}
+              onPageSizeChange={setPageSize}
+              isFetching={isFetching}
             />
           </div>
         )}
@@ -487,8 +529,8 @@ export default function Organizations() {
           <MergeOrganizationsDialog
             open={mergeDialogOpen}
             onOpenChange={setMergeDialogOpen}
-            org1={filteredOrganizations.find(o => o.id === selectedIds[0])!}
-            org2={filteredOrganizations.find(o => o.id === selectedIds[1])!}
+            org1={organizations.find(o => o.id === selectedIds[0])!}
+            org2={organizations.find(o => o.id === selectedIds[1])!}
             onSuccess={() => {
               setSelectedIds([]);
               setMergeDialogOpen(false);
