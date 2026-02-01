@@ -74,9 +74,17 @@ export function usePaginatedQuery<T>(options: UsePaginatedQueryOptions<T>): UseP
 
   // Reset to page 0 when base queryKey changes (e.g., sorting, filters)
   const baseQueryKeyHash = JSON.stringify(queryKey);
-  const prevBaseQueryKeyRef = useRef(baseQueryKeyHash);
+  const prevBaseQueryKeyRef = useRef<string | null>(null);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
+    // Skip the first render to avoid resetting on mount
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      prevBaseQueryKeyRef.current = baseQueryKeyHash;
+      return;
+    }
+    
     if (prevBaseQueryKeyRef.current !== baseQueryKeyHash) {
       setPagination(prev => ({ ...prev, pageIndex: 0 }));
       prevBaseQueryKeyRef.current = baseQueryKeyHash;
