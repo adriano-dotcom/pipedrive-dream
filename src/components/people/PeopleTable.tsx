@@ -183,9 +183,12 @@ export function PeopleTable({
   }, [selectedIds]);
   
   // Buscar todas as atribuições de tags para as pessoas na lista
-  const personIds = people.map(p => p.id);
+  // Usar useMemo para estabilizar personIds e evitar re-renders desnecessários
+  const personIds = useMemo(() => people.map(p => p.id), [people]);
+  const personIdsKey = useMemo(() => personIds.slice().sort().join(','), [personIds]);
+  
   const { data: allTagAssignments = [] } = useQuery({
-    queryKey: ['person-tag-assignments-bulk', personIds],
+    queryKey: ['person-tag-assignments-bulk', personIdsKey],
     queryFn: async () => {
       if (personIds.length === 0) return [];
       
@@ -203,6 +206,7 @@ export function PeopleTable({
       return data as { id: string; person_id: string; tag_id: string; tag: { id: string; name: string; color: string } }[];
     },
     enabled: personIds.length > 0,
+    staleTime: 30000, // Manter dados frescos por 30s para evitar refetch desnecessário
   });
   
   // Criar um mapa de pessoa -> tags
