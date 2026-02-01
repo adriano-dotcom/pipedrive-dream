@@ -242,41 +242,44 @@ export function PeopleTable({
     { id: 'label', label: 'Status', accessor: (row: PersonWithOrg) => row.label },
   ], []);
 
-  const selectColumn: ColumnDef<PersonWithOrg> = {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={table.getIsAllPageRowsSelected()}
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Selecionar todos"
-        className="translate-y-[2px]"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Selecionar linha"
-        className="translate-y-[2px]"
-        onClick={(e) => e.stopPropagation()}
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  };
+  // Flag para mostrar checkboxes de seleção
+  const showSelection = isAdmin && onSelectionChange;
 
   const columns = useMemo<ColumnDef<PersonWithOrg>[]>(() => [
     {
       id: 'name',
       accessorKey: 'name',
-      header: ({ column }) => <SortableHeader column={column} title="Nome" />,
+      header: ({ column, table }) => (
+        <div className="flex items-center gap-2">
+          {showSelection && (
+            <Checkbox
+              checked={table.getIsAllPageRowsSelected()}
+              onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+              aria-label="Selecionar todos"
+              className="translate-y-[2px]"
+            />
+          )}
+          <SortableHeader column={column} title="Nome" />
+        </div>
+      ),
       cell: ({ row }) => (
-        <Link
-          to={`/people/${row.original.id}`}
-          className="font-medium hover:text-primary hover:underline transition-colors"
-        >
-          {row.original.name}
-        </Link>
+        <div className="flex items-center gap-2">
+          {showSelection && (
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Selecionar linha"
+              className="translate-y-[2px]"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <Link
+            to={`/people/${row.original.id}`}
+            className="font-medium hover:text-primary hover:underline transition-colors"
+          >
+            {row.original.name}
+          </Link>
+        </div>
       ),
     },
     {
@@ -453,11 +456,10 @@ export function PeopleTable({
         </div>
       ),
     },
-  ], [isAdmin, onEdit, onDelete, tagsByPersonId]);
+  ], [isAdmin, onEdit, onDelete, tagsByPersonId, showSelection]);
 
-  const allColumns = useMemo(() => {
-    return isAdmin ? [selectColumn, ...columns] : columns;
-  }, [isAdmin, columns, selectColumn]);
+  // Usar diretamente columns (checkbox já está na coluna name)
+  const allColumns = columns;
 
   const defaultColumnOrder = useMemo(() => columns.map(c => c.id as string), [columns]);
 
