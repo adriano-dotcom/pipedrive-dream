@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Phone, Mail, MapPin, Pencil, Trash2, Star } from 'lucide-react';
+import { Phone, Mail, MapPin, Pencil, Trash2, Star, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn, formatCnpj } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
+import { useEnrichOrganizationList } from '@/hooks/useEnrichOrganizationList';
 
 type Organization = Tables<'organizations'>;
 
@@ -44,7 +45,62 @@ const getLabelColor = (label: string | null) => {
   }
 };
 
-export function OrganizationsMobileList({ 
+// Componente extraído para usar hook de forma correta
+function OrganizationCardActions({
+  org,
+  isAdmin,
+  onEdit,
+  onDelete,
+}: {
+  org: OrganizationWithContact;
+  isAdmin: boolean;
+  onEdit: (org: OrganizationWithContact) => void;
+  onDelete: (org: OrganizationWithContact) => void;
+}) {
+  const { enrich, enrichingId } = useEnrichOrganizationList();
+  
+  return (
+    <div className="flex items-center gap-2 pt-2 border-t border-border/30">
+      {org.cnpj && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => enrich({ organizationId: org.id, cnpj: org.cnpj! })}
+          disabled={enrichingId === org.id}
+          className="text-primary"
+        >
+          {enrichingId === org.id ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+          )}
+          RF
+        </Button>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onEdit(org)}
+        className="flex-1"
+      >
+        <Pencil className="h-4 w-4 mr-1.5" />
+        Editar
+      </Button>
+      {isAdmin && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onDelete(org)}
+          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function OrganizationsMobileList({
   organizations, 
   isAdmin, 
   onEdit, 
@@ -196,27 +252,12 @@ export function OrganizationsMobileList({
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-2 pt-2 border-t border-border/30">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(org)}
-              className="flex-1"
-            >
-              <Pencil className="h-4 w-4 mr-1.5" />
-              Editar
-            </Button>
-            {isAdmin && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onDelete(org)}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+          <OrganizationCardActions 
+            org={org}
+            isAdmin={isAdmin}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </div>
       ))}
     </div>

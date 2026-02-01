@@ -39,7 +39,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star, GitMerge, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, Phone, Mail, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Star, GitMerge, Loader2, RefreshCw } from 'lucide-react';
+import { useEnrichOrganizationList } from '@/hooks/useEnrichOrganizationList';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -412,27 +413,53 @@ export function OrganizationsTable({
       {
         id: 'actions',
         header: 'Ações',
-        cell: ({ row }) => (
-          <div className="flex items-center justify-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(row.original)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            {isAdmin && (
+        cell: function ActionsCell({ row }) {
+          const { enrich, enrichingId } = useEnrichOrganizationList();
+          const org = row.original;
+          
+          return (
+            <div className="flex items-center justify-center gap-1">
+              {org.cnpj && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => enrich({ organizationId: org.id, cnpj: org.cnpj! })}
+                        disabled={enrichingId === org.id}
+                      >
+                        {enrichingId === org.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 text-primary" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Atualizar via Receita Federal</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => onDelete(row.original)}
-                className="text-destructive hover:text-destructive"
+                onClick={() => onEdit(org)}
               >
-                <Trash2 className="h-4 w-4" />
+                <Pencil className="h-4 w-4" />
               </Button>
-            )}
-          </div>
-        ),
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(org)}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          );
+        },
       },
     ],
     [isAdmin, onEdit, onDelete, onSetPrimaryContact, isSettingPrimaryContact]
