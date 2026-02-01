@@ -938,6 +938,7 @@ export type Database = {
           notes: string | null
           organization_id: string | null
           owner_id: string | null
+          partner_id: string | null
           phone: string | null
           updated_at: string
           utm_campaign: string | null
@@ -958,6 +959,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string | null
           owner_id?: string | null
+          partner_id?: string | null
           phone?: string | null
           updated_at?: string
           utm_campaign?: string | null
@@ -978,6 +980,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string | null
           owner_id?: string | null
+          partner_id?: string | null
           phone?: string | null
           updated_at?: string
           utm_campaign?: string | null
@@ -991,6 +994,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "people_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "organization_partners"
             referencedColumns: ["id"]
           },
         ]
