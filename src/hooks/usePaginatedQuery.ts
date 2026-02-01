@@ -6,6 +6,11 @@ export interface PaginationState {
   pageSize: number;
 }
 
+export interface SortingState {
+  id: string;
+  desc: boolean;
+}
+
 export interface UsePaginatedQueryOptions<T> {
   queryKey: string[];
   queryFn: (range: { from: number; to: number }) => Promise<{ data: T[]; count: number | null }>;

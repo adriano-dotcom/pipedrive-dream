@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,8 +22,9 @@ import { useOrganizationTags } from '@/hooks/useOrganizationTags';
 import { OrganizationsFilters, OrganizationsFiltersState, defaultOrganizationsFilters } from '@/components/organizations/OrganizationsFilters';
 import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
 import { BulkEnrichDialog } from '@/components/organizations/BulkEnrichDialog';
-import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
+import { usePaginatedQuery, type SortingState as PaginatedSortingState } from '@/hooks/usePaginatedQuery';
 import type { Tables } from '@/integrations/supabase/types';
+import type { SortingState } from '@tanstack/react-table';
 
 type Organization = Tables<'organizations'>;
 
@@ -93,6 +94,9 @@ export default function Organizations() {
   // Bulk enrich state
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
 
+  // Server-side sorting state
+  const [sorting, setSorting] = useState<SortingState>([]);
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -129,8 +133,17 @@ export default function Organizations() {
     enabled: selectedTagIds.length > 0,
   });
 
+  // Column mapping for server-side sorting
+  const columnToDbField: Record<string, string> = useMemo(() => ({
+    name: 'name',
+    cnpj: 'cnpj',
+    automotores: 'automotores',
+    label: 'label',
+    city: 'address_city',
+  }), []);
+
   // Build query function for server-side pagination
-  const fetchOrganizations = async ({ from, to }: { from: number; to: number }) => {
+  const fetchOrganizations = useCallback(async ({ from, to }: { from: number; to: number }) => {
     let query = supabase
       .from('organizations')
       .select(`
@@ -147,8 +160,22 @@ export default function Organizations() {
           phone,
           email
         )
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' });
+
+    // Apply server-side sorting
+    if (sorting.length > 0) {
+      const { id: columnId, desc } = sorting[0];
+      const dbColumn = columnToDbField[columnId];
+      if (dbColumn) {
+        query = query.order(dbColumn, { ascending: !desc, nullsFirst: false });
+      } else {
+        // Fallback for columns that can't be sorted server-side
+        query = query.order('created_at', { ascending: false });
+      }
+    } else {
+      // Default sort
+      query = query.order('created_at', { ascending: false });
+    }
 
     // Search filter (server-side)
     if (debouncedSearch) {
@@ -264,12 +291,12 @@ export default function Organizations() {
     }
     
     return { data: processedData, count };
-  };
+  }, [debouncedSearch, advancedFilters, selectedTagIds, taggedOrgIds, sorting, columnToDbField]);
 
   // Check if tag query is ready before running main query
   const isTagQueryReady = selectedTagIds.length === 0 || tagQueryFetched;
 
-  // Use paginated query hook
+  // Use paginated query hook - include sorting in queryKey to refetch on sort change
   const {
     data: organizations,
     totalCount,
@@ -281,7 +308,7 @@ export default function Organizations() {
     goToPage,
     setPageSize,
   } = usePaginatedQuery<OrganizationWithContact>({
-    queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
+    queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(sorting)],
     queryFn: fetchOrganizations,
     pageSizeStorageKey: PAGE_SIZE_KEY,
     pageSize: 25,
@@ -555,6 +582,9 @@ export default function Organizations() {
               onPageChange={goToPage}
               onPageSizeChange={setPageSize}
               isFetching={isFetching}
+              // Server-side sorting props
+              sorting={sorting}
+              onSortingChange={setSorting}
             />
           </div>
         )}

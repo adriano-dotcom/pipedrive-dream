@@ -82,6 +82,9 @@ interface OrganizationsTableProps {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
   isFetching?: boolean;
+  // Server-side sorting props
+  sorting?: SortingState;
+  onSortingChange?: (sorting: SortingState) => void;
 }
 
 const COLUMN_ORDER_KEY = 'org-table-column-order';
@@ -165,9 +168,13 @@ export function OrganizationsTable({
   onPageChange,
   onPageSizeChange,
   isFetching = false,
+  // Server-side sorting props
+  sorting: externalSorting = [],
+  onSortingChange,
 }: OrganizationsTableProps) {
   const isMobile = useIsMobile();
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+  const sorting = onSortingChange ? externalSorting : internalSorting;
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(() => {
     const saved = localStorage.getItem(COLUMN_ORDER_KEY);
@@ -472,6 +479,15 @@ export function OrganizationsTable({
   // Just use baseColumns directly (selection is now integrated in name column)
   const columns = baseColumns;
 
+  const handleSortingChange = (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+    const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
+    if (onSortingChange) {
+      onSortingChange(newSorting);
+    } else {
+      setInternalSorting(newSorting);
+    }
+  };
+
   const table = useReactTable({
     data: organizations,
     columns,
@@ -484,11 +500,13 @@ export function OrganizationsTable({
     enableRowSelection: isAdmin,
     getRowId: (row) => row.id,
     onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
     onColumnOrderChange: setColumnOrder,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    // Server-side sorting - data comes already sorted from server
+    manualSorting: !!onSortingChange,
+    getSortedRowModel: onSortingChange ? undefined : getSortedRowModel(),
     // Manual pagination - data is already paginated from server
     manualPagination: true,
     pageCount: pageCount,
