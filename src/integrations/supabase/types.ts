@@ -653,6 +653,62 @@ export type Database = {
           },
         ]
       }
+      organization_partners: {
+        Row: {
+          country: string | null
+          created_at: string | null
+          document: string | null
+          entry_date: string | null
+          id: string
+          legal_rep_document: string | null
+          legal_rep_name: string | null
+          legal_rep_qualification: string | null
+          name: string
+          organization_id: string
+          qualification: string | null
+          qualification_code: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string | null
+          document?: string | null
+          entry_date?: string | null
+          id?: string
+          legal_rep_document?: string | null
+          legal_rep_name?: string | null
+          legal_rep_qualification?: string | null
+          name: string
+          organization_id: string
+          qualification?: string | null
+          qualification_code?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string | null
+          document?: string | null
+          entry_date?: string | null
+          id?: string
+          legal_rep_document?: string | null
+          legal_rep_name?: string | null
+          legal_rep_qualification?: string | null
+          name?: string
+          organization_id?: string
+          qualification?: string | null
+          qualification_code?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_partners_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_tag_assignments: {
         Row: {
           created_at: string | null
@@ -724,19 +780,28 @@ export type Database = {
           address_zipcode: string | null
           annual_premium_estimate: number | null
           automotores: number | null
+          branch_type: string | null
           broker_notes: string | null
           cnae: string | null
           cnpj: string | null
+          company_size: string | null
           created_at: string
           created_by: string | null
           current_insurer: string | null
           email: string | null
+          enrichment_source: string | null
           fleet_size: number | null
           fleet_type: string | null
+          founded_date: string | null
           has_claims_history: boolean | null
           id: string
           insurance_branches: string[] | null
           label: string | null
+          last_enriched_at: string | null
+          latitude: number | null
+          legal_nature: string | null
+          legal_nature_code: string | null
+          longitude: number | null
           name: string
           notes: string | null
           owner_id: string | null
@@ -744,8 +809,12 @@ export type Database = {
           policy_renewal_month: number | null
           preferred_insurers: string[] | null
           primary_contact_id: string | null
+          registration_status: string | null
+          registration_status_date: string | null
           risk_profile: string | null
           rntrc_antt: string | null
+          share_capital: number | null
+          trade_name: string | null
           updated_at: string
           website: string | null
         }
@@ -759,19 +828,28 @@ export type Database = {
           address_zipcode?: string | null
           annual_premium_estimate?: number | null
           automotores?: number | null
+          branch_type?: string | null
           broker_notes?: string | null
           cnae?: string | null
           cnpj?: string | null
+          company_size?: string | null
           created_at?: string
           created_by?: string | null
           current_insurer?: string | null
           email?: string | null
+          enrichment_source?: string | null
           fleet_size?: number | null
           fleet_type?: string | null
+          founded_date?: string | null
           has_claims_history?: boolean | null
           id?: string
           insurance_branches?: string[] | null
           label?: string | null
+          last_enriched_at?: string | null
+          latitude?: number | null
+          legal_nature?: string | null
+          legal_nature_code?: string | null
+          longitude?: number | null
           name: string
           notes?: string | null
           owner_id?: string | null
@@ -779,8 +857,12 @@ export type Database = {
           policy_renewal_month?: number | null
           preferred_insurers?: string[] | null
           primary_contact_id?: string | null
+          registration_status?: string | null
+          registration_status_date?: string | null
           risk_profile?: string | null
           rntrc_antt?: string | null
+          share_capital?: number | null
+          trade_name?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -794,19 +876,28 @@ export type Database = {
           address_zipcode?: string | null
           annual_premium_estimate?: number | null
           automotores?: number | null
+          branch_type?: string | null
           broker_notes?: string | null
           cnae?: string | null
           cnpj?: string | null
+          company_size?: string | null
           created_at?: string
           created_by?: string | null
           current_insurer?: string | null
           email?: string | null
+          enrichment_source?: string | null
           fleet_size?: number | null
           fleet_type?: string | null
+          founded_date?: string | null
           has_claims_history?: boolean | null
           id?: string
           insurance_branches?: string[] | null
           label?: string | null
+          last_enriched_at?: string | null
+          latitude?: number | null
+          legal_nature?: string | null
+          legal_nature_code?: string | null
+          longitude?: number | null
           name?: string
           notes?: string | null
           owner_id?: string | null
@@ -814,8 +905,12 @@ export type Database = {
           policy_renewal_month?: number | null
           preferred_insurers?: string[] | null
           primary_contact_id?: string | null
+          registration_status?: string | null
+          registration_status_date?: string | null
           risk_profile?: string | null
           rntrc_antt?: string | null
+          share_capital?: number | null
+          trade_name?: string | null
           updated_at?: string
           website?: string | null
         }
