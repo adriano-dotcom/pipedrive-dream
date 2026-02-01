@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, keepPreviousData, useQueryClient } from '@tanstack/react-query';
 
 export interface PaginationState {
@@ -71,6 +71,17 @@ export function usePaginatedQuery<T>(options: UsePaginatedQueryOptions<T>): UseP
       localStorage.setItem(pageSizeStorageKey, String(pagination.pageSize));
     }
   }, [pagination.pageSize, pageSizeStorageKey]);
+
+  // Reset to page 0 when base queryKey changes (e.g., sorting, filters)
+  const baseQueryKeyHash = JSON.stringify(queryKey);
+  const prevBaseQueryKeyRef = useRef(baseQueryKeyHash);
+
+  useEffect(() => {
+    if (prevBaseQueryKeyRef.current !== baseQueryKeyHash) {
+      setPagination(prev => ({ ...prev, pageIndex: 0 }));
+      prevBaseQueryKeyRef.current = baseQueryKeyHash;
+    }
+  }, [baseQueryKeyHash]);
 
   const from = pagination.pageIndex * pagination.pageSize;
   const to = from + pagination.pageSize - 1;
