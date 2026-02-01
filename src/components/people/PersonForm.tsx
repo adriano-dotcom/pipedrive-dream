@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { PhoneInput } from '@/components/ui/phone-input';
+
 import { CpfInput } from '@/components/ui/cpf-input';
 import {
   Select,
@@ -473,22 +473,23 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="phone">Telefone</Label>
-            <PhoneInput
+            <Input
               id="phone"
-              value={watch('phone') || ''}
-              onValueChange={(value) => setValue('phone', value)}
+              {...register('phone')}
+              placeholder="(00) 00000-0000"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="whatsapp">WhatsApp</Label>
-            <PhoneInput
+            <Input
               id="whatsapp"
-              value={watch('whatsapp') || ''}
-              onValueChange={(value) => {
-                setValue('whatsapp', value);
+              {...register('whatsapp')}
+              placeholder="(00) 00000-0000"
+              onBlur={handleWhatsappBlur}
+              onChange={(e) => {
+                register('whatsapp').onChange(e);
                 if (whatsappError) setWhatsappError(null);
               }}
-              onBlur={handleWhatsappBlur}
               className={whatsappError ? 'border-destructive' : ''}
             />
             {isCheckingWhatsapp && (
