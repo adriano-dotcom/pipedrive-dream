@@ -99,7 +99,7 @@ export default function People() {
   const { data: personTags = [], isLoading: tagsLoading } = usePersonTags();
 
   // Fetch tag assignments for filtering (when tags are selected)
-  const { data: taggedPersonIds = [] } = useQuery({
+  const { data: taggedPersonIds = [], isFetched: tagQueryFetched } = useQuery({
     queryKey: ['person-tag-filter-assignments', selectedTagIds],
     queryFn: async () => {
       if (selectedTagIds.length === 0) return [];
@@ -191,7 +191,7 @@ export default function People() {
   };
 
   // Check if tag query is ready before running main query
-  const isTagQueryReady = selectedTagIds.length === 0 || taggedPersonIds.length > 0 || taggedPersonIds !== undefined;
+  const isTagQueryReady = selectedTagIds.length === 0 || tagQueryFetched;
 
   // Use paginated query hook
   const {

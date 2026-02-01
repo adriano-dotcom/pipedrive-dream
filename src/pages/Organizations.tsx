@@ -111,7 +111,7 @@ export default function Organizations() {
   const { data: organizationTags = [], isLoading: tagsLoading } = useOrganizationTags();
 
   // Fetch tag assignments for filtering (when tags are selected)
-  const { data: taggedOrgIds = [] } = useQuery({
+  const { data: taggedOrgIds = [], isFetched: tagQueryFetched } = useQuery({
     queryKey: ['org-tag-filter-assignments', selectedTagIds],
     queryFn: async () => {
       if (selectedTagIds.length === 0) return [];
@@ -263,7 +263,7 @@ export default function Organizations() {
   };
 
   // Check if tag query is ready before running main query
-  const isTagQueryReady = selectedTagIds.length === 0 || taggedOrgIds.length > 0 || taggedOrgIds !== undefined;
+  const isTagQueryReady = selectedTagIds.length === 0 || tagQueryFetched;
 
   // Use paginated query hook
   const {
