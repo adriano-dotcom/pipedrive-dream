@@ -54,7 +54,7 @@ export function usePersonDetails(personId: string) {
   const { user } = useAuth();
 
   // Fetch person with related data
-  const { data: person, isLoading } = useQuery({
+  const { data: person, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['person', personId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -72,6 +72,8 @@ export function usePersonDetails(personId: string) {
       return data;
     },
     enabled: !!personId,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   // Fetch person history
@@ -270,6 +272,9 @@ export function usePersonDetails(personId: string) {
     activities,
     deals,
     isLoading,
+    isError,
+    error,
+    refetch,
     addNote: addNoteMutation.mutate,
     isAddingNote: addNoteMutation.isPending,
     togglePin: (noteId: string, isPinned: boolean) => togglePinMutation.mutate({ noteId, isPinned }),
