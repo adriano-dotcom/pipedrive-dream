@@ -130,10 +130,21 @@ const getLabelColor = (label: string | null) => {
 function SortableHeader({ column, title }: { column: Column<OrganizationWithContact>; title: string }) {
   const sorted = column.getIsSorted();
   
+  const handleClick = () => {
+    // If not sorted or sorted ASC, sort DESC. If sorted DESC, remove sorting.
+    if (!sorted) {
+      column.toggleSorting(true); // Sort DESC (maior para menor)
+    } else if (sorted === 'desc') {
+      column.clearSorting(); // Remove sorting
+    } else {
+      column.toggleSorting(true); // Sort DESC
+    }
+  };
+  
   return (
     <Button
       variant="ghost"
-      onClick={() => column.toggleSorting(sorted === 'asc')}
+      onClick={handleClick}
       className="h-auto p-0 font-semibold hover:bg-transparent text-xs uppercase tracking-wider w-full justify-center"
     >
       {title}
