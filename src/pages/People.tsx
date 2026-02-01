@@ -293,7 +293,14 @@ export default function People() {
             <Users className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Pessoas</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Pessoas
+              {!isLoading && totalCount > 0 && (
+                <span className="ml-2 text-lg font-normal text-muted-foreground">
+                  ({totalCount.toLocaleString('pt-BR')})
+                </span>
+              )}
+            </h1>
             <p className="text-muted-foreground text-sm">
               Gerencie contatos individuais e leads
             </p>
