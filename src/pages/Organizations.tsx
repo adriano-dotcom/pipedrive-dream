@@ -391,19 +391,42 @@ export default function Organizations() {
     );
   }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
-  // Get selected organizations with CNPJ for bulk enrich
-  const selectedOrgsWithCnpj = useMemo(() => {
+  // Get selected organizations eligible for enrichment (with CNPJ and not already enriched)
+  const selectedOrgsForEnrich = useMemo(() => {
     return organizations
-      .filter(org => selectedIds.includes(org.id) && org.cnpj)
+      .filter(org => 
+        selectedIds.includes(org.id) && 
+        org.cnpj && 
+        !org.last_enriched_at  // Exclude already enriched
+      )
       .map(org => ({ id: org.id, name: org.name, cnpj: org.cnpj! }));
   }, [organizations, selectedIds]);
 
   // Handle bulk enrich button click
   const handleBulkEnrich = () => {
-    if (selectedOrgsWithCnpj.length === 0) {
-      toast.warning('Nenhuma organização selecionada possui CNPJ');
+    // Count how many were already enriched
+    const alreadyEnrichedCount = organizations.filter(
+      org => selectedIds.includes(org.id) && org.cnpj && org.last_enriched_at
+    ).length;
+    
+    if (selectedOrgsForEnrich.length === 0) {
+      if (alreadyEnrichedCount > 0) {
+        toast.warning(
+          `Todas as ${alreadyEnrichedCount} organização(ões) selecionada(s) já foram atualizadas via RF`
+        );
+      } else {
+        toast.warning('Nenhuma organização selecionada possui CNPJ');
+      }
       return;
     }
+    
+    // If some were skipped, inform the user
+    if (alreadyEnrichedCount > 0) {
+      toast.info(
+        `${alreadyEnrichedCount} organização(ões) pulada(s) (já atualizadas)`
+      );
+    }
+    
     setBulkEnrichOpen(true);
   };
 
@@ -574,7 +597,7 @@ export default function Organizations() {
         <BulkEnrichDialog
           open={bulkEnrichOpen}
           onOpenChange={setBulkEnrichOpen}
-          organizations={selectedOrgsWithCnpj}
+          organizations={selectedOrgsForEnrich}
           onComplete={() => setSelectedIds([])}
         />
     </div>
