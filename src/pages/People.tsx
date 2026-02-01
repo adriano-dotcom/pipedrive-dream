@@ -190,6 +190,9 @@ export default function People() {
     return { data: data as PersonWithOrg[], count };
   };
 
+  // Check if tag query is ready before running main query
+  const isTagQueryReady = selectedTagIds.length === 0 || taggedPersonIds.length > 0 || taggedPersonIds !== undefined;
+
   // Use paginated query hook
   const {
     data: people,
@@ -208,10 +211,11 @@ export default function People() {
     pagination,
     setPagination,
   } = usePaginatedQuery<PersonWithOrg>({
-    queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedPersonIds)],
+    queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
     queryFn: fetchPeople,
     pageSizeStorageKey: PAGE_SIZE_KEY,
     pageSize: 25,
+    enabled: isTagQueryReady,
   });
 
   const deleteMutation = useMutation({

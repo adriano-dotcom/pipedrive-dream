@@ -262,6 +262,9 @@ export default function Organizations() {
     return { data: processedData, count };
   };
 
+  // Check if tag query is ready before running main query
+  const isTagQueryReady = selectedTagIds.length === 0 || taggedOrgIds.length > 0 || taggedOrgIds !== undefined;
+
   // Use paginated query hook
   const {
     data: organizations,
@@ -274,10 +277,11 @@ export default function Organizations() {
     goToPage,
     setPageSize,
   } = usePaginatedQuery<OrganizationWithContact>({
-    queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedOrgIds)],
+    queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
     queryFn: fetchOrganizations,
     pageSizeStorageKey: PAGE_SIZE_KEY,
     pageSize: 25,
+    enabled: isTagQueryReady,
   });
 
   const deleteMutation = useMutation({
