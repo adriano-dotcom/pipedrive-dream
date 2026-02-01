@@ -1,78 +1,137 @@
 
 
-# Adicionar Contagem de Registros no Cabeçalho de Pessoas e Organizações
+# Correção: Links de Navegação Não Funcionam nas Tabelas
 
-## Objetivo
+## Problema Identificado
 
-Mostrar a contagem total de registros ao lado do título nas páginas de Pessoas e Organizações, similar ao padrão de CRMs modernos.
+Ao clicar nos nomes de organizações ou pessoas na tabela, a navegação para a página de detalhes não funciona. O erro técnico identificado é "Node is detached from document", indicando que os elementos do DOM estão sendo removidos/recriados constantemente antes do clique ser processado.
 
-## Resultado Visual Esperado
+## Causa Raiz
 
-**Antes:**
+A `queryKey` do hook `usePaginatedQuery` inclui valores que estão causando re-renderizações excessivas:
+
+**Código problemático em `People.tsx` (linha 211):**
+```typescript
+queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedPersonIds)],
+                                                                                                           ⬆️ PROBLEMA
 ```
-Pessoas
-Gerencie contatos individuais e leads
+
+**Código problemático em `Organizations.tsx` (linha 277):**
+```typescript
+queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedOrgIds)],
+                                                                                                                ⬆️ PROBLEMA
+```
+
+### Por que isso causa o problema:
+
+```text
+Fluxo problemático:
+┌──────────────────────────────────────────────────────────────────┐
+│  1. Componente monta → taggedOrgIds = []                         │
+│  2. Query de tags executa em background                           │
+│  3. Tags retornam → taggedOrgIds = ['id1', 'id2']                │
+│  4. queryKey muda (porque taggedOrgIds mudou)                     │
+│  5. usePaginatedQuery recarrega com nova queryKey                 │
+│  6. Tabela é re-renderizada completamente                         │
+│  7. Links antigos são desmontados do DOM                          │
+│  8. Usuário tenta clicar → "Node is detached from document"      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+O `taggedOrgIds` e `taggedPersonIds` são valores **derivados** de `selectedTagIds` - não deveriam estar na queryKey porque:
+
+1. Já estão implícitos via `selectedTagIds`
+2. São usados **dentro** da `queryFn`, não para identificar a query
+3. Quando mudam, causam invalidação desnecessária
+
+---
+
+## Solução
+
+Remover `taggedOrgIds` e `taggedPersonIds` da queryKey e ajustar a lógica para aguardar a query de tags quando necessário.
+
+### Alterações em `src/pages/People.tsx`
+
+**Antes (linha 211):**
+```typescript
+queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedPersonIds)],
 ```
 
 **Depois:**
+```typescript
+queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
 ```
-Pessoas (984)
-Gerencie contatos individuais e leads
-```
 
-## Modificações
-
-### 1. Página de Pessoas (`src/pages/People.tsx`)
-
-Alterar o título na linha 296 para incluir a contagem:
+Também adicionar condição `enabled` para aguardar a query de tags quando houver tags selecionadas:
 
 ```typescript
-// Antes
-<h1 className="text-2xl font-bold tracking-tight">Pessoas</h1>
+const isTagQueryReady = selectedTagIds.length === 0 || taggedPersonIds !== undefined;
 
-// Depois
-<h1 className="text-2xl font-bold tracking-tight">
-  Pessoas
-  {!isLoading && totalCount > 0 && (
-    <span className="ml-2 text-lg font-normal text-muted-foreground">
-      ({totalCount.toLocaleString('pt-BR')})
-    </span>
-  )}
-</h1>
+// Use paginated query hook
+const {
+  // ...
+} = usePaginatedQuery<PersonWithOrg>({
+  queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
+  queryFn: fetchPeople,
+  pageSizeStorageKey: PAGE_SIZE_KEY,
+  pageSize: 25,
+  enabled: isTagQueryReady, // Aguarda tags serem carregadas
+});
 ```
 
-### 2. Página de Organizações (`src/pages/Organizations.tsx`)
+### Alterações em `src/pages/Organizations.tsx`
 
-Alterar o título na linha 395 para incluir a contagem:
+**Antes (linha 277):**
+```typescript
+queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds), JSON.stringify(taggedOrgIds)],
+```
+
+**Depois:**
+```typescript
+queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
+```
+
+Com a mesma lógica de `enabled`:
 
 ```typescript
-// Antes
-<h1 className="text-2xl font-bold tracking-tight">Organizações</h1>
+const isTagQueryReady = selectedTagIds.length === 0 || taggedOrgIds !== undefined;
 
-// Depois
-<h1 className="text-2xl font-bold tracking-tight">
-  Organizações
-  {!isLoading && totalCount > 0 && (
-    <span className="ml-2 text-lg font-normal text-muted-foreground">
-      ({totalCount.toLocaleString('pt-BR')})
-    </span>
-  )}
-</h1>
+// Use paginated query hook
+const {
+  // ...
+} = usePaginatedQuery<OrganizationWithContact>({
+  queryKey: ['organizations', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
+  queryFn: fetchOrganizations,
+  pageSizeStorageKey: PAGE_SIZE_KEY,
+  pageSize: 25,
+  enabled: isTagQueryReady,
+});
 ```
 
-## Detalhes da Implementação
-
-| Aspecto | Decisão |
-|---------|---------|
-| Formatação do número | Usar `toLocaleString('pt-BR')` para separador de milhares (ex: 1.234) |
-| Quando mostrar | Apenas quando `!isLoading && totalCount > 0` |
-| Estilo visual | Fonte menor (`text-lg`), peso normal, cor `text-muted-foreground` |
-| Comportamento com filtros | Mostra contagem filtrada (não o total absoluto) |
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Linha | Modificação |
-|---------|-------|-------------|
-| `src/pages/People.tsx` | 296 | Adicionar contagem ao título |
-| `src/pages/Organizations.tsx` | 395 | Adicionar contagem ao título |
+| Arquivo | Modificação |
+|---------|-------------|
+| `src/pages/People.tsx` | Remover `taggedPersonIds` da queryKey, adicionar lógica `enabled` |
+| `src/pages/Organizations.tsx` | Remover `taggedOrgIds` da queryKey, adicionar lógica `enabled` |
+
+---
+
+## Por que isso resolve
+
+```text
+Fluxo corrigido:
+┌──────────────────────────────────────────────────────────────────┐
+│  1. Componente monta                                              │
+│  2. Se selectedTagIds > 0, enabled=false                         │
+│  3. Query de tags executa e retorna                               │
+│  4. enabled=true, query principal executa UMA vez                │
+│  5. Tabela renderiza e permanece estável                          │
+│  6. Links funcionam normalmente ✅                                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+A queryKey agora depende apenas de valores que mudam por ação do usuário (busca, filtros, tags selecionadas), não de valores intermediários que mudam por si só.
 
