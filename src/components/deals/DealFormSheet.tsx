@@ -137,14 +137,25 @@ export function DealFormSheet({
   const { data: existingTagAssignments = [] } = useDealTagAssignments(deal?.id);
   const assignTagsMutation = useAssignDealTags();
   
-  // Sync tags when existing assignments load
+  // Sync tags when existing assignments load - only when sheet is open to prevent render loops
   useEffect(() => {
+    // Only sync when sheet is open to avoid render loops on detail pages
+    if (!open) return;
+    
     if (deal?.id && existingTagAssignments.length > 0) {
-      setSelectedTagIds(existingTagAssignments.map(a => a.tag_id));
+      const newTagIds = existingTagAssignments.map(a => a.tag_id).sort();
+      const currentTagIds = selectedTagIds.slice().sort();
+      // Only update if different to prevent infinite loops
+      if (newTagIds.join(',') !== currentTagIds.join(',')) {
+        setSelectedTagIds(newTagIds);
+      }
     } else if (!deal?.id) {
-      setSelectedTagIds([]);
+      // Only reset if not already empty
+      if (selectedTagIds.length > 0) {
+        setSelectedTagIds([]);
+      }
     }
-  }, [existingTagAssignments, deal?.id]);
+  }, [open, existingTagAssignments, deal?.id]);
   const form = useForm<DealFormValues>({
     resolver: zodResolver(dealSchema),
     defaultValues: {
