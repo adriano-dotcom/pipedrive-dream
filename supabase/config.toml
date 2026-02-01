@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.fetch-cnpj]
 verify_jwt = false
+
+[functions.enrich-organization]
+verify_jwt = false

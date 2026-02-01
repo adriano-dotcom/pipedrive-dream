@@ -40,6 +40,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { EmailButton } from '@/components/email/EmailButton';
+import { OrganizationRFCard } from './OrganizationRFCard';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PersonFormSheet } from '@/components/people/PersonFormSheet';
@@ -78,6 +79,20 @@ interface OrganizationSidebarProps {
     automotores: number | null;
     rntrc_antt: string | null;
     created_at: string;
+    // New RF fields
+    trade_name?: string | null;
+    company_size?: string | null;
+    branch_type?: string | null;
+    legal_nature_code?: string | null;
+    legal_nature?: string | null;
+    founded_date?: string | null;
+    share_capital?: number | null;
+    registration_status?: string | null;
+    registration_status_date?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    last_enriched_at?: string | null;
+    enrichment_source?: string | null;
   };
   people: OrganizationPerson[];
   pendingActivities: number;
@@ -366,6 +381,9 @@ export function OrganizationSidebar({
           </div>
         </CardContent>
       </Card>
+
+      {/* Receita Federal Data Card */}
+      <OrganizationRFCard organization={organization} />
 
       {/* Insurance Details Card */}
       {hasInsuranceDetails && (

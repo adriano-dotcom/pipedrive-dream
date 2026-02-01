@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw, MoreVertical, Trash2, GitMerge } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Building2, Calendar, AlertCircle, RefreshCw, MoreVertical, Trash2, GitMerge, FileSearch, Loader2 } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { OrganizationFiles } from '@/components/organizations/detail/Organizatio
 import { OrganizationActivities } from '@/components/organizations/detail/OrganizationActivities';
 import { OrganizationDeals } from '@/components/organizations/detail/OrganizationDeals';
 import { OrganizationEmails } from '@/components/organizations/detail/OrganizationEmails';
+import { OrganizationPartners } from '@/components/organizations/detail/OrganizationPartners';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
@@ -23,6 +24,8 @@ import { OrganizationSearchDialog } from '@/components/organizations/Organizatio
 import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
 import { useMergeBackups } from '@/hooks/useMergeBackups';
 import { useUndoMergeOrganization } from '@/hooks/useUndoMergeOrganization';
+import { useEnrichOrganization } from '@/hooks/useEnrichOrganization';
+import { useOrganizationPartners } from '@/hooks/useOrganizationPartners';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,6 +97,12 @@ export default function OrganizationDetails() {
   } = useOrganizationFiles(id || '');
 
   const { emails } = useSentEmails('organization', id || '');
+
+  // Enrich organization hook
+  const { enrich, isEnriching } = useEnrichOrganization(id || '');
+
+  // Partners for tab count
+  const { partners } = useOrganizationPartners(id || '');
 
   // Merge backup for undo functionality
   const { data: mergeBackup } = useMergeBackups(id || '', 'organization');
@@ -268,6 +277,20 @@ export default function OrganizationDetails() {
           <Button 
             variant="outline" 
             size="sm"
+            onClick={() => enrich(undefined)}
+            disabled={isEnriching || !organization.cnpj}
+            title={!organization.cnpj ? 'Cadastre o CNPJ primeiro' : 'Atualizar dados via Receita Federal'}
+          >
+            {isEnriching ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileSearch className="h-4 w-4 mr-2" />
+            )}
+            {isEnriching ? 'Atualizando...' : 'Atualizar via RF'}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
             onClick={() => setActivitySheetOpen(true)}
           >
             <Calendar className="h-4 w-4 mr-2" />
@@ -328,6 +351,9 @@ export default function OrganizationDetails() {
               <TabsTrigger value="notes" className="flex-1 sm:flex-none">
                 Notas ({notes.length})
               </TabsTrigger>
+              <TabsTrigger value="partners" className="flex-1 sm:flex-none">
+                Sócios ({partners.length})
+              </TabsTrigger>
               <TabsTrigger value="files" className="flex-1 sm:flex-none">
                 Arquivos ({files.length})
               </TabsTrigger>
@@ -362,6 +388,10 @@ export default function OrganizationDetails() {
                 organizationId={id || ''}
                 organizationName={organization.name}
               />
+            </TabsContent>
+
+            <TabsContent value="partners" className="mt-4">
+              <OrganizationPartners organizationId={id || ''} />
             </TabsContent>
 
             <TabsContent value="files" className="mt-4">
