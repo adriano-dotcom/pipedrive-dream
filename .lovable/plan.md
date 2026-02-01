@@ -1,182 +1,90 @@
 
-# Plano: Vincular Sócio do Quadro Societário com Pessoa Cadastrada
+# Plano: Mover Card Pessoas para Debaixo de Resumo
 
 ## Objetivo
-Permitir que o usuário vincule um sócio do Quadro Societário (importado via RF) com uma pessoa já cadastrada na organização, criando um relacionamento entre os dois registros.
+Reordenar os cards na sidebar da página de detalhes da organização, movendo o card "Pessoas" para ser exibido logo após o card "Resumo".
 
 ---
 
-## Entendimento do Problema
+## Situação Atual
 
-Atualmente temos:
-- **Quadro Societário** (`organization_partners`): Dados oficiais da Receita Federal (nome completo, CPF, qualificação, etc.)
-- **Pessoas** (`people`): Contatos cadastrados no CRM, vinculados à organização
-
-O problema: Um sócio "VALDAIR CESAR CAMILO" (RF) pode ser a mesma pessoa que "Valdair" (CRM), mas não há forma de conectar esses registros.
-
----
-
-## Solução Proposta
-
-Adicionar um botão em cada card de sócio que permite:
-1. **Vincular com pessoa existente**: Abre um dialog para selecionar qual pessoa da organização corresponde ao sócio
-2. **Ao vincular**: Atualizar os dados da pessoa com informações do sócio (nome completo, CPF se disponível) e criar uma referência
+A ordem dos cards na sidebar é:
+1. Resumo
+2. Visão Geral
+3. Dados da Receita Federal
+4. Detalhes do Seguro (condicional)
+5. Frota (condicional)
+6. Pessoas (condicional)
+7. Endereço (condicional)
 
 ---
 
-## Alterações no Banco de Dados
+## Nova Ordem Desejada
 
-### Nova coluna na tabela `people`:
-
-```sql
-ALTER TABLE people ADD COLUMN partner_id UUID REFERENCES organization_partners(id);
-```
-
-Isso cria um vínculo direto entre a pessoa e o registro do sócio, permitindo:
-- Saber se uma pessoa está vinculada a um sócio
-- Exibir informações do sócio (qualificação, data de entrada) na pessoa
-- Identificar sócios já vinculados no Quadro Societário
+1. Resumo
+2. **Pessoas** (movido para cá)
+3. Visão Geral
+4. Dados da Receita Federal
+5. Detalhes do Seguro (condicional)
+6. Frota (condicional)
+7. Endereço (condicional)
 
 ---
 
-## Alterações de Componentes
+## Alteração Necessária
 
-### 1. OrganizationPartners.tsx
+### Arquivo: `src/components/organizations/detail/OrganizationSidebar.tsx`
 
-**Adicionar ao PartnerCard:**
-- Botão "Vincular com Pessoa" (ícone de link)
-- Badge "Vinculado" se o sócio já tiver uma pessoa associada
-- Exibir nome da pessoa vinculada (se houver)
+Mover o bloco do card "Pessoas" (linhas 496-596) para logo após o card "Resumo" (após linha 342).
+
+O código a ser movido é:
 
 ```tsx
-// Novo componente interno
-function PartnerCard({ partner, people, onLinkPerson }) {
-  const linkedPerson = people.find(p => p.partner_id === partner.id);
-  
-  return (
-    <div className="p-4 rounded-lg border ...">
-      {/* ... conteúdo existente ... */}
-      
-      <div className="flex gap-2 mt-2">
-        {linkedPerson ? (
-          <Badge variant="outline" className="text-xs">
-            <User className="h-3 w-3 mr-1" />
-            Vinculado: {linkedPerson.name}
-          </Badge>
-        ) : (
-          <Button size="sm" variant="ghost" onClick={() => onLinkPerson(partner)}>
-            <Link2 className="h-4 w-4 mr-1" />
-            Vincular com Pessoa
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-```
-
-### 2. Novo Componente: LinkPartnerToPersonDialog.tsx
-
-Dialog para selecionar a pessoa a vincular:
-
-```tsx
-interface LinkPartnerToPersonDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  partner: OrganizationPartner;
-  people: OrganizationPerson[];
-  organizationId: string;
-  onSuccess: () => void;
-}
-
-// Funcionalidades:
-// - Lista de pessoas da organização
-// - Opção de atualizar dados da pessoa com info do sócio
-// - Confirmar vinculação
-```
-
-### 3. Novo Hook: useLinkPartnerToPerson.ts
-
-```typescript
-export function useLinkPartnerToPerson() {
-  return useMutation({
-    mutationFn: async ({ 
-      personId, 
-      partnerId, 
-      updatePersonData 
-    }) => {
-      // 1. Atualizar pessoa com partner_id
-      // 2. Opcionalmente atualizar nome/cpf com dados do sócio
-      // 3. Registrar no histórico
-    }
-  });
-}
+{/* People Card */}
+{people.length > 0 && (
+  <Card className="glass border-border/50">
+    <CardHeader className="pb-3">
+      <CardTitle className="text-base flex items-center gap-2">
+        <User className="h-4 w-4 text-primary" />
+        Pessoas ({people.length})
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-3">
+      {/* ... conteúdo do card ... */}
+    </CardContent>
+  </Card>
+)}
 ```
 
 ---
 
-## Fluxo de Uso
+## Resultado Visual
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│  Quadro Societário                         1 sócio      │
-├─────────────────────────────────────────────────────────┤
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  👤 VALDAIR CESAR CAMILO                          │  │
-│  │     Sócio-Administrador                           │  │
-│  │     Desde 05/2018                                 │  │
-│  │                                                   │  │
-│  │     [🔗 Vincular com Pessoa]                      │  │
-│  └───────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼  (clique)
-┌─────────────────────────────────────────────────────────┐
-│  Vincular Sócio com Pessoa                          ✕   │
-├─────────────────────────────────────────────────────────┤
-│  Sócio: VALDAIR CESAR CAMILO                            │
-│                                                         │
-│  Selecione a pessoa correspondente:                     │
-│                                                         │
-│  ◉ Valdair                                              │
-│  ○ Outro Contato                                        │
-│                                                         │
-│  ☑ Atualizar nome para "VALDAIR CESAR CAMILO"          │
-│  ☑ Atualizar CPF com dados da RF                       │
-│                                                         │
-│                    [Cancelar]  [Vincular]               │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────┐
+│  📋 Resumo              │
+│  CNPJ: XX.XXX.XXX/XXXX  │
+│  Telefone, Email, etc.  │
+└─────────────────────────┘
+         ↓
+┌─────────────────────────┐
+│  👤 Pessoas (1)         │  ← MOVIDO PARA CÁ
+│  ○ Jhuliany             │
+└─────────────────────────┘
+         ↓
+┌─────────────────────────┐
+│  🕐 Visão Geral         │
+│  Atividades Pendentes   │
+│  etc.                   │
+└─────────────────────────┘
+         ↓
+       (...)
 ```
 
 ---
 
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/migrations/` | Adicionar coluna `partner_id` na tabela `people` |
-| `src/components/organizations/detail/OrganizationPartners.tsx` | Adicionar botão vincular e badge de pessoa vinculada |
-| `src/components/organizations/detail/LinkPartnerToPersonDialog.tsx` | **CRIAR** - Dialog de vinculação |
-| `src/hooks/useLinkPartnerToPerson.ts` | **CRIAR** - Hook para mutação de vinculação |
-| `src/hooks/useOrganizationPartners.ts` | Adicionar query para pessoas vinculadas |
-
----
-
-## Comportamento Esperado
-
-1. **Sócio sem vínculo**: Exibe botão "Vincular com Pessoa"
-2. **Sócio vinculado**: Exibe badge com nome da pessoa e opção de desvincular
-3. **Ao vincular**: 
-   - Atualiza `people.partner_id` com o ID do sócio
-   - Opcionalmente atualiza nome/CPF da pessoa
-   - Registra evento no histórico da pessoa
-4. **Na listagem de pessoas**: Pode exibir badge indicando que é sócio
-
----
-
-## Benefícios
-
-- Unifica dados oficiais (RF) com dados do CRM
-- Permite saber quem são os sócios entre os contatos
-- Mantém dados atualizados automaticamente via enriquecimento
-- Evita duplicação de cadastros
+| `src/components/organizations/detail/OrganizationSidebar.tsx` | Mover bloco do card Pessoas (linhas 496-596) para após o card Resumo (linha 342) |
