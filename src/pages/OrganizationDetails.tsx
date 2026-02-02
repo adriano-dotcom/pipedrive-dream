@@ -391,7 +391,7 @@ export default function OrganizationDetails() {
             </TabsContent>
 
             <TabsContent value="partners" className="mt-4">
-              <OrganizationPartners organizationId={id || ''} />
+              <OrganizationPartners organizationId={id || ''} organizationName={organization?.name} />
             </TabsContent>
 
             <TabsContent value="files" className="mt-4">

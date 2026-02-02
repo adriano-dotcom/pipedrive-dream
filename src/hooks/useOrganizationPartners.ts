@@ -13,6 +13,9 @@ export interface OrganizationPartner {
   legal_rep_name: string | null;
   legal_rep_document: string | null;
   legal_rep_qualification: string | null;
+  email: string | null;
+  phone: string | null;
+  job_title: string | null;
   created_at: string;
   updated_at: string;
 }

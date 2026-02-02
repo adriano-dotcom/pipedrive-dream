@@ -658,13 +658,16 @@ export type Database = {
           country: string | null
           created_at: string | null
           document: string | null
+          email: string | null
           entry_date: string | null
           id: string
+          job_title: string | null
           legal_rep_document: string | null
           legal_rep_name: string | null
           legal_rep_qualification: string | null
           name: string
           organization_id: string
+          phone: string | null
           qualification: string | null
           qualification_code: number | null
           updated_at: string | null
@@ -673,13 +676,16 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           document?: string | null
+          email?: string | null
           entry_date?: string | null
           id?: string
+          job_title?: string | null
           legal_rep_document?: string | null
           legal_rep_name?: string | null
           legal_rep_qualification?: string | null
           name: string
           organization_id: string
+          phone?: string | null
           qualification?: string | null
           qualification_code?: number | null
           updated_at?: string | null
@@ -688,13 +694,16 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           document?: string | null
+          email?: string | null
           entry_date?: string | null
           id?: string
+          job_title?: string | null
           legal_rep_document?: string | null
           legal_rep_name?: string | null
           legal_rep_qualification?: string | null
           name?: string
           organization_id?: string
+          phone?: string | null
           qualification?: string | null
           qualification_code?: number | null
           updated_at?: string | null
