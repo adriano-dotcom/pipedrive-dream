@@ -1,139 +1,117 @@
 
-# Diagnóstico: Preparação do Banco para 50.000 Empresas com Contatos
+# Plano: Editar Sócio e Converter para Pessoa
 
-## Situação Atual
+## Objetivo
 
-| Métrica | Valor Atual |
-|---------|-------------|
-| Organizações | 841 |
-| Pessoas (contatos) | 984 |
-| Tamanho `organizations` | 664 KB |
-| Tamanho `people` | 640 KB |
+Permitir que o usuário:
+1. **Edite os dados de contato** do sócio (email, telefone, cargo) diretamente no card do sócio
+2. **Converta o sócio em pessoa** no CRM, preenchendo automaticamente os dados do sócio
 
-## Pontos Positivos (Já Implementados)
+## Análise Atual
 
-1. **Paginação Server-Side** - O hook `usePaginatedQuery` já implementa paginação no servidor com prefetch da próxima página
-2. **Ordenação Server-Side** - Ordenação acontece no banco, não no frontend
-3. **Debounce na busca** - 300ms de delay antes de executar queries
-4. **Filtros Server-Side** - Filtros são aplicados diretamente na query SQL
+A tabela `organization_partners` contém apenas dados oficiais da Receita Federal:
+- `name`, `document` (CPF/CNPJ), `qualification`, `entry_date`, `country`
+- `legal_rep_name`, `legal_rep_document`, `legal_rep_qualification`
 
-## Problemas Identificados para 50.000 Registros
+**Faltam campos de contato:** `email`, `phone`, `job_title`
 
-### 1. Falta de Índices Críticos
+## Solução Proposta
 
-| Índice Faltando | Impacto |
-|-----------------|---------|
-| `created_at DESC` em organizations/people | Ordenação padrão faz Seq Scan |
-| `address_city`, `address_state` | Filtros de cidade/estado sem índice |
-| `label` em organizations | Filtro de classificação sem índice |
-| `automotores` | Ordenação por frota sem índice |
-| `policy_renewal_month` | Filtro de mês de renovação sem índice |
+### Fase 1: Alteração no Banco de Dados
 
-### 2. Busca ILIKE Não Otimizada
-
-A extensão `pg_trgm` **não está habilitada**. Com 50k registros, buscas como:
+Adicionar campos de contato à tabela `organization_partners`:
 
 ```sql
-WHERE name ILIKE '%termo%' OR cnpj ILIKE '%termo%'
+ALTER TABLE organization_partners 
+  ADD COLUMN email TEXT,
+  ADD COLUMN phone TEXT,
+  ADD COLUMN job_title TEXT;
 ```
 
-Farão **Seq Scan** (varredura completa), demorando ~250-500ms por busca.
+### Fase 2: Novo Componente - PartnerEditDialog
 
-### 3. Índices GIN para Busca Textual
+Dialog para editar dados de contato do sócio com campos:
+- **Email** - com validação de formato
+- **Telefone** - com máscara brasileira
+- **Cargo** - texto livre (opcional)
 
-Não existem índices GIN para acelerar `ILIKE`. Com 50k registros, isso será gargalo.
+### Fase 3: Novo Componente - ConvertPartnerToPersonDialog
 
----
+Dialog para converter o sócio em uma pessoa do CRM:
+- Mostra preview dos dados que serão criados
+- Pré-preenche: nome, CPF, email, telefone, cargo, organização
+- Define `partner_id` automaticamente para vincular
+- Opção de definir como contato principal da organização
 
-## Plano de Otimização
+### Fase 4: Atualizar PartnerCard
 
-### Fase 1: Índices B-tree para Ordenação e Filtros
+Adicionar botões de ação no card do sócio:
+- **Ícone Lápis** - Abre dialog de edição de dados de contato
+- **Ícone UserPlus** - Abre dialog de conversão para pessoa (quando não vinculado)
+- Manter **Vincular com Pessoa** existente
 
-```sql
--- Ordenação padrão (created_at DESC)
-CREATE INDEX CONCURRENTLY idx_organizations_created_at 
-  ON organizations(created_at DESC);
+## Detalhes Técnicos
 
-CREATE INDEX CONCURRENTLY idx_people_created_at 
-  ON people(created_at DESC);
+### Arquivos a Criar
 
--- Ordenação por automotores (muito usado no CRM de seguros)
-CREATE INDEX CONCURRENTLY idx_organizations_automotores 
-  ON organizations(automotores DESC NULLS LAST);
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/organizations/detail/PartnerEditDialog.tsx` | Dialog para editar email/telefone/cargo do sócio |
+| `src/components/organizations/detail/ConvertPartnerToPersonDialog.tsx` | Dialog para criar pessoa a partir do sócio |
+| `src/hooks/useUpdatePartner.ts` | Hook para atualizar dados do sócio |
+| `src/hooks/useConvertPartnerToPerson.ts` | Hook para criar pessoa a partir do sócio |
 
--- Filtros frequentes
-CREATE INDEX CONCURRENTLY idx_organizations_label 
-  ON organizations(label) WHERE label IS NOT NULL;
-
-CREATE INDEX CONCURRENTLY idx_organizations_city 
-  ON organizations(address_city) WHERE address_city IS NOT NULL;
-
-CREATE INDEX CONCURRENTLY idx_organizations_state 
-  ON organizations(address_state) WHERE address_state IS NOT NULL;
-
-CREATE INDEX CONCURRENTLY idx_organizations_renewal_month 
-  ON organizations(policy_renewal_month) WHERE policy_renewal_month IS NOT NULL;
-```
-
-### Fase 2: Índices GIN para Busca Textual
-
-```sql
--- Habilitar extensão para buscas ILIKE performáticas
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
--- Índice GIN para busca textual em organizations
-CREATE INDEX CONCURRENTLY idx_organizations_name_gin 
-  ON organizations USING gin (name gin_trgm_ops);
-
-CREATE INDEX CONCURRENTLY idx_organizations_cnpj_gin 
-  ON organizations USING gin (cnpj gin_trgm_ops);
-
--- Índice GIN para busca textual em people
-CREATE INDEX CONCURRENTLY idx_people_name_gin 
-  ON people USING gin (name gin_trgm_ops);
-
-CREATE INDEX CONCURRENTLY idx_people_phone_gin 
-  ON people USING gin (phone gin_trgm_ops);
-```
-
-### Fase 3: Índice Composto para Query Principal
-
-```sql
--- Índice composto para a query mais comum (listagem paginada)
-CREATE INDEX CONCURRENTLY idx_organizations_list 
-  ON organizations(created_at DESC, id);
-```
-
----
-
-## Comparativo de Performance Estimada
-
-| Operação | Sem Índices (50k) | Com Índices (50k) |
-|----------|-------------------|-------------------|
-| Listagem paginada | ~500ms | ~10ms |
-| Busca ILIKE | ~300ms | ~20ms |
-| Filtro por cidade | ~200ms | ~5ms |
-| Ordenar por automotores | ~400ms | ~15ms |
-
----
-
-## Detalhes Técnicos da Migração
-
-A migration SQL completa incluirá:
-
-1. **Criar extensão `pg_trgm`** - Necessária para índices GIN
-2. **Índices B-tree** para ordenação e filtros com `WHERE` parcial
-3. **Índices GIN** para colunas de busca textual
-4. **Índice composto** para a query principal de listagem
-
-Todos os índices usam `CREATE INDEX CONCURRENTLY` para não bloquear operações durante a criação (pode levar alguns minutos com 50k registros).
-
----
-
-## Arquivos a Modificar
+### Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| Nova migration SQL | Criar ~12 índices otimizados |
+| `src/hooks/useOrganizationPartners.ts` | Adicionar campos email, phone, job_title no tipo |
+| `src/components/organizations/detail/OrganizationPartners.tsx` | Adicionar botões de ação e lógica dos dialogs |
 
-A implementação frontend já está preparada (paginação server-side, ordenação server-side). Apenas os índices do banco precisam ser adicionados.
+### Fluxo da Conversão para Pessoa
+
+```text
+Sócio sem vínculo
+       │
+       ├─→ [Editar] → Adiciona email/telefone/cargo
+       │
+       └─→ [Converter para Pessoa] → Dialog com preview
+                    │
+                    ▼
+              Criar registro em 'people'
+                    │
+                    ├─ name = partner.name
+                    ├─ cpf = partner.document (se CPF)
+                    ├─ email = partner.email
+                    ├─ phone = partner.phone
+                    ├─ job_title = partner.job_title ou partner.qualification
+                    ├─ organization_id = partner.organization_id
+                    └─ partner_id = partner.id (vincula automaticamente)
+```
+
+### Interface do PartnerCard Atualizada
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│  [Avatar]  WAGNER JOSE LIMA DA SILVA JUNIOR              │
+│            Sócio-Administrador                           │
+│            ***.***. 123-45  •  Desde 01/2020             │
+│                                                          │
+│            📧 wagner@empresa.com  📞 (11) 99999-9999     │
+│  ──────────────────────────────────────────────────────  │
+│  [✏️ Editar]  [👤+ Converter para Pessoa]                │
+│                        ou                                │
+│  [🔗 Vinculado: Wagner Lima]  [🔓 Desvincular]          │
+└──────────────────────────────────────────────────────────┘
+```
+
+## Resultado Esperado
+
+1. Usuário clica em **Editar** no card do sócio
+2. Dialog abre com campos: Email, Telefone, Cargo
+3. Usuário preenche e salva
+4. Dados são exibidos no card do sócio
+5. Usuário clica em **Converter para Pessoa**
+6. Dialog mostra preview dos dados pré-preenchidos
+7. Usuário confirma e pessoa é criada vinculada ao sócio
+8. Card passa a mostrar "Vinculado: [Nome]" com link para a pessoa
