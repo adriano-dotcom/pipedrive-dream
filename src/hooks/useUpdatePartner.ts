@@ -20,6 +20,9 @@ interface UpdatePartnerData {
   legal_rep_name?: string | null;
   legal_rep_document?: string | null;
   legal_rep_qualification?: string | null;
+  
+  // Observações
+  notes?: string | null;
 }
 
 export function useUpdatePartner(organizationId: string) {
@@ -46,6 +49,9 @@ export function useUpdatePartner(organizationId: string) {
       if (data.legal_rep_name !== undefined) updateData.legal_rep_name = data.legal_rep_name || null;
       if (data.legal_rep_document !== undefined) updateData.legal_rep_document = data.legal_rep_document || null;
       if (data.legal_rep_qualification !== undefined) updateData.legal_rep_qualification = data.legal_rep_qualification || null;
+      
+      // Observações
+      if (data.notes !== undefined) updateData.notes = data.notes || null;
       
       const { error } = await supabase
         .from('organization_partners')

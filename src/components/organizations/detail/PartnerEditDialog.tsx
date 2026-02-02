@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -32,9 +33,9 @@ import {
   Mail, 
   Phone, 
   Briefcase, 
-  MessageCircle, 
+  MessageCircle,
+  FileText,
   User, 
-  FileText, 
   CalendarIcon,
   Globe,
   UserCheck
@@ -95,6 +96,9 @@ export function PartnerEditDialog({
   const [legalRepName, setLegalRepName] = useState(partner.legal_rep_name || '');
   const [legalRepDocument, setLegalRepDocument] = useState(partner.legal_rep_document || '');
   const [legalRepQualification, setLegalRepQualification] = useState(partner.legal_rep_qualification || '');
+  
+  // Observações
+  const [notes, setNotes] = useState(partner.notes || '');
 
   const updateMutation = useUpdatePartner(organizationId);
 
@@ -112,6 +116,7 @@ export function PartnerEditDialog({
     setLegalRepName(partner.legal_rep_name || '');
     setLegalRepDocument(partner.legal_rep_document || '');
     setLegalRepQualification(partner.legal_rep_qualification || '');
+    setNotes(partner.notes || '');
   }, [partner]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -140,6 +145,8 @@ export function PartnerEditDialog({
           legal_rep_name: legalRepName.trim() || null,
           legal_rep_document: legalRepDocument.trim() || null,
           legal_rep_qualification: legalRepQualification.trim() || null,
+          // Observações
+          notes: notes.trim() || null,
         },
       },
       {
@@ -372,6 +379,27 @@ export function PartnerEditDialog({
                   />
                 </div>
               </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Observações */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <FileText className="h-4 w-4" />
+              Observações
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notas pessoais</Label>
+              <Textarea
+                id="notes"
+                placeholder="Adicione observações sobre este sócio..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="min-h-[80px] resize-none"
+              />
             </div>
           </div>
 

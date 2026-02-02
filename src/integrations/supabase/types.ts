@@ -666,6 +666,7 @@ export type Database = {
           legal_rep_name: string | null
           legal_rep_qualification: string | null
           name: string
+          notes: string | null
           organization_id: string
           phone: string | null
           qualification: string | null
@@ -685,6 +686,7 @@ export type Database = {
           legal_rep_name?: string | null
           legal_rep_qualification?: string | null
           name: string
+          notes?: string | null
           organization_id: string
           phone?: string | null
           qualification?: string | null
@@ -704,6 +706,7 @@ export type Database = {
           legal_rep_name?: string | null
           legal_rep_qualification?: string | null
           name?: string
+          notes?: string | null
           organization_id?: string
           phone?: string | null
           qualification?: string | null

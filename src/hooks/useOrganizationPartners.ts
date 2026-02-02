@@ -17,6 +17,7 @@ export interface OrganizationPartner {
   phone: string | null;
   whatsapp: string | null;
   job_title: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
