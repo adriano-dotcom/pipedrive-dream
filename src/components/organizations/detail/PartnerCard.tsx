@@ -5,6 +5,7 @@ import {
   User, Calendar, Shield, Building2, Link2, Unlink, Loader2, 
   Pencil, UserPlus, Mail, Phone, MessageCircle 
 } from 'lucide-react';
+import { EmailButton } from '@/components/email/EmailButton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
@@ -14,6 +15,7 @@ import { OrganizationPerson } from '@/hooks/useOrganizationPeople';
 interface PartnerCardProps {
   partner: OrganizationPartner;
   linkedPerson: OrganizationPerson | undefined;
+  organizationId: string;
   onEditClick: (partner: OrganizationPartner) => void;
   onConvertClick: (partner: OrganizationPartner) => void;
   onLinkClick: (partner: OrganizationPartner) => void;
@@ -54,7 +56,8 @@ function formatWhatsAppUrl(phone: string): string {
 
 export function PartnerCard({ 
   partner, 
-  linkedPerson, 
+  linkedPerson,
+  organizationId,
   onEditClick, 
   onConvertClick,
   onLinkClick, 
@@ -111,10 +114,20 @@ export function PartnerCard({
           {hasContactInfo && (
             <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
               {partner.email && (
-                <span className="flex items-center gap-1">
-                  <Mail className="h-3 w-3" />
-                  {partner.email}
-                </span>
+                <div className="flex items-center gap-1">
+                  <span className="flex items-center gap-1">
+                    <Mail className="h-3 w-3" />
+                    {partner.email}
+                  </span>
+                  <EmailButton
+                    entityType="organization"
+                    entityId={organizationId}
+                    entityName={partner.name}
+                    recipientEmail={partner.email}
+                    recipientName={partner.name}
+                    size="icon"
+                  />
+                </div>
               )}
               {partner.phone && (
                 <span className="flex items-center gap-1">

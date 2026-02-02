@@ -131,6 +131,7 @@ export function OrganizationPartners({ organizationId, organizationName }: Organ
               key={partner.id}
               partner={partner}
               linkedPerson={getLinkedPerson(partner.id)}
+              organizationId={organizationId}
               onEditClick={handleEditClick}
               onConvertClick={handleConvertClick}
               onLinkClick={handleLinkClick}
