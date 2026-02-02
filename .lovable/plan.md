@@ -1,117 +1,136 @@
 
-# Plano: Editar Sócio e Converter para Pessoa
+# Plano: Editar Nome e Dados Completos do Sócio
 
 ## Objetivo
 
-Permitir que o usuário:
-1. **Edite os dados de contato** do sócio (email, telefone, cargo) diretamente no card do sócio
-2. **Converta o sócio em pessoa** no CRM, preenchendo automaticamente os dados do sócio
+Expandir o formulário de edição de sócios para permitir editar **todos os dados**, não apenas os campos de contato. Isso é útil para:
+- Corrigir nomes digitados incorretamente
+- Atualizar qualificação/cargo oficial
+- Adicionar/corrigir documentos
+- Modificar dados de representante legal
 
-## Análise Atual
+## Campos Disponíveis para Edição
 
-A tabela `organization_partners` contém apenas dados oficiais da Receita Federal:
-- `name`, `document` (CPF/CNPJ), `qualification`, `entry_date`, `country`
-- `legal_rep_name`, `legal_rep_document`, `legal_rep_qualification`
+| Campo | Descrição | Tipo |
+|-------|-----------|------|
+| `name` | Nome completo do sócio | Texto (obrigatório) |
+| `document` | CPF/CNPJ do sócio | Texto com máscara |
+| `qualification` | Qualificação oficial (ex: Sócio-Administrador) | Texto |
+| `entry_date` | Data de entrada na sociedade | Data |
+| `country` | País de origem | Texto |
+| `job_title` | Cargo personalizado | Texto |
+| `email` | Email de contato | Email |
+| `phone` | Telefone de contato | Telefone |
+| `whatsapp` | WhatsApp | Telefone |
+| `legal_rep_name` | Nome do representante legal | Texto |
+| `legal_rep_document` | Documento do representante | Texto |
+| `legal_rep_qualification` | Qualificação do representante | Texto |
 
-**Faltam campos de contato:** `email`, `phone`, `job_title`
+## Implementação
 
-## Solução Proposta
+### Fase 1: Atualizar o Dialog de Edição
 
-### Fase 1: Alteração no Banco de Dados
+Reorganizar o `PartnerEditDialog` em seções:
 
-Adicionar campos de contato à tabela `organization_partners`:
-
-```sql
-ALTER TABLE organization_partners 
-  ADD COLUMN email TEXT,
-  ADD COLUMN phone TEXT,
-  ADD COLUMN job_title TEXT;
+```text
+┌─────────────────────────────────────────────────────────┐
+│           Editar Sócio: WAGNER JOSÉ LIMA                │
+├─────────────────────────────────────────────────────────┤
+│  📋 DADOS PESSOAIS                                      │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ Nome*          [WAGNER JOSÉ LIMA DA SILVA JR     ] ││
+│  │ CPF/CNPJ       [***.***. 123-45                   ] ││
+│  │ Qualificação   [Sócio-Administrador            ▼] ││
+│  │ Data Entrada   [📅 01/2020                       ] ││
+│  │ País           [Brasil                         ▼] ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  📞 CONTATO                                             │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ Email          [wagner@empresa.com               ] ││
+│  │ Telefone       [(11) 99999-9999                  ] ││
+│  │ WhatsApp       [(11) 99999-9999                  ] ││
+│  │ Cargo          [Diretor Comercial                ] ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  👤 REPRESENTANTE LEGAL (opcional)                      │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ Nome Rep.      [Maria Santos                     ] ││
+│  │ Doc. Rep.      [***.***. 456-78                  ] ││
+│  │ Qualif. Rep.   [Procurador                       ] ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│               [Cancelar]        [Salvar]                │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### Fase 2: Novo Componente - PartnerEditDialog
+### Fase 2: Atualizar Hook de Atualização
 
-Dialog para editar dados de contato do sócio com campos:
-- **Email** - com validação de formato
-- **Telefone** - com máscara brasileira
-- **Cargo** - texto livre (opcional)
+Modificar `useUpdatePartner` para aceitar todos os campos editáveis.
 
-### Fase 3: Novo Componente - ConvertPartnerToPersonDialog
+### Fase 3: Componentes de Entrada
 
-Dialog para converter o sócio em uma pessoa do CRM:
-- Mostra preview dos dados que serão criados
-- Pré-preenche: nome, CPF, email, telefone, cargo, organização
-- Define `partner_id` automaticamente para vincular
-- Opção de definir como contato principal da organização
-
-### Fase 4: Atualizar PartnerCard
-
-Adicionar botões de ação no card do sócio:
-- **Ícone Lápis** - Abre dialog de edição de dados de contato
-- **Ícone UserPlus** - Abre dialog de conversão para pessoa (quando não vinculado)
-- Manter **Vincular com Pessoa** existente
+Utilizar componentes existentes no projeto:
+- `Input` para textos simples
+- `PhoneInput` para telefones
+- `Calendar` para data de entrada
+- `Select` para qualificação (com opções predefinidas)
 
 ## Detalhes Técnicos
-
-### Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/organizations/detail/PartnerEditDialog.tsx` | Dialog para editar email/telefone/cargo do sócio |
-| `src/components/organizations/detail/ConvertPartnerToPersonDialog.tsx` | Dialog para criar pessoa a partir do sócio |
-| `src/hooks/useUpdatePartner.ts` | Hook para atualizar dados do sócio |
-| `src/hooks/useConvertPartnerToPerson.ts` | Hook para criar pessoa a partir do sócio |
 
 ### Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useOrganizationPartners.ts` | Adicionar campos email, phone, job_title no tipo |
-| `src/components/organizations/detail/OrganizationPartners.tsx` | Adicionar botões de ação e lógica dos dialogs |
+| `src/components/organizations/detail/PartnerEditDialog.tsx` | Adicionar todos os campos organizados em seções |
+| `src/hooks/useUpdatePartner.ts` | Expandir `UpdatePartnerData` para incluir todos os campos |
 
-### Fluxo da Conversão para Pessoa
+### Interface UpdatePartnerData Expandida
 
-```text
-Sócio sem vínculo
-       │
-       ├─→ [Editar] → Adiciona email/telefone/cargo
-       │
-       └─→ [Converter para Pessoa] → Dialog com preview
-                    │
-                    ▼
-              Criar registro em 'people'
-                    │
-                    ├─ name = partner.name
-                    ├─ cpf = partner.document (se CPF)
-                    ├─ email = partner.email
-                    ├─ phone = partner.phone
-                    ├─ job_title = partner.job_title ou partner.qualification
-                    ├─ organization_id = partner.organization_id
-                    └─ partner_id = partner.id (vincula automaticamente)
+```typescript
+interface UpdatePartnerData {
+  // Dados pessoais
+  name?: string;
+  document?: string | null;
+  qualification?: string | null;
+  entry_date?: string | null;
+  country?: string | null;
+  
+  // Contato
+  email?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  job_title?: string | null;
+  
+  // Representante legal
+  legal_rep_name?: string | null;
+  legal_rep_document?: string | null;
+  legal_rep_qualification?: string | null;
+}
 ```
 
-### Interface do PartnerCard Atualizada
+### Qualificações Predefinidas
 
-```text
-┌──────────────────────────────────────────────────────────┐
-│  [Avatar]  WAGNER JOSE LIMA DA SILVA JUNIOR              │
-│            Sócio-Administrador                           │
-│            ***.***. 123-45  •  Desde 01/2020             │
-│                                                          │
-│            📧 wagner@empresa.com  📞 (11) 99999-9999     │
-│  ──────────────────────────────────────────────────────  │
-│  [✏️ Editar]  [👤+ Converter para Pessoa]                │
-│                        ou                                │
-│  [🔗 Vinculado: Wagner Lima]  [🔓 Desvincular]          │
-└──────────────────────────────────────────────────────────┘
-```
+Lista de qualificações comuns para o select:
+- Sócio-Administrador
+- Sócio
+- Diretor
+- Presidente
+- Acionista
+- Procurador
+- Outro
+
+### Validações
+
+- **Nome**: Obrigatório, mínimo 3 caracteres
+- **Documento**: Opcional, validar formato CPF/CNPJ se preenchido
+- **Data de entrada**: Não pode ser futura
+- **Email**: Validar formato se preenchido
 
 ## Resultado Esperado
 
-1. Usuário clica em **Editar** no card do sócio
-2. Dialog abre com campos: Email, Telefone, Cargo
-3. Usuário preenche e salva
-4. Dados são exibidos no card do sócio
-5. Usuário clica em **Converter para Pessoa**
-6. Dialog mostra preview dos dados pré-preenchidos
-7. Usuário confirma e pessoa é criada vinculada ao sócio
-8. Card passa a mostrar "Vinculado: [Nome]" com link para a pessoa
+1. Usuário clica em "Editar" no card do sócio
+2. Dialog abre com **todas** as informações do sócio organizadas em seções
+3. Usuário pode editar qualquer campo
+4. Ao salvar, todos os dados são atualizados no banco
+5. Card reflete as alterações imediatamente
