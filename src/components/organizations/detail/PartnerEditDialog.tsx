@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PhoneInput } from '@/components/ui/phone-input';
-import { Loader2, Mail, Phone, Briefcase } from 'lucide-react';
+import { Loader2, Mail, Phone, Briefcase, MessageCircle } from 'lucide-react';
 import { useUpdatePartner } from '@/hooks/useUpdatePartner';
 import { OrganizationPartner } from '@/hooks/useOrganizationPartners';
 
@@ -32,6 +32,7 @@ export function PartnerEditDialog({
 }: PartnerEditDialogProps) {
   const [email, setEmail] = useState(partner.email || '');
   const [phone, setPhone] = useState(partner.phone || '');
+  const [whatsapp, setWhatsapp] = useState(partner.whatsapp || '');
   const [jobTitle, setJobTitle] = useState(partner.job_title || '');
 
   const updateMutation = useUpdatePartner(organizationId);
@@ -40,6 +41,7 @@ export function PartnerEditDialog({
   useEffect(() => {
     setEmail(partner.email || '');
     setPhone(partner.phone || '');
+    setWhatsapp(partner.whatsapp || '');
     setJobTitle(partner.job_title || '');
   }, [partner]);
 
@@ -52,6 +54,7 @@ export function PartnerEditDialog({
         data: {
           email: email.trim() || null,
           phone: phone.trim() || null,
+          whatsapp: whatsapp.trim() || null,
           job_title: jobTitle.trim() || null,
         },
       },
@@ -97,6 +100,18 @@ export function PartnerEditDialog({
             <PhoneInput
               value={phone}
               onValueChange={setPhone}
+              placeholder="(00) 00000-0000"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="whatsapp" className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
+            </Label>
+            <PhoneInput
+              value={whatsapp}
+              onValueChange={setWhatsapp}
               placeholder="(00) 00000-0000"
             />
           </div>

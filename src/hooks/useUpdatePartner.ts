@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 interface UpdatePartnerData {
   email?: string | null;
   phone?: string | null;
+  whatsapp?: string | null;
   job_title?: string | null;
 }
 
@@ -18,6 +19,7 @@ export function useUpdatePartner(organizationId: string) {
         .update({
           email: data.email || null,
           phone: data.phone || null,
+          whatsapp: data.whatsapp || null,
           job_title: data.job_title || null,
         })
         .eq('id', partnerId);

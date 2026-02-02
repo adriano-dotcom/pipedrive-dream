@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   User, Calendar, Shield, Building2, Link2, Unlink, Loader2, 
-  Pencil, UserPlus, Mail, Phone 
+  Pencil, UserPlus, Mail, Phone, MessageCircle 
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -50,7 +50,7 @@ export function PartnerCard({
   isUnlinking 
 }: PartnerCardProps) {
   const hasLegalRep = partner.legal_rep_name;
-  const hasContactInfo = partner.email || partner.phone;
+  const hasContactInfo = partner.email || partner.phone || partner.whatsapp;
 
   return (
     <div className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
@@ -97,7 +97,7 @@ export function PartnerCard({
 
           {/* Contact info display */}
           {hasContactInfo && (
-            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
               {partner.email && (
                 <span className="flex items-center gap-1">
                   <Mail className="h-3 w-3" />
@@ -108,6 +108,12 @@ export function PartnerCard({
                 <span className="flex items-center gap-1">
                   <Phone className="h-3 w-3" />
                   {partner.phone}
+                </span>
+              )}
+              {partner.whatsapp && (
+                <span className="flex items-center gap-1">
+                  <MessageCircle className="h-3 w-3" />
+                  {partner.whatsapp}
                 </span>
               )}
             </div>

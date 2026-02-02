@@ -671,6 +671,7 @@ export type Database = {
           qualification: string | null
           qualification_code: number | null
           updated_at: string | null
+          whatsapp: string | null
         }
         Insert: {
           country?: string | null
@@ -689,6 +690,7 @@ export type Database = {
           qualification?: string | null
           qualification_code?: number | null
           updated_at?: string | null
+          whatsapp?: string | null
         }
         Update: {
           country?: string | null
@@ -707,6 +709,7 @@ export type Database = {
           qualification?: string | null
           qualification_code?: number | null
           updated_at?: string | null
+          whatsapp?: string | null
         }
         Relationships: [
           {
