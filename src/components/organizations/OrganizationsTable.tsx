@@ -200,20 +200,42 @@ export function OrganizationsTable({
     }
   });
 
-  // Sync row selection with parent callback
+  // Sync row selection with parent callback - avoid infinite loop
   useEffect(() => {
     const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
-    onSelectionChange?.(selectedRowIds);
-  }, [rowSelection, onSelectionChange]);
+    const currentIds = selectedIds || [];
+    
+    // Only call if arrays are actually different
+    const isSame = 
+      selectedRowIds.length === currentIds.length && 
+      selectedRowIds.every(id => currentIds.includes(id));
+    
+    if (!isSame && onSelectionChange) {
+      onSelectionChange(selectedRowIds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowSelection]); // Intentionally exclude selectedIds to prevent loop
 
   // Sync incoming selectedIds with local rowSelection state
+  // This handles external resets (e.g., after bulk delete)
   useEffect(() => {
-    const newSelection: RowSelectionState = {};
-    selectedIds.forEach(id => {
-      newSelection[id] = true;
-    });
-    setRowSelection(newSelection);
-  }, [selectedIds]);
+    const currentKeys = Object.keys(rowSelection).filter(k => rowSelection[k]);
+    const incomingKeys = selectedIds || [];
+    
+    // Only update if truly different (external change)
+    const isSame = 
+      currentKeys.length === incomingKeys.length && 
+      currentKeys.every(id => incomingKeys.includes(id));
+    
+    if (!isSame) {
+      const newSelection: RowSelectionState = {};
+      incomingKeys.forEach(id => {
+        newSelection[id] = true;
+      });
+      setRowSelection(newSelection);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds]); // Intentionally exclude rowSelection to prevent loop
 
   useEffect(() => {
     if (columnOrder.length > 0) {
