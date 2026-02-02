@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Pencil, Plus, User, Calendar, MoreHorizontal, GitMerge, Trash, AlertCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, User, Calendar, MoreHorizontal, GitMerge, Trash, AlertCircle, RotateCcw, MessageCircle } from 'lucide-react';
 import { RecordNavigation } from '@/components/shared/RecordNavigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { PersonFiles } from '@/components/people/detail/PersonFiles';
 import { PersonActivities } from '@/components/people/detail/PersonActivities';
 import { PersonDeals } from '@/components/people/detail/PersonDeals';
 import { PersonEmails } from '@/components/people/detail/PersonEmails';
+import { PersonWhatsApp } from '@/components/people/detail/PersonWhatsApp';
 import { ActivityFormSheet } from '@/components/activities/ActivityFormSheet';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
@@ -31,6 +32,7 @@ import { usePersonDetails } from '@/hooks/usePersonDetails';
 import { usePersonFiles } from '@/hooks/usePersonFiles';
 import { useMergeBackups } from '@/hooks/useMergeBackups';
 import { useUndoMergeContact } from '@/hooks/useUndoMergeContact';
+import { usePersonWhatsAppConversations } from '@/hooks/useWhatsAppConversations';
 import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
@@ -99,6 +101,9 @@ export default function PersonDetails() {
   } = usePersonFiles(id || '');
 
   const { emails } = useSentEmails('person', id || '');
+  
+  // WhatsApp conversations for this person
+  const { data: whatsappConversations = [] } = usePersonWhatsAppConversations(id || '');
 
   // Merge backup for undo functionality
   const { data: mergeBackup } = useMergeBackups(id || '', 'person');
@@ -320,6 +325,12 @@ export default function PersonDetails() {
               <TabsTrigger value="emails" className="flex-1 sm:flex-none">
                 E-mails ({emails.length})
               </TabsTrigger>
+              {whatsappConversations.length > 0 && (
+                <TabsTrigger value="whatsapp" className="flex-1 sm:flex-none">
+                  <MessageCircle className="h-4 w-4 mr-1 text-emerald-500" />
+                  WhatsApp ({whatsappConversations.length})
+                </TabsTrigger>
+              )}
               <TabsTrigger value="history" className="flex-1 sm:flex-none">
                 Histórico ({history.length})
               </TabsTrigger>
@@ -363,6 +374,10 @@ export default function PersonDetails() {
                 personName={person?.name || ''}
                 recipientEmail={person?.email || ''}
               />
+            </TabsContent>
+
+            <TabsContent value="whatsapp" className="mt-4">
+              <PersonWhatsApp personId={id || ''} />
             </TabsContent>
 
             <TabsContent value="history" className="mt-4">
