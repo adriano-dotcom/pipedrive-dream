@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Sparkles,
   BarChart3,
-  MessageSquare
+  MessageSquare,
+  UserCog
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -148,6 +149,29 @@ export function AppSidebar() {
             </div>
             {!collapsed && (
               <span className="font-medium text-sm">Timelines.ai</span>
+            )}
+          </NavLink>
+        )}
+
+        {/* Admin Only: Vendedores */}
+        {isAdmin && (
+          <NavLink
+            to="/admin/vendedores"
+            className={cn(
+              'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-muted-foreground transition-all duration-200',
+              'hover:bg-accent/50 hover:text-foreground',
+              collapsed && 'justify-center px-2'
+            )}
+            activeClassName="bg-primary/10 text-primary shadow-sm border border-primary/20"
+          >
+            <div className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200',
+              'group-hover:bg-accent/50'
+            )}>
+              <UserCog className="h-[18px] w-[18px] text-amber-500 transition-transform duration-200 group-hover:scale-110" />
+            </div>
+            {!collapsed && (
+              <span className="font-medium text-sm">Vendedores</span>
             )}
           </NavLink>
         )}
