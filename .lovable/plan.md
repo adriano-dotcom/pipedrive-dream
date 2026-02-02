@@ -1,92 +1,101 @@
 
-# Plano: Botão para Abrir WhatsApp
+
+# Plano: Botão de Email no Card do Sócio
 
 ## Objetivo
 
-Transformar a exibição do WhatsApp no card do sócio em um botão clicável que abre diretamente uma conversa no WhatsApp Web/App.
+Adicionar um botão para enviar email diretamente do card do sócio, utilizando o sistema de emails já existente no CRM (componente `EmailButton`).
+
+## Análise do Sistema Existente
+
+O projeto já possui:
+- `EmailButton` - Componente reutilizável que abre o compositor de email
+- `EmailComposerDialog` - Dialog completo com suporte a templates, IA e assinaturas
+- Sistema de envio via edge function `send-email`
+- Registro de emails enviados na tabela `sent_emails`
+
+O `EmailButton` aceita:
+- `entityType`: 'deal' | 'person' | 'organization'
+- `entityId`: ID da entidade para vincular o email
+- `entityName`: Nome para exibição
+- `recipientEmail`: Email do destinatário
+- `recipientName`: Nome do destinatário
 
 ## Implementação
 
-### Alterações no PartnerCard.tsx
+### Alterações Necessárias
 
-Modificar a exibição do WhatsApp (linha 113-118) de um texto estático para um botão clicável que:
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar prop `organizationId` e botão de email |
+| `src/components/organizations/detail/OrganizationPartners.tsx` | Passar `organizationId` para o `PartnerCard` |
 
-1. Formata o número para o padrão internacional do WhatsApp (55 + DDD + número)
-2. Abre `https://wa.me/{numero}` em uma nova aba
+### Interface do PartnerCard Atualizada
 
-### Função de Formatação do Número
-
-Criar uma função `formatWhatsAppLink` que:
-- Remove caracteres não numéricos
-- Adiciona código do Brasil (55) se não estiver presente
-- Retorna a URL completa para o WhatsApp
-
-```text
-Número: (11) 99999-9999
-         ↓
-Limpo: 11999999999
-         ↓
-URL: https://wa.me/5511999999999
+```typescript
+interface PartnerCardProps {
+  partner: OrganizationPartner;
+  linkedPerson: OrganizationPerson | undefined;
+  organizationId: string;  // Nova prop
+  onEditClick: (partner: OrganizationPartner) => void;
+  onConvertClick: (partner: OrganizationPartner) => void;
+  onLinkClick: (partner: OrganizationPartner) => void;
+  onUnlinkClick: (personId: string) => void;
+  isUnlinking: boolean;
+}
 ```
 
-### Interface Atualizada
+### Posicionamento do Botão
+
+O botão de email será exibido ao lado do email do sócio na seção de contato:
 
 ```text
 📞 CONTATO
 ┌──────────────────────────────────────────────────────┐
-│ 📧 wagner@empresa.com                                │
+│ 📧 wagner@empresa.com [✉️]  ← Botão para enviar email│
 │ 📞 (11) 99999-9999                                   │
-│ 💬 (11) 99999-9999  [Abrir WhatsApp →]              │
+│ 💬 (11) 99999-9999 →                                 │
 └──────────────────────────────────────────────────────┘
 ```
 
-O número será exibido como um link/botão verde (cor do WhatsApp) que ao clicar:
-- Abre nova aba com `wa.me`
-- No celular, abre o app do WhatsApp diretamente
-
-## Detalhes Técnicos
-
-### Arquivo a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar função de formatação e transformar exibição do WhatsApp em link clicável |
-
-### Código da Função
-
-```typescript
-function formatWhatsAppUrl(phone: string): string {
-  // Remove todos os caracteres não numéricos
-  let cleaned = phone.replace(/\D/g, '');
-  
-  // Adiciona código do Brasil se não tiver
-  if (cleaned.length === 10 || cleaned.length === 11) {
-    cleaned = '55' + cleaned;
-  }
-  
-  return `https://wa.me/${cleaned}`;
-}
-```
-
-### Exibição Atualizada
+### Código do Botão
 
 ```tsx
-{partner.whatsapp && (
-  <a
-    href={formatWhatsAppUrl(partner.whatsapp)}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="flex items-center gap-1 text-green-600 hover:text-green-700 hover:underline"
-  >
-    <MessageCircle className="h-3 w-3" />
-    {partner.whatsapp}
-  </a>
+import { EmailButton } from '@/components/email/EmailButton';
+
+{partner.email && (
+  <div className="flex items-center gap-1">
+    <span className="flex items-center gap-1">
+      <Mail className="h-3 w-3" />
+      {partner.email}
+    </span>
+    <EmailButton
+      entityType="organization"
+      entityId={organizationId}
+      entityName={partner.name}
+      recipientEmail={partner.email}
+      recipientName={partner.name}
+      size="icon"
+    />
+  </div>
 )}
 ```
 
+## Comportamento
+
+1. Usuário vê o email do sócio no card
+2. Ao lado do email, há um ícone de envelope clicável
+3. Ao clicar, abre o compositor de email:
+   - **Para**: Email do sócio (preenchido)
+   - **Nome destinatário**: Nome do sócio
+   - **Vinculado a**: Organização (para histórico)
+4. Usuário pode usar templates ou IA para gerar o email
+5. Email é enviado e registrado na organização
+
 ## Resultado Esperado
 
-1. Usuário vê o número do WhatsApp no card do sócio em verde
-2. Ao passar o mouse, o cursor indica que é clicável
-3. Ao clicar, abre o WhatsApp Web em nova aba com a conversa pronta para iniciar
-4. Em dispositivos móveis, abre o app do WhatsApp diretamente
+- Botão de email discreto ao lado do endereço de email
+- Abre o compositor completo com destinatário preenchido
+- Emails enviados são registrados na aba "Emails" da organização
+- Mantém consistência visual com os outros elementos do card
+
