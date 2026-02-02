@@ -1,101 +1,91 @@
 
-
-# Plano: Botão de Email no Card do Sócio
+# Plano: Botão de Ligação Telefônica no Card do Sócio
 
 ## Objetivo
 
-Adicionar um botão para enviar email diretamente do card do sócio, utilizando o sistema de emails já existente no CRM (componente `EmailButton`).
+Transformar a exibição do telefone no card do sócio em um link clicável que inicia uma chamada telefônica usando o protocolo `tel:`.
 
-## Análise do Sistema Existente
+## Análise Atual
 
-O projeto já possui:
-- `EmailButton` - Componente reutilizável que abre o compositor de email
-- `EmailComposerDialog` - Dialog completo com suporte a templates, IA e assinaturas
-- Sistema de envio via edge function `send-email`
-- Registro de emails enviados na tabela `sent_emails`
+O telefone atualmente é exibido como texto estático (linhas 132-136):
 
-O `EmailButton` aceita:
-- `entityType`: 'deal' | 'person' | 'organization'
-- `entityId`: ID da entidade para vincular o email
-- `entityName`: Nome para exibição
-- `recipientEmail`: Email do destinatário
-- `recipientName`: Nome do destinatário
+```tsx
+{partner.phone && (
+  <span className="flex items-center gap-1">
+    <Phone className="h-3 w-3" />
+    {partner.phone}
+  </span>
+)}
+```
 
 ## Implementação
 
-### Alterações Necessárias
+### Alteração no PartnerCard.tsx
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar prop `organizationId` e botão de email |
-| `src/components/organizations/detail/OrganizationPartners.tsx` | Passar `organizationId` para o `PartnerCard` |
+Transformar o `<span>` em um `<a>` com `href="tel:{numero}"`:
 
-### Interface do PartnerCard Atualizada
+| De | Para |
+|----|------|
+| `<span>` texto estático | `<a href="tel:...">` link clicável |
+
+### Função de Formatação
+
+Criar função `formatPhoneUrl` para limpar o número:
 
 ```typescript
-interface PartnerCardProps {
-  partner: OrganizationPartner;
-  linkedPerson: OrganizationPerson | undefined;
-  organizationId: string;  // Nova prop
-  onEditClick: (partner: OrganizationPartner) => void;
-  onConvertClick: (partner: OrganizationPartner) => void;
-  onLinkClick: (partner: OrganizationPartner) => void;
-  onUnlinkClick: (personId: string) => void;
-  isUnlinking: boolean;
+function formatPhoneUrl(phone: string): string {
+  // Remove caracteres não numéricos exceto +
+  return 'tel:' + phone.replace(/[^\d+]/g, '');
 }
 ```
 
-### Posicionamento do Botão
+Exemplo:
+- Entrada: `(11) 99999-9999`
+- Saída: `tel:11999999999`
 
-O botão de email será exibido ao lado do email do sócio na seção de contato:
+### Código Atualizado
+
+```tsx
+{partner.phone && (
+  <a
+    href={formatPhoneUrl(partner.phone)}
+    className="flex items-center gap-1 text-blue-600 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 hover:underline"
+  >
+    <Phone className="h-3 w-3" />
+    {partner.phone}
+  </a>
+)}
+```
+
+### Visual
 
 ```text
 📞 CONTATO
 ┌──────────────────────────────────────────────────────┐
-│ 📧 wagner@empresa.com [✉️]  ← Botão para enviar email│
-│ 📞 (11) 99999-9999                                   │
-│ 💬 (11) 99999-9999 →                                 │
+│ 📧 wagner@empresa.com [✉️]                           │
+│ 📞 (11) 99999-9999  ← Clicável, abre discador       │
+│ 💬 (11) 99999-9999  ← Clicável, abre WhatsApp       │
 └──────────────────────────────────────────────────────┘
 ```
 
-### Código do Botão
+## Cores Utilizadas
 
-```tsx
-import { EmailButton } from '@/components/email/EmailButton';
+| Elemento | Cor |
+|----------|-----|
+| Telefone | Azul (`text-blue-600`) |
+| WhatsApp | Verde (`text-emerald-600`) |
+| Email | Cinza (texto) + botão |
 
-{partner.email && (
-  <div className="flex items-center gap-1">
-    <span className="flex items-center gap-1">
-      <Mail className="h-3 w-3" />
-      {partner.email}
-    </span>
-    <EmailButton
-      entityType="organization"
-      entityId={organizationId}
-      entityName={partner.name}
-      recipientEmail={partner.email}
-      recipientName={partner.name}
-      size="icon"
-    />
-  </div>
-)}
-```
+## Comportamento Esperado
 
-## Comportamento
+1. Usuário vê o telefone em azul no card
+2. Ao passar o mouse, cursor indica que é clicável
+3. Ao clicar:
+   - **Desktop**: Abre aplicativo de chamadas (Skype, Teams, etc.) ou pergunta qual usar
+   - **Mobile**: Abre discador com número preenchido pronto para ligar
 
-1. Usuário vê o email do sócio no card
-2. Ao lado do email, há um ícone de envelope clicável
-3. Ao clicar, abre o compositor de email:
-   - **Para**: Email do sócio (preenchido)
-   - **Nome destinatário**: Nome do sócio
-   - **Vinculado a**: Organização (para histórico)
-4. Usuário pode usar templates ou IA para gerar o email
-5. Email é enviado e registrado na organização
+## Arquivo a Modificar
 
-## Resultado Esperado
-
-- Botão de email discreto ao lado do endereço de email
-- Abre o compositor completo com destinatário preenchido
-- Emails enviados são registrados na aba "Emails" da organização
-- Mantém consistência visual com os outros elementos do card
-
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar função `formatPhoneUrl` e transformar telefone em link |
