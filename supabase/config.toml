@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.enrich-organization]
 verify_jwt = false
+
+[functions.timelines-webhook]
+verify_jwt = false
+
+[functions.send-whatsapp-message]
+verify_jwt = false
+
+[functions.analyze-whatsapp-conversation]
+verify_jwt = false
