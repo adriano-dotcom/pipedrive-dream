@@ -8,6 +8,9 @@ import {
   Briefcase,
   Edit,
   UserPlus,
+  MessageCircle,
+  Send,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -33,6 +36,15 @@ const getEventIcon = (eventType: string) => {
       return <UserPlus className="h-4 w-4" />;
     case 'updated':
       return <Edit className="h-4 w-4" />;
+    // WhatsApp events
+    case 'whatsapp_received':
+      return <MessageCircle className="h-4 w-4" />;
+    case 'whatsapp_sent':
+      return <Send className="h-4 w-4" />;
+    case 'whatsapp_conversation_started':
+      return <MessageSquarePlus className="h-4 w-4" />;
+    case 'whatsapp_conversation_resolved':
+      return <CheckCircle2 className="h-4 w-4" />;
     default:
       return <FileText className="h-4 w-4" />;
   }
@@ -54,6 +66,15 @@ const getEventColor = (eventType: string) => {
       return 'bg-orange-500/20 text-orange-500';
     case 'updated':
       return 'bg-muted text-muted-foreground';
+    // WhatsApp events - green theme for WhatsApp
+    case 'whatsapp_received':
+      return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400';
+    case 'whatsapp_sent':
+      return 'bg-sky-500/20 text-sky-600 dark:text-sky-400';
+    case 'whatsapp_conversation_started':
+      return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400';
+    case 'whatsapp_conversation_resolved':
+      return 'bg-teal-500/20 text-teal-600 dark:text-teal-400';
     default:
       return 'bg-muted text-muted-foreground';
   }

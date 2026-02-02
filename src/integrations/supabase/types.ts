@@ -1417,6 +1417,229 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_channels: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          name: string
+          phone_number: string | null
+          timelines_channel_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          name: string
+          phone_number?: string | null
+          timelines_channel_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          name?: string
+          phone_number?: string | null
+          timelines_channel_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_conversation_analysis: {
+        Row: {
+          analyzed_at: string | null
+          conversation_id: string
+          created_at: string | null
+          id: string
+          improvements: string[] | null
+          message_count: number | null
+          overall_score: number
+          professionalism: number
+          resolution_effectiveness: number
+          response_quality: number
+          sentiment: string | null
+          strengths: string[] | null
+          summary: string | null
+          tone_score: number
+        }
+        Insert: {
+          analyzed_at?: string | null
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          improvements?: string[] | null
+          message_count?: number | null
+          overall_score: number
+          professionalism: number
+          resolution_effectiveness: number
+          response_quality: number
+          sentiment?: string | null
+          strengths?: string[] | null
+          summary?: string | null
+          tone_score: number
+        }
+        Update: {
+          analyzed_at?: string | null
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          improvements?: string[] | null
+          message_count?: number | null
+          overall_score?: number
+          professionalism?: number
+          resolution_effectiveness?: number
+          response_quality?: number
+          sentiment?: string | null
+          strengths?: string[] | null
+          summary?: string | null
+          tone_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversation_analysis_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversations: {
+        Row: {
+          assigned_to: string | null
+          channel_id: string
+          created_at: string | null
+          first_response_at: string | null
+          id: string
+          last_message_at: string | null
+          metadata: Json | null
+          person_id: string
+          priority: number | null
+          resolved_at: string | null
+          status:
+            | Database["public"]["Enums"]["whatsapp_conversation_status"]
+            | null
+          tags: string[] | null
+          timelines_conversation_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          channel_id: string
+          created_at?: string | null
+          first_response_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          metadata?: Json | null
+          person_id: string
+          priority?: number | null
+          resolved_at?: string | null
+          status?:
+            | Database["public"]["Enums"]["whatsapp_conversation_status"]
+            | null
+          tags?: string[] | null
+          timelines_conversation_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          channel_id?: string
+          created_at?: string | null
+          first_response_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          metadata?: Json | null
+          person_id?: string
+          priority?: number | null
+          resolved_at?: string | null
+          status?:
+            | Database["public"]["Enums"]["whatsapp_conversation_status"]
+            | null
+          tags?: string[] | null
+          timelines_conversation_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string | null
+          id: string
+          media_mime_type: string | null
+          media_url: string | null
+          message_type:
+            | Database["public"]["Enums"]["whatsapp_message_type"]
+            | null
+          metadata: Json | null
+          sender_id: string | null
+          sender_type: string
+          status: Database["public"]["Enums"]["whatsapp_message_status"] | null
+          timelines_message_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_type?:
+            | Database["public"]["Enums"]["whatsapp_message_type"]
+            | null
+          metadata?: Json | null
+          sender_id?: string | null
+          sender_type: string
+          status?: Database["public"]["Enums"]["whatsapp_message_status"] | null
+          timelines_message_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_type?:
+            | Database["public"]["Enums"]["whatsapp_message_type"]
+            | null
+          metadata?: Json | null
+          sender_id?: string | null
+          sender_type?: string
+          status?: Database["public"]["Enums"]["whatsapp_message_status"] | null
+          timelines_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1438,6 +1661,21 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "corretor"
+      whatsapp_conversation_status:
+        | "pending"
+        | "in_progress"
+        | "resolved"
+        | "archived"
+      whatsapp_message_status: "sent" | "delivered" | "read" | "failed"
+      whatsapp_message_type:
+        | "text"
+        | "image"
+        | "audio"
+        | "video"
+        | "document"
+        | "location"
+        | "contact"
+        | "sticker"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1566,6 +1804,23 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "corretor"],
+      whatsapp_conversation_status: [
+        "pending",
+        "in_progress",
+        "resolved",
+        "archived",
+      ],
+      whatsapp_message_status: ["sent", "delivered", "read", "failed"],
+      whatsapp_message_type: [
+        "text",
+        "image",
+        "audio",
+        "video",
+        "document",
+        "location",
+        "contact",
+        "sticker",
+      ],
     },
   },
 } as const
