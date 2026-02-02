@@ -1,9 +1,11 @@
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   User, Calendar, Shield, Building2, Link2, Unlink, Loader2, 
-  Pencil, UserPlus, Mail, Phone, MessageCircle 
+  Pencil, UserPlus, Mail, Phone, MessageCircle, FileText 
 } from 'lucide-react';
 import { EmailButton } from '@/components/email/EmailButton';
 import { format } from 'date-fns';
@@ -11,7 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import { OrganizationPartner } from '@/hooks/useOrganizationPartners';
 import { OrganizationPerson } from '@/hooks/useOrganizationPeople';
-
+import { useUpdatePartner } from '@/hooks/useUpdatePartner';
 interface PartnerCardProps {
   partner: OrganizationPartner;
   linkedPerson: OrganizationPerson | undefined;
@@ -71,6 +73,47 @@ export function PartnerCard({
 }: PartnerCardProps) {
   const hasLegalRep = partner.legal_rep_name;
   const hasContactInfo = partner.email || partner.phone || partner.whatsapp;
+  
+  // State for inline notes editing
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [localNotes, setLocalNotes] = useState(partner.notes || '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const updateMutation = useUpdatePartner(organizationId);
+
+  // Sync localNotes when partner.notes changes
+  useEffect(() => {
+    setLocalNotes(partner.notes || '');
+  }, [partner.notes]);
+
+  // Auto-focus textarea when editing
+  useEffect(() => {
+    if (isEditingNotes && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.selectionStart = textareaRef.current.value.length;
+    }
+  }, [isEditingNotes]);
+
+  const handleNotesBlur = () => {
+    const trimmedNotes = localNotes.trim();
+    if (trimmedNotes !== (partner.notes || '')) {
+      updateMutation.mutate({
+        partnerId: partner.id,
+        data: { notes: trimmedNotes || null }
+      });
+    }
+    setIsEditingNotes(false);
+  };
+
+  const handleNotesKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleNotesBlur();
+    }
+    if (e.key === 'Escape') {
+      setLocalNotes(partner.notes || '');
+      setIsEditingNotes(false);
+    }
+  };
 
   return (
     <div className="p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
@@ -167,6 +210,40 @@ export function PartnerCard({
               </p>
             </div>
           )}
+
+          {/* Notes section */}
+          <div className="mt-3 pt-2 border-t border-border/30">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
+              <FileText className="h-3 w-3" />
+              <span className="font-medium">Observações</span>
+              {updateMutation.isPending && (
+                <Loader2 className="h-3 w-3 animate-spin ml-1" />
+              )}
+            </div>
+            
+            {isEditingNotes ? (
+              <Textarea
+                ref={textareaRef}
+                value={localNotes}
+                onChange={(e) => setLocalNotes(e.target.value)}
+                onBlur={handleNotesBlur}
+                onKeyDown={handleNotesKeyDown}
+                placeholder="Adicione observações sobre este sócio..."
+                className="min-h-[60px] text-xs resize-none"
+              />
+            ) : (
+              <div
+                onClick={() => setIsEditingNotes(true)}
+                className="cursor-pointer text-xs min-h-[32px] p-2 rounded-md border border-transparent hover:border-border hover:bg-muted/30 transition-colors"
+              >
+                {partner.notes ? (
+                  <p className="text-foreground whitespace-pre-wrap">{partner.notes}</p>
+                ) : (
+                  <p className="text-muted-foreground italic">Clique para adicionar observações...</p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Actions section */}
           <div className="mt-3 pt-3 border-t border-border/50">
