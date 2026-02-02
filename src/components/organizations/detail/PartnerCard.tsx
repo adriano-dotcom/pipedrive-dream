@@ -42,6 +42,11 @@ function maskDocument(doc: string | null): string {
   return '*'.repeat(halfLen) + clean.slice(halfLen);
 }
 
+function formatPhoneUrl(phone: string): string {
+  // Remove caracteres não numéricos exceto +
+  return 'tel:' + phone.replace(/[^\d+]/g, '');
+}
+
 function formatWhatsAppUrl(phone: string): string {
   // Remove todos os caracteres não numéricos
   let cleaned = phone.replace(/\D/g, '');
@@ -130,10 +135,13 @@ export function PartnerCard({
                 </div>
               )}
               {partner.phone && (
-                <span className="flex items-center gap-1">
+                <a
+                  href={formatPhoneUrl(partner.phone)}
+                  className="flex items-center gap-1 text-blue-600 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 hover:underline"
+                >
                   <Phone className="h-3 w-3" />
                   {partner.phone}
-                </span>
+                </a>
               )}
               {partner.whatsapp && (
                 <a
