@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Copy, Check, MessageSquare, Info } from 'lucide-react';
+import { Plus, Copy, Check, MessageSquare, Info, Loader2 } from 'lucide-react';
 import { ChannelTable } from '@/components/timelines/ChannelTable';
 import { ChannelFormSheet } from '@/components/timelines/ChannelFormSheet';
 import { useWhatsAppChannels, WhatsAppChannel } from '@/hooks/useWhatsAppChannels';
@@ -24,12 +23,9 @@ export default function TimelinesAdmin() {
   // Aguardar carregamento da autenticação
   if (authLoading) {
     return (
-      <AppLayout>
-        <div className="p-6 space-y-6">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-[400px] w-full" />
-        </div>
-      </AppLayout>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
@@ -60,7 +56,7 @@ export default function TimelinesAdmin() {
   };
 
   return (
-    <AppLayout>
+    <>
       <div className="p-4 sm:p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -143,6 +139,6 @@ export default function TimelinesAdmin() {
         onOpenChange={setSheetOpen}
         channel={selectedChannel}
       />
-    </AppLayout>
+    </>
   );
 }
