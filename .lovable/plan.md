@@ -1,91 +1,123 @@
 
-# Plano: Botão de Ligação Telefônica no Card do Sócio
+
+# Plano: Campo de Observações Pessoais no Card do Sócio
 
 ## Objetivo
 
-Transformar a exibição do telefone no card do sócio em um link clicável que inicia uma chamada telefônica usando o protocolo `tel:`.
+Adicionar um campo de observações pessoais (`notes`) no card do sócio para anotações rápidas, permitindo que o usuário registre informações relevantes diretamente no card.
 
 ## Análise Atual
 
-O telefone atualmente é exibido como texto estático (linhas 132-136):
-
-```tsx
-{partner.phone && (
-  <span className="flex items-center gap-1">
-    <Phone className="h-3 w-3" />
-    {partner.phone}
-  </span>
-)}
-```
+A tabela `organization_partners` não possui um campo de notas. As colunas atuais são:
+- id, organization_id, name, document, qualification, qualification_code
+- entry_date, country, legal_rep_name, legal_rep_document, legal_rep_qualification
+- email, phone, job_title, whatsapp, created_at, updated_at
 
 ## Implementação
 
-### Alteração no PartnerCard.tsx
+### 1. Migração do Banco de Dados
 
-Transformar o `<span>` em um `<a>` com `href="tel:{numero}"`:
+Adicionar coluna `notes` na tabela `organization_partners`:
 
-| De | Para |
-|----|------|
-| `<span>` texto estático | `<a href="tel:...">` link clicável |
-
-### Função de Formatação
-
-Criar função `formatPhoneUrl` para limpar o número:
-
-```typescript
-function formatPhoneUrl(phone: string): string {
-  // Remove caracteres não numéricos exceto +
-  return 'tel:' + phone.replace(/[^\d+]/g, '');
-}
+```sql
+ALTER TABLE organization_partners
+ADD COLUMN notes text DEFAULT NULL;
 ```
 
-Exemplo:
-- Entrada: `(11) 99999-9999`
-- Saída: `tel:11999999999`
+### 2. Interface Visual
 
-### Código Atualizado
-
-```tsx
-{partner.phone && (
-  <a
-    href={formatPhoneUrl(partner.phone)}
-    className="flex items-center gap-1 text-blue-600 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 hover:underline"
-  >
-    <Phone className="h-3 w-3" />
-    {partner.phone}
-  </a>
-)}
-```
-
-### Visual
+Adicionar uma seção colapsável de notas no card do sócio, que permite:
+- Visualizar nota existente (se houver)
+- Adicionar/editar nota inline com um clique
+- Salvar automaticamente ao sair do campo (blur)
 
 ```text
-📞 CONTATO
-┌──────────────────────────────────────────────────────┐
-│ 📧 wagner@empresa.com [✉️]                           │
-│ 📞 (11) 99999-9999  ← Clicável, abre discador       │
-│ 💬 (11) 99999-9999  ← Clicável, abre WhatsApp       │
-└──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 👤 João Silva                          [Rep. Legal]         │
+│ Sócio-Administrador                                         │
+│ ***.***.123-45 | Desde 01/2020                             │
+├─────────────────────────────────────────────────────────────┤
+│ 📧 joao@empresa.com [✉️] | 📞 (11) 99999-9999              │
+│ 💬 (11) 99999-9999                                          │
+├─────────────────────────────────────────────────────────────┤
+│ 📝 Observações:                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Cliente prefere contato pela manhã. Decisor principal  │ │
+│ │ para contratos acima de R$ 50k.                        │ │
+│ └─────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│ [Editar] [Criar Pessoa] [Vincular Existente]               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Cores Utilizadas
+### 3. Funcionamento
 
-| Elemento | Cor |
-|----------|-----|
-| Telefone | Azul (`text-blue-600`) |
-| WhatsApp | Verde (`text-emerald-600`) |
-| Email | Cinza (texto) + botão |
+**Modo de exibição**:
+- Se houver nota, exibe o texto em uma área destacada
+- Se não houver nota, exibe um link "Adicionar observação..."
 
-## Comportamento Esperado
+**Modo de edição**:
+- Ao clicar no texto ou no link, transforma em textarea
+- Auto-save ao clicar fora (onBlur) ou ao pressionar Ctrl+Enter
+- Indicador de salvando enquanto processa
+- Toast de sucesso/erro após salvar
 
-1. Usuário vê o telefone em azul no card
-2. Ao passar o mouse, cursor indica que é clicável
-3. Ao clicar:
-   - **Desktop**: Abre aplicativo de chamadas (Skype, Teams, etc.) ou pergunta qual usar
-   - **Mobile**: Abre discador com número preenchido pronto para ligar
-
-## Arquivo a Modificar
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar função `formatPhoneUrl` e transformar telefone em link |
+| `migration` | Adicionar coluna `notes` na tabela `organization_partners` |
+| `src/hooks/useOrganizationPartners.ts` | Adicionar `notes` na interface `OrganizationPartner` |
+| `src/hooks/useUpdatePartner.ts` | Adicionar `notes` no `UpdatePartnerData` |
+| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar seção de observações com edição inline |
+
+## Detalhes Técnicos
+
+### Nova Interface OrganizationPartner
+
+```typescript
+export interface OrganizationPartner {
+  // ... campos existentes
+  notes: string | null;  // NOVO
+}
+```
+
+### Componente de Notas Inline
+
+```tsx
+// Estados
+const [isEditingNotes, setIsEditingNotes] = useState(false);
+const [localNotes, setLocalNotes] = useState(partner.notes || '');
+const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+// Auto-focus ao entrar em edição
+useEffect(() => {
+  if (isEditingNotes && textareaRef.current) {
+    textareaRef.current.focus();
+  }
+}, [isEditingNotes]);
+
+// Salvar ao sair
+const handleBlur = () => {
+  if (localNotes !== partner.notes) {
+    updateMutation.mutate({
+      partnerId: partner.id,
+      data: { notes: localNotes.trim() || null }
+    });
+  }
+  setIsEditingNotes(false);
+};
+```
+
+### Atualização do PartnerEditDialog
+
+O campo de observações também será adicionado ao dialog de edição completa para consistência.
+
+## Resultado Esperado
+
+1. Usuário vê observações existentes no card do sócio
+2. Pode clicar para editar rapidamente
+3. Salvamento automático ao clicar fora
+4. Campo também disponível no dialog de edição completa
+5. Dados persistidos no banco de dados
+
