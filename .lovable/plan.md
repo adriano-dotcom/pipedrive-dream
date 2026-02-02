@@ -1,136 +1,92 @@
 
-# Plano: Editar Nome e Dados Completos do Sócio
+# Plano: Botão para Abrir WhatsApp
 
 ## Objetivo
 
-Expandir o formulário de edição de sócios para permitir editar **todos os dados**, não apenas os campos de contato. Isso é útil para:
-- Corrigir nomes digitados incorretamente
-- Atualizar qualificação/cargo oficial
-- Adicionar/corrigir documentos
-- Modificar dados de representante legal
-
-## Campos Disponíveis para Edição
-
-| Campo | Descrição | Tipo |
-|-------|-----------|------|
-| `name` | Nome completo do sócio | Texto (obrigatório) |
-| `document` | CPF/CNPJ do sócio | Texto com máscara |
-| `qualification` | Qualificação oficial (ex: Sócio-Administrador) | Texto |
-| `entry_date` | Data de entrada na sociedade | Data |
-| `country` | País de origem | Texto |
-| `job_title` | Cargo personalizado | Texto |
-| `email` | Email de contato | Email |
-| `phone` | Telefone de contato | Telefone |
-| `whatsapp` | WhatsApp | Telefone |
-| `legal_rep_name` | Nome do representante legal | Texto |
-| `legal_rep_document` | Documento do representante | Texto |
-| `legal_rep_qualification` | Qualificação do representante | Texto |
+Transformar a exibição do WhatsApp no card do sócio em um botão clicável que abre diretamente uma conversa no WhatsApp Web/App.
 
 ## Implementação
 
-### Fase 1: Atualizar o Dialog de Edição
+### Alterações no PartnerCard.tsx
 
-Reorganizar o `PartnerEditDialog` em seções:
+Modificar a exibição do WhatsApp (linha 113-118) de um texto estático para um botão clicável que:
+
+1. Formata o número para o padrão internacional do WhatsApp (55 + DDD + número)
+2. Abre `https://wa.me/{numero}` em uma nova aba
+
+### Função de Formatação do Número
+
+Criar uma função `formatWhatsAppLink` que:
+- Remove caracteres não numéricos
+- Adiciona código do Brasil (55) se não estiver presente
+- Retorna a URL completa para o WhatsApp
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│           Editar Sócio: WAGNER JOSÉ LIMA                │
-├─────────────────────────────────────────────────────────┤
-│  📋 DADOS PESSOAIS                                      │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Nome*          [WAGNER JOSÉ LIMA DA SILVA JR     ] ││
-│  │ CPF/CNPJ       [***.***. 123-45                   ] ││
-│  │ Qualificação   [Sócio-Administrador            ▼] ││
-│  │ Data Entrada   [📅 01/2020                       ] ││
-│  │ País           [Brasil                         ▼] ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  📞 CONTATO                                             │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Email          [wagner@empresa.com               ] ││
-│  │ Telefone       [(11) 99999-9999                  ] ││
-│  │ WhatsApp       [(11) 99999-9999                  ] ││
-│  │ Cargo          [Diretor Comercial                ] ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  👤 REPRESENTANTE LEGAL (opcional)                      │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Nome Rep.      [Maria Santos                     ] ││
-│  │ Doc. Rep.      [***.***. 456-78                  ] ││
-│  │ Qualif. Rep.   [Procurador                       ] ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│               [Cancelar]        [Salvar]                │
-└─────────────────────────────────────────────────────────┘
+Número: (11) 99999-9999
+         ↓
+Limpo: 11999999999
+         ↓
+URL: https://wa.me/5511999999999
 ```
 
-### Fase 2: Atualizar Hook de Atualização
+### Interface Atualizada
 
-Modificar `useUpdatePartner` para aceitar todos os campos editáveis.
+```text
+📞 CONTATO
+┌──────────────────────────────────────────────────────┐
+│ 📧 wagner@empresa.com                                │
+│ 📞 (11) 99999-9999                                   │
+│ 💬 (11) 99999-9999  [Abrir WhatsApp →]              │
+└──────────────────────────────────────────────────────┘
+```
 
-### Fase 3: Componentes de Entrada
-
-Utilizar componentes existentes no projeto:
-- `Input` para textos simples
-- `PhoneInput` para telefones
-- `Calendar` para data de entrada
-- `Select` para qualificação (com opções predefinidas)
+O número será exibido como um link/botão verde (cor do WhatsApp) que ao clicar:
+- Abre nova aba com `wa.me`
+- No celular, abre o app do WhatsApp diretamente
 
 ## Detalhes Técnicos
 
-### Arquivos a Modificar
+### Arquivo a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/organizations/detail/PartnerEditDialog.tsx` | Adicionar todos os campos organizados em seções |
-| `src/hooks/useUpdatePartner.ts` | Expandir `UpdatePartnerData` para incluir todos os campos |
+| `src/components/organizations/detail/PartnerCard.tsx` | Adicionar função de formatação e transformar exibição do WhatsApp em link clicável |
 
-### Interface UpdatePartnerData Expandida
+### Código da Função
 
 ```typescript
-interface UpdatePartnerData {
-  // Dados pessoais
-  name?: string;
-  document?: string | null;
-  qualification?: string | null;
-  entry_date?: string | null;
-  country?: string | null;
+function formatWhatsAppUrl(phone: string): string {
+  // Remove todos os caracteres não numéricos
+  let cleaned = phone.replace(/\D/g, '');
   
-  // Contato
-  email?: string | null;
-  phone?: string | null;
-  whatsapp?: string | null;
-  job_title?: string | null;
+  // Adiciona código do Brasil se não tiver
+  if (cleaned.length === 10 || cleaned.length === 11) {
+    cleaned = '55' + cleaned;
+  }
   
-  // Representante legal
-  legal_rep_name?: string | null;
-  legal_rep_document?: string | null;
-  legal_rep_qualification?: string | null;
+  return `https://wa.me/${cleaned}`;
 }
 ```
 
-### Qualificações Predefinidas
+### Exibição Atualizada
 
-Lista de qualificações comuns para o select:
-- Sócio-Administrador
-- Sócio
-- Diretor
-- Presidente
-- Acionista
-- Procurador
-- Outro
-
-### Validações
-
-- **Nome**: Obrigatório, mínimo 3 caracteres
-- **Documento**: Opcional, validar formato CPF/CNPJ se preenchido
-- **Data de entrada**: Não pode ser futura
-- **Email**: Validar formato se preenchido
+```tsx
+{partner.whatsapp && (
+  <a
+    href={formatWhatsAppUrl(partner.whatsapp)}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center gap-1 text-green-600 hover:text-green-700 hover:underline"
+  >
+    <MessageCircle className="h-3 w-3" />
+    {partner.whatsapp}
+  </a>
+)}
+```
 
 ## Resultado Esperado
 
-1. Usuário clica em "Editar" no card do sócio
-2. Dialog abre com **todas** as informações do sócio organizadas em seções
-3. Usuário pode editar qualquer campo
-4. Ao salvar, todos os dados são atualizados no banco
-5. Card reflete as alterações imediatamente
+1. Usuário vê o número do WhatsApp no card do sócio em verde
+2. Ao passar o mouse, o cursor indica que é clicável
+3. Ao clicar, abre o WhatsApp Web em nova aba com a conversa pronta para iniciar
+4. Em dispositivos móveis, abre o app do WhatsApp diretamente
