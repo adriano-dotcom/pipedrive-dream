@@ -15,6 +15,7 @@ export interface OrganizationPartner {
   legal_rep_qualification: string | null;
   email: string | null;
   phone: string | null;
+  whatsapp: string | null;
   job_title: string | null;
   created_at: string;
   updated_at: string;
