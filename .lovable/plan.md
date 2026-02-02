@@ -1,247 +1,246 @@
 
-# Plano: Componentes de Chat WhatsApp no CRM
+# Plano: Página de Administração Timelines.ai
 
 ## Objetivo
 
-Criar uma interface de chat completa para visualizar e responder conversas WhatsApp diretamente no CRM, permitindo que vendedores gerenciem comunicações sem sair da plataforma.
+Criar uma página administrativa em `/timelinesai` para gerenciar os canais (contas WhatsApp) conectados ao sistema, permitindo vincular cada canal a um vendedor específico e controlar o status de ativação.
 
 ## Análise do Sistema Existente
 
-### Hooks Já Implementados
-| Hook | Função |
-|------|--------|
-| `useWhatsAppConversations` | Lista conversas com filtros |
-| `useWhatsAppMessages` | Mensagens + realtime subscription |
-| `useSendWhatsAppMessage` | Mutation para enviar mensagens |
-| `usePersonWhatsAppConversations` | Conversas de uma pessoa específica |
-| `useWhatsAppAnalysis` | Análise IA da conversa |
+### Estrutura Atual de `whatsapp_channels`
 
-### Padrões de UI Identificados
-- Cards com classe `ios-glass` para glassmorphism
-- Tabs para organização de conteúdo em detalhes
-- ScrollArea para listas com scroll
-- Badges para status e labels
-- Cores emerald/green para WhatsApp (já implementado na timeline)
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | uuid | ID interno |
+| timelines_channel_id | text | ID da conta no Timelines.ai |
+| name | text | Nome da conta (auto-preenchido pelo webhook) |
+| phone_number | text | Número do WhatsApp |
+| is_active | boolean | Se está ativo |
+| metadata | jsonb | Dados adicionais |
 
-## Arquitetura dos Componentes
+### Alteração Necessária no Banco de Dados
+
+Adicionar coluna `owner_id` para vincular canal a um vendedor:
+
+```sql
+ALTER TABLE whatsapp_channels 
+ADD COLUMN owner_id uuid REFERENCES profiles(id);
+```
+
+Isso permitirá associar cada conta WhatsApp (canal) a um membro da equipe.
+
+## Arquitetura
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                   ESTRUTURA DE COMPONENTES                      │
+│                      /timelinesai                               │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  PersonDetails.tsx                                              │
-│  └── Tab "WhatsApp"                                             │
-│      └── PersonWhatsApp.tsx                                     │
-│          ├── ConversationList.tsx (se múltiplas conversas)      │
-│          └── ChatPanel.tsx                                      │
-│              ├── ChatHeader.tsx                                 │
-│              ├── MessageList.tsx                                │
-│              │   └── MessageBubble.tsx (múltiplas)              │
-│              └── ChatInput.tsx                                  │
-│                                                                 │
-│  WhatsAppInbox.tsx (Página dedicada - opcional fase 2)          │
-│  └── Layout split: Lista | Chat                                 │
+│  TimelinesAdmin.tsx (Página)                                    │
+│  ├── Header com título e descrição                              │
+│  ├── Card com tabela de canais                                  │
+│  │   └── ChannelTable.tsx                                       │
+│  │       ├── Nome do canal                                      │
+│  │       ├── Número do telefone                                 │
+│  │       ├── Vendedor responsável (Select)                      │
+│  │       ├── Status (Badge ativo/inativo)                       │
+│  │       └── Ações (editar, ativar/desativar)                   │
+│  └── ChannelFormSheet.tsx (edição/criação manual)               │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Componentes a Criar
+## Banco de Dados
 
-### 1. PersonWhatsApp.tsx
-Container principal para a aba WhatsApp no detalhe da pessoa.
+### Migração
 
+```sql
+-- Adicionar owner_id à tabela whatsapp_channels
+ALTER TABLE public.whatsapp_channels 
+ADD COLUMN owner_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+-- Index para performance
+CREATE INDEX idx_whatsapp_channels_owner_id ON public.whatsapp_channels(owner_id);
+```
+
+## Componentes
+
+### 1. TimelinesAdmin.tsx (Página)
+
+Página principal acessível apenas para admins, localizada em `/timelinesai`.
+
+Estrutura visual:
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│ 💬 Conversas WhatsApp                                           │
+│ 📱 Timelines.ai - Administração                                │
+│ Gerencie os canais WhatsApp conectados ao sistema              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  [Se nenhuma conversa]                                          │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │     💬                                                   │   │
-│  │     Nenhuma conversa WhatsApp                           │   │
-│  │     As mensagens aparecerão aqui quando                 │   │
-│  │     o contato enviar uma mensagem.                      │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│  [+ Adicionar Canal Manual]                                     │
 │                                                                 │
-│  [Se tem conversas]                                             │
-│  └── ChatPanel com conversa mais recente                        │
+│  ┌─────────────────────────────────────────────────────────────┐
+│  │ Canais WhatsApp                                             │
+│  ├─────────────────────────────────────────────────────────────┤
+│  │ Nome          │ Telefone       │ Vendedor   │ Status │ Ação │
+│  │───────────────┼────────────────┼────────────┼────────┼──────│
+│  │ Leonardo S.   │ +55 43 9191... │ [Select ▼] │ 🟢     │ ⚙️   │
+│  │ Adriana J.    │ +55 43 9124... │ [Select ▼] │ 🟢     │ ⚙️   │
+│  └─────────────────────────────────────────────────────────────┘
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────────┐
+│  │ ℹ️ Configuração do Webhook                                  │
+│  │ URL: https://yqidjdpxkzgrhneaxngn.supabase.co/functions/... │
+│  │ [Copiar URL]                                                │
+│  └─────────────────────────────────────────────────────────────┘
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. ChatPanel.tsx
-Painel de chat com header, mensagens e input.
+### 2. ChannelFormSheet.tsx
+
+Sheet para edição de canal existente ou criação manual:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│ ChatHeader                                                      │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ 📱 WhatsApp • Via Canal Empresarial                         │ │
-│ │ Status: 🟢 Em atendimento        [Resolver] [Analisar IA]   │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-├─────────────────────────────────────────────────────────────────┤
-│ MessageList (ScrollArea)                                        │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │                                                             │ │
-│ │  ┌────────────────────────┐                                │ │
-│ │  │ Olá, preciso de ajuda  │                                │ │
-│ │  │ com meu seguro         │  ← Mensagem do contato         │ │
-│ │  │ 14:32 ✓✓               │                                │ │
-│ │  └────────────────────────┘                                │ │
-│ │                                                             │ │
-│ │                    ┌────────────────────────┐              │ │
-│ │  Atendente →       │ Olá! Vou verificar     │              │ │
-│ │                    │ isso para você.        │              │ │
-│ │                    │ 14:35 ✓✓               │              │ │
-│ │                    └────────────────────────┘              │ │
-│ │                                                             │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-├─────────────────────────────────────────────────────────────────┤
-│ ChatInput                                                       │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ [Digite sua mensagem...                              ] [📤]│ │
-│ └─────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│ Editar Canal                         │
+├──────────────────────────────────────┤
+│                                      │
+│ Nome do Canal                        │
+│ [Adriana Jacometo              ]     │
+│                                      │
+│ Número do WhatsApp                   │
+│ [+55 43 91243257               ]     │
+│                                      │
+│ Vendedor Responsável                 │
+│ [Select: Adriana Jacometo    ▼]      │
+│                                      │
+│ Timelines Channel ID                 │
+│ [554391243257                  ] 🔒  │
+│                                      │
+│ Status                               │
+│ [✓] Canal ativo                      │
+│                                      │
+│          [Cancelar] [Salvar]         │
+└──────────────────────────────────────┘
 ```
 
-### 3. MessageBubble.tsx
-Bolha de mensagem individual com suporte a diferentes tipos.
+## Hooks
 
-| Tipo | Visual |
-|------|--------|
-| text | Texto simples |
-| image | Thumbnail clicável |
-| audio | Player de áudio inline |
-| video | Player de vídeo inline |
-| document | Ícone + nome do arquivo |
-| location | Mini mapa ou link |
-
-### 4. ChatInput.tsx
-Campo de entrada com envio via Enter ou botão.
-
-- Textarea auto-resize
-- Envio: Enter (ou Shift+Enter para nova linha)
-- Estado de loading durante envio
-- Desabilitado se conversa resolvida
-
-### 5. ChatHeader.tsx
-Header com informações da conversa e ações.
-
-- Status da conversa (pending/in_progress/resolved)
-- Canal de origem
-- Botão "Resolver" para marcar como resolvida
-- Botão "Analisar IA" para gerar análise
-- Data da última mensagem
-
-## Integração com PersonDetails
-
-Adicionar nova aba "WhatsApp" com contador de conversas:
+### useWhatsAppChannels.ts
 
 ```typescript
-<TabsTrigger value="whatsapp" className="flex-1 sm:flex-none">
-  <MessageCircle className="h-4 w-4 mr-1 text-emerald-500" />
-  WhatsApp ({conversations.length})
-</TabsTrigger>
+// Lista todos os canais com owner
+export function useWhatsAppChannels() {
+  return useQuery({
+    queryKey: ['whatsapp-channels'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_channels')
+        .select(`
+          *,
+          owner:owner_id (id, full_name, avatar_url)
+        `)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// Mutation para atualizar canal
+export function useUpdateWhatsAppChannel() {
+  return useMutation({
+    mutationFn: async ({ channelId, data }) => {
+      const { error } = await supabase
+        .from('whatsapp_channels')
+        .update(data)
+        .eq('id', channelId);
+      if (error) throw error;
+    },
+    // invalidate queries
+  });
+}
 ```
 
-## Funcionalidades
+## Proteção de Acesso (Admin Only)
 
-### Envio de Mensagens
-1. Usuário digita mensagem
-2. Clica enviar ou pressiona Enter
-3. Mutation `useSendWhatsAppMessage` é chamada
-4. Mensagem aparece imediatamente (optimistic update via realtime)
-5. Toast de sucesso/erro
+A página será protegida para acesso apenas por administradores:
 
-### Recebimento em Tempo Real
-1. Realtime subscription já implementada em `useWhatsAppMessages`
-2. Novas mensagens aparecem automaticamente
-3. Scroll automático para última mensagem
+```typescript
+// Em TimelinesAdmin.tsx
+const { isAdmin } = useAuth();
 
-### Resolução de Conversa
-1. Botão "Resolver" atualiza status para 'resolved'
-2. Desabilita input de mensagens
-3. Registra evento na timeline da pessoa
-
-### Análise IA (Opcional)
-1. Botão "Analisar" chama edge function
-2. Exibe loading enquanto processa
-3. Mostra resumo e scores em card colapsável
+if (!isAdmin) {
+  return <Navigate to="/" replace />;
+}
+```
 
 ## Arquivos a Criar
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/whatsapp/ChatPanel.tsx` | Painel principal do chat |
-| `src/components/whatsapp/ChatHeader.tsx` | Header com status e ações |
-| `src/components/whatsapp/MessageList.tsx` | Lista de mensagens com scroll |
-| `src/components/whatsapp/MessageBubble.tsx` | Bolha de mensagem individual |
-| `src/components/whatsapp/ChatInput.tsx` | Campo de entrada de mensagem |
-| `src/components/whatsapp/ConversationPicker.tsx` | Seletor se múltiplas conversas |
-| `src/components/whatsapp/AnalysisCard.tsx` | Card com análise IA |
-| `src/components/people/detail/PersonWhatsApp.tsx` | Container para aba WhatsApp |
+| `migration` | Adicionar owner_id à whatsapp_channels |
+| `src/pages/TimelinesAdmin.tsx` | Página de administração |
+| `src/components/timelines/ChannelTable.tsx` | Tabela de canais |
+| `src/components/timelines/ChannelFormSheet.tsx` | Sheet de edição |
+| `src/hooks/useWhatsAppChannels.ts` | Hooks para canais |
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/PersonDetails.tsx` | Adicionar aba WhatsApp e importar componentes |
-| `src/hooks/useWhatsAppConversations.ts` | Adicionar mutation para atualizar status |
+| `src/App.tsx` | Adicionar rota `/timelinesai` |
+| `src/components/layout/AppSidebar.tsx` | Adicionar link (apenas para admins) |
 
-## Hook Adicional
+## Funcionalidades
 
-### useUpdateConversation.ts
-```typescript
-// Mutation para atualizar status, assigned_to, tags, etc.
-export function useUpdateWhatsAppConversation() {
-  return useMutation({
-    mutationFn: async ({ conversationId, data }) => {
-      const { error } = await supabase
-        .from('whatsapp_conversations')
-        .update(data)
-        .eq('id', conversationId);
-      if (error) throw error;
-    },
-    // ... invalidate queries
-  });
-}
-```
+### 1. Listagem de Canais
+- Exibir todos os canais cadastrados
+- Mostrar nome, telefone, vendedor vinculado e status
+- Ordenar por data de criação
 
-## Design Visual
+### 2. Vinculação de Vendedor
+- Select com lista de team members
+- Atualização imediata ao selecionar
+- Possibilidade de desvincular (opção "Nenhum")
 
-### Cores WhatsApp
-- Fundo bolha contato: `bg-muted` (cinza claro)
-- Fundo bolha agente: `bg-emerald-500/10` (verde claro)
-- Texto: `text-foreground`
-- Timestamp: `text-muted-foreground text-xs`
-- Status checks: `text-emerald-500` (lido), `text-muted-foreground` (enviado)
+### 3. Ativar/Desativar Canal
+- Toggle para ativar ou desativar canal
+- Canais desativados não processam mensagens (futura implementação no webhook)
 
-### Responsividade
-- Em mobile: chat ocupa largura total
-- Em desktop: mantém proporções adequadas dentro da área de tabs
-- Scroll suave com `scroll-smooth`
+### 4. Edição Manual
+- Editar nome do canal
+- Alterar telefone
+- Mudar vendedor responsável
+
+### 5. Criação Manual (Opcional)
+- Permitir criar canal manualmente antes do webhook
+- Útil para pré-configurar vendedores
+
+### 6. Informações do Webhook
+- Card com URL do webhook para copiar
+- Instruções de configuração no Timelines.ai
 
 ## Fluxo de Uso
 
 ```text
-Usuário acessa pessoa → Clica aba "WhatsApp"
-                              │
-                              ├── Sem conversas → Mensagem vazia
-                              │
-                              └── Com conversas → Exibe ChatPanel
-                                                      │
-                                                      ├── Lê mensagens
-                                                      ├── Digita resposta
-                                                      └── Envia via API
+Admin acessa /timelinesai
+         │
+         ├── Vê lista de canais existentes
+         │   (criados automaticamente pelo webhook)
+         │
+         ├── Vincula cada canal a um vendedor
+         │   (Seleciona no dropdown)
+         │
+         ├── Ativa/desativa canais conforme necessário
+         │
+         └── Copia URL do webhook para configurar no Timelines.ai
 ```
 
 ## Resultado Esperado
 
-1. Vendedor abre detalhe de uma pessoa
-2. Vê aba "WhatsApp" com contador de conversas
-3. Clica e visualiza histórico de mensagens
-4. Pode responder diretamente pelo CRM
-5. Mensagens enviadas aparecem em tempo real
-6. Pode resolver conversa quando atendimento termina
-7. Pode solicitar análise IA para feedback de qualidade
+1. Admin tem visão centralizada de todos os canais WhatsApp
+2. Pode vincular cada canal a um vendedor específico
+3. Pode desativar canais que não devem receber mensagens
+4. Tem acesso fácil à URL do webhook para configuração
+5. Interface segura acessível apenas por administradores
