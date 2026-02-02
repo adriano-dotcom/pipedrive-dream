@@ -1,348 +1,247 @@
 
+# Plano: Componentes de Chat WhatsApp no CRM
 
-# Plano: Integração Timelines.ai com Timeline do CRM
+## Objetivo
 
-## Visão Geral
+Criar uma interface de chat completa para visualizar e responder conversas WhatsApp diretamente no CRM, permitindo que vendedores gerenciem comunicações sem sair da plataforma.
 
-Integrar o Timelines.ai para receber e enviar mensagens de WhatsApp, exibindo as conversas diretamente na timeline dos contatos existentes (`people`). Quando uma mensagem chegar de um número não cadastrado, o sistema criará automaticamente uma nova pessoa.
+## Análise do Sistema Existente
 
-## Decisões Arquiteturais
+### Hooks Já Implementados
+| Hook | Função |
+|------|--------|
+| `useWhatsAppConversations` | Lista conversas com filtros |
+| `useWhatsAppMessages` | Mensagens + realtime subscription |
+| `useSendWhatsAppMessage` | Mutation para enviar mensagens |
+| `usePersonWhatsAppConversations` | Conversas de uma pessoa específica |
+| `useWhatsAppAnalysis` | Análise IA da conversa |
 
-### Adaptação ao Sistema Existente
+### Padrões de UI Identificados
+- Cards com classe `ios-glass` para glassmorphism
+- Tabs para organização de conteúdo em detalhes
+- ScrollArea para listas com scroll
+- Badges para status e labels
+- Cores emerald/green para WhatsApp (já implementado na timeline)
 
-| Proposta Original | Adaptação |
-|-------------------|-----------|
-| Criar tabela `contacts` | Usar tabela existente `people` |
-| Timeline separada | Integrar na `people_history` existente |
-| Campo `whatsapp` novo | Já existe na tabela `people` |
-
-### Novas Tabelas
-
-Apenas as tabelas necessárias para WhatsApp:
+## Arquitetura dos Componentes
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                        ESTRUTURA DE DADOS                       │
+│                   ESTRUTURA DE COMPONENTES                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  [channels]          [whatsapp_conversations]    [people]       │
-│  - WhatsApp accounts  - chat_id Timelines.ai     - (existente)  │
-│                       - person_id FK                            │
-│                       - status                                  │
+│  PersonDetails.tsx                                              │
+│  └── Tab "WhatsApp"                                             │
+│      └── PersonWhatsApp.tsx                                     │
+│          ├── ConversationList.tsx (se múltiplas conversas)      │
+│          └── ChatPanel.tsx                                      │
+│              ├── ChatHeader.tsx                                 │
+│              ├── MessageList.tsx                                │
+│              │   └── MessageBubble.tsx (múltiplas)              │
+│              └── ChatInput.tsx                                  │
 │                                                                 │
-│  [whatsapp_messages]  [conversation_analysis]                   │
-│  - message_uid        - scores IA                               │
-│  - conversation_id FK - sentiment                               │
-│  - content/media      - resumo                                  │
+│  WhatsAppInbox.tsx (Página dedicada - opcional fase 2)          │
+│  └── Layout split: Lista | Chat                                 │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Banco de Dados
+## Componentes a Criar
 
-### 1. ENUMs
-
-```sql
-CREATE TYPE whatsapp_conversation_status AS ENUM ('pending', 'in_progress', 'resolved', 'archived');
-CREATE TYPE whatsapp_message_status AS ENUM ('sent', 'delivered', 'read', 'failed');
-CREATE TYPE whatsapp_message_type AS ENUM ('text', 'image', 'audio', 'video', 'document', 'location', 'contact', 'sticker');
-```
-
-### 2. Tabela `whatsapp_channels`
-
-Armazena as contas WhatsApp conectadas ao Timelines.ai.
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | uuid PK | ID interno |
-| timelines_channel_id | text UNIQUE | ID da conta no Timelines.ai |
-| name | text | Nome da conta |
-| phone_number | text | Número do WhatsApp |
-| is_active | boolean | Se está ativo |
-| metadata | jsonb | Dados adicionais |
-
-### 3. Tabela `whatsapp_conversations`
-
-Conversas vinculadas a pessoas do CRM.
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | uuid PK | ID interno |
-| timelines_conversation_id | text UNIQUE | chat_id do Timelines.ai |
-| channel_id | uuid FK | Canal WhatsApp |
-| person_id | uuid FK → people | Pessoa do CRM |
-| status | enum | pending/in_progress/resolved/archived |
-| assigned_to | uuid | Atendente responsável |
-| priority | integer | Prioridade (0-5) |
-| tags | text[] | Tags da conversa |
-| last_message_at | timestamptz | Última mensagem |
-| first_response_at | timestamptz | Primeira resposta do atendente |
-| resolved_at | timestamptz | Quando foi resolvida |
-
-### 4. Tabela `whatsapp_messages`
-
-Mensagens individuais de cada conversa.
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | uuid PK | ID interno |
-| timelines_message_id | text UNIQUE | message_uid do Timelines.ai |
-| conversation_id | uuid FK | Conversa |
-| sender_type | text | 'contact', 'agent', 'system' |
-| sender_id | uuid | ID do atendente (se agent) |
-| content | text | Conteúdo da mensagem |
-| message_type | enum | text/image/audio/video/etc |
-| status | enum | sent/delivered/read/failed |
-| media_url | text | URL da mídia |
-| media_mime_type | text | Tipo MIME |
-| metadata | jsonb | Dados extras |
-
-### 5. Tabela `whatsapp_conversation_analysis` (Opcional - IA)
-
-Análise de conversas com IA.
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | uuid PK | ID interno |
-| conversation_id | uuid FK UNIQUE | Conversa analisada |
-| overall_score | integer | Score geral (0-10) |
-| response_quality | integer | Qualidade das respostas |
-| tone_score | integer | Tom e cordialidade |
-| resolution_effectiveness | integer | Eficácia na resolução |
-| professionalism | integer | Profissionalismo |
-| sentiment | text | positive/neutral/negative |
-| summary | text | Resumo da conversa |
-| strengths | text[] | Pontos fortes |
-| improvements | text[] | Pontos a melhorar |
-| message_count | integer | Número de mensagens |
-| analyzed_at | timestamptz | Quando foi analisada |
-
-## Edge Functions
-
-### 1. `timelines-webhook` (Webhook - Público)
-
-Recebe eventos do Timelines.ai e processa:
+### 1. PersonWhatsApp.tsx
+Container principal para a aba WhatsApp no detalhe da pessoa.
 
 ```text
-Timelines.ai → Webhook → Processa Evento
-                              │
-                              ├── Upsert Canal (whatsapp_channels)
-                              │
-                              ├── Busca/Cria Pessoa (people)
-                              │   └── Se não existe: cria com nome e WhatsApp
-                              │
-                              ├── Upsert Conversa (whatsapp_conversations)
-                              │   └── Se resolvida + nova msg: reabre
-                              │
-                              ├── Insere Mensagem (whatsapp_messages)
-                              │   └── Evita duplicatas por message_uid
-                              │
-                              └── Registra na Timeline (people_history)
-                                  └── event_type: 'whatsapp_received'
+┌─────────────────────────────────────────────────────────────────┐
+│ 💬 Conversas WhatsApp                                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  [Se nenhuma conversa]                                          │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │     💬                                                   │   │
+│  │     Nenhuma conversa WhatsApp                           │   │
+│  │     As mensagens aparecerão aqui quando                 │   │
+│  │     o contato enviar uma mensagem.                      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  [Se tem conversas]                                             │
+│  └── ChatPanel com conversa mais recente                        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Payload esperado do Timelines.ai:**
+### 2. ChatPanel.tsx
+Painel de chat com header, mensagens e input.
 
-```json
-{
-  "event_type": "message:received:new",
-  "chat": {
-    "chat_id": 45722353,
-    "phone": "554391915894",
-    "full_name": "Nome do Cliente"
-  },
-  "whatsapp_account": {
-    "phone": "+554391243257",
-    "full_name": "Nome da Empresa"
-  },
-  "message": {
-    "text": "Olá, preciso de ajuda",
-    "direction": "received",
-    "timestamp": "2026-02-02 17:25:49 -0300",
-    "message_uid": "uuid-da-mensagem",
-    "sender": {
-      "phone": "+554391915894",
-      "full_name": "Nome do Cliente"
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ ChatHeader                                                      │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ 📱 WhatsApp • Via Canal Empresarial                         │ │
+│ │ Status: 🟢 Em atendimento        [Resolver] [Analisar IA]   │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│ MessageList (ScrollArea)                                        │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │                                                             │ │
+│ │  ┌────────────────────────┐                                │ │
+│ │  │ Olá, preciso de ajuda  │                                │ │
+│ │  │ com meu seguro         │  ← Mensagem do contato         │ │
+│ │  │ 14:32 ✓✓               │                                │ │
+│ │  └────────────────────────┘                                │ │
+│ │                                                             │ │
+│ │                    ┌────────────────────────┐              │ │
+│ │  Atendente →       │ Olá! Vou verificar     │              │ │
+│ │                    │ isso para você.        │              │ │
+│ │                    │ 14:35 ✓✓               │              │ │
+│ │                    └────────────────────────┘              │ │
+│ │                                                             │ │
+│ └─────────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────┤
+│ ChatInput                                                       │
+│ ┌─────────────────────────────────────────────────────────────┐ │
+│ │ [Digite sua mensagem...                              ] [📤]│ │
+│ └─────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 3. MessageBubble.tsx
+Bolha de mensagem individual com suporte a diferentes tipos.
+
+| Tipo | Visual |
+|------|--------|
+| text | Texto simples |
+| image | Thumbnail clicável |
+| audio | Player de áudio inline |
+| video | Player de vídeo inline |
+| document | Ícone + nome do arquivo |
+| location | Mini mapa ou link |
+
+### 4. ChatInput.tsx
+Campo de entrada com envio via Enter ou botão.
+
+- Textarea auto-resize
+- Envio: Enter (ou Shift+Enter para nova linha)
+- Estado de loading durante envio
+- Desabilitado se conversa resolvida
+
+### 5. ChatHeader.tsx
+Header com informações da conversa e ações.
+
+- Status da conversa (pending/in_progress/resolved)
+- Canal de origem
+- Botão "Resolver" para marcar como resolvida
+- Botão "Analisar IA" para gerar análise
+- Data da última mensagem
+
+## Integração com PersonDetails
+
+Adicionar nova aba "WhatsApp" com contador de conversas:
+
+```typescript
+<TabsTrigger value="whatsapp" className="flex-1 sm:flex-none">
+  <MessageCircle className="h-4 w-4 mr-1 text-emerald-500" />
+  WhatsApp ({conversations.length})
+</TabsTrigger>
+```
+
+## Funcionalidades
+
+### Envio de Mensagens
+1. Usuário digita mensagem
+2. Clica enviar ou pressiona Enter
+3. Mutation `useSendWhatsAppMessage` é chamada
+4. Mensagem aparece imediatamente (optimistic update via realtime)
+5. Toast de sucesso/erro
+
+### Recebimento em Tempo Real
+1. Realtime subscription já implementada em `useWhatsAppMessages`
+2. Novas mensagens aparecem automaticamente
+3. Scroll automático para última mensagem
+
+### Resolução de Conversa
+1. Botão "Resolver" atualiza status para 'resolved'
+2. Desabilita input de mensagens
+3. Registra evento na timeline da pessoa
+
+### Análise IA (Opcional)
+1. Botão "Analisar" chama edge function
+2. Exibe loading enquanto processa
+3. Mostra resumo e scores em card colapsável
+
+## Arquivos a Criar
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/whatsapp/ChatPanel.tsx` | Painel principal do chat |
+| `src/components/whatsapp/ChatHeader.tsx` | Header com status e ações |
+| `src/components/whatsapp/MessageList.tsx` | Lista de mensagens com scroll |
+| `src/components/whatsapp/MessageBubble.tsx` | Bolha de mensagem individual |
+| `src/components/whatsapp/ChatInput.tsx` | Campo de entrada de mensagem |
+| `src/components/whatsapp/ConversationPicker.tsx` | Seletor se múltiplas conversas |
+| `src/components/whatsapp/AnalysisCard.tsx` | Card com análise IA |
+| `src/components/people/detail/PersonWhatsApp.tsx` | Container para aba WhatsApp |
+
+## Arquivos a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/PersonDetails.tsx` | Adicionar aba WhatsApp e importar componentes |
+| `src/hooks/useWhatsAppConversations.ts` | Adicionar mutation para atualizar status |
+
+## Hook Adicional
+
+### useUpdateConversation.ts
+```typescript
+// Mutation para atualizar status, assigned_to, tags, etc.
+export function useUpdateWhatsAppConversation() {
+  return useMutation({
+    mutationFn: async ({ conversationId, data }) => {
+      const { error } = await supabase
+        .from('whatsapp_conversations')
+        .update(data)
+        .eq('id', conversationId);
+      if (error) throw error;
     },
-    "attachments": []
-  }
+    // ... invalidate queries
+  });
 }
 ```
 
-### 2. `send-whatsapp-message` (Autenticado)
+## Design Visual
 
-Envia mensagens para contatos via Timelines.ai:
+### Cores WhatsApp
+- Fundo bolha contato: `bg-muted` (cinza claro)
+- Fundo bolha agente: `bg-emerald-500/10` (verde claro)
+- Texto: `text-foreground`
+- Timestamp: `text-muted-foreground text-xs`
+- Status checks: `text-emerald-500` (lido), `text-muted-foreground` (enviado)
 
-```text
-Frontend → Edge Function → API Timelines.ai → WhatsApp
-     │                            │
-     │                            └── POST /chats/{chat_id}/messages
-     │
-     └── Salva localmente em whatsapp_messages
-         + Registra em people_history
-```
+### Responsividade
+- Em mobile: chat ocupa largura total
+- Em desktop: mantém proporções adequadas dentro da área de tabs
+- Scroll suave com `scroll-smooth`
 
-### 3. `analyze-whatsapp-conversation` (Autenticado - IA)
-
-Analisa conversas com Lovable AI (Gemini):
-
-```text
-Busca Mensagens → Formata Transcript → Lovable AI → Salva Análise
-                                          │
-                                          └── Tool Calling para estruturar
-                                              - Scores (0-10)
-                                              - Sentimento
-                                              - Resumo
-                                              - Pontos fortes/melhorias
-```
-
-## Integração com Timeline Existente
-
-### Novos Event Types para `people_history`
-
-| Event Type | Descrição | Ícone Sugerido |
-|------------|-----------|----------------|
-| `whatsapp_received` | Mensagem recebida do contato | MessageCircle (verde) |
-| `whatsapp_sent` | Mensagem enviada pelo atendente | Send (azul) |
-| `whatsapp_conversation_started` | Nova conversa iniciada | MessageSquarePlus |
-| `whatsapp_conversation_resolved` | Conversa resolvida | CheckCircle2 |
-
-### Atualização do `PersonTimeline.tsx`
-
-Adicionar suporte aos novos tipos de evento com ícones e cores do WhatsApp:
+## Fluxo de Uso
 
 ```text
-Timeline da Pessoa
-┌─────────────────────────────────────────────────────────────┐
-│ 💬 WhatsApp: "Olá, preciso de um orçamento..."             │
-│ há 5 minutos • Mensagem recebida                           │
-├─────────────────────────────────────────────────────────────┤
-│ 📤 WhatsApp: "Olá! Vou preparar seu orçamento..."          │
-│ há 3 minutos • João Silva respondeu                        │
-├─────────────────────────────────────────────────────────────┤
-│ ✅ Conversa WhatsApp resolvida                             │
-│ há 1 minuto • João Silva                                    │
-└─────────────────────────────────────────────────────────────┘
+Usuário acessa pessoa → Clica aba "WhatsApp"
+                              │
+                              ├── Sem conversas → Mensagem vazia
+                              │
+                              └── Com conversas → Exibe ChatPanel
+                                                      │
+                                                      ├── Lê mensagens
+                                                      ├── Digita resposta
+                                                      └── Envia via API
 ```
 
-## Frontend - Hooks e Componentes
+## Resultado Esperado
 
-### Novos Hooks
-
-| Hook | Função |
-|------|--------|
-| `useWhatsAppConversations` | Lista conversas com filtros |
-| `useWhatsAppConversation` | Detalhes de uma conversa |
-| `useWhatsAppMessages` | Mensagens com realtime |
-| `useSendWhatsAppMessage` | Mutation para enviar |
-| `useWhatsAppAnalysis` | Buscar análise IA |
-
-### Realtime para Mensagens
-
-```typescript
-supabase
-  .channel(`whatsapp-${conversationId}`)
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'whatsapp_messages',
-    filter: `conversation_id=eq.${conversationId}`
-  }, callback)
-  .subscribe();
-```
-
-## Configurações Necessárias
-
-### Secrets
-
-| Secret | Descrição |
-|--------|-----------|
-| `TIMELINES_API_TOKEN` | Token da API do Timelines.ai |
-| `LOVABLE_API_KEY` | Já configurado (para IA) |
-
-### config.toml
-
-```toml
-[functions.timelines-webhook]
-verify_jwt = false
-
-[functions.send-whatsapp-message]
-verify_jwt = false
-
-[functions.analyze-whatsapp-conversation]
-verify_jwt = false
-```
-
-### Webhook no Timelines.ai
-
-Configurar no painel do Timelines.ai:
-- **URL**: `https://yqidjdpxkzgrhneaxngn.supabase.co/functions/v1/timelines-webhook`
-- **Eventos**: `message:received:new`, `chat:incoming:new`
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Tipo | Descrição |
-|---------|------|-----------|
-| `migration` | DB | Criar tabelas e ENUMs |
-| `supabase/functions/timelines-webhook/index.ts` | Edge | Webhook receber mensagens |
-| `supabase/functions/send-whatsapp-message/index.ts` | Edge | Enviar mensagens |
-| `supabase/functions/analyze-whatsapp-conversation/index.ts` | Edge | Análise IA |
-| `supabase/config.toml` | Config | Adicionar funções |
-| `src/hooks/useWhatsAppConversations.ts` | Hook | Lista conversas |
-| `src/hooks/useWhatsAppMessages.ts` | Hook | Mensagens + realtime |
-| `src/hooks/useSendWhatsAppMessage.ts` | Hook | Enviar mensagem |
-| `src/components/people/detail/PersonTimeline.tsx` | UI | Adicionar ícones WhatsApp |
-| `src/components/whatsapp/ConversationList.tsx` | UI | Lista de conversas |
-| `src/components/whatsapp/ConversationPanel.tsx` | UI | Painel de chat |
-| `src/components/whatsapp/MessageBubble.tsx` | UI | Bolha de mensagem |
-
-## Fluxo Completo
-
-```text
-                    ┌────────────────────────────────┐
-                    │        Timelines.ai            │
-                    │      (WhatsApp Business)       │
-                    └────────────┬───────────────────┘
-                                 │
-                    ┌────────────▼───────────────────┐
-                    │    timelines-webhook           │
-                    │    (Edge Function)             │
-                    └────────────┬───────────────────┘
-                                 │
-          ┌──────────────────────┼──────────────────────┐
-          │                      │                      │
-          ▼                      ▼                      ▼
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│ whatsapp_channels│   │    people        │   │ whatsapp_       │
-│                 │   │ (cria se novo)   │   │ conversations   │
-└─────────────────┘   └─────────────────┘   └─────────────────┘
-                                 │                      │
-                                 │                      ▼
-                                 │           ┌─────────────────┐
-                                 │           │ whatsapp_       │
-                                 │           │ messages        │
-                                 │           └─────────────────┘
-                                 │
-                                 ▼
-                      ┌─────────────────┐
-                      │ people_history  │
-                      │ (timeline)      │
-                      └─────────────────┘
-                                 │
-                                 ▼
-                      ┌─────────────────┐
-                      │   Frontend      │
-                      │  (Realtime)     │
-                      └─────────────────┘
-```
-
-## Próximos Passos (Pós-Aprovação)
-
-1. Solicitar `TIMELINES_API_TOKEN`
-2. Executar migração do banco de dados
-3. Criar edge functions
-4. Atualizar componente PersonTimeline
-5. Criar hooks React Query
-6. Criar componentes de chat (opcional - fase 2)
-7. Testar integração end-to-end
-
+1. Vendedor abre detalhe de uma pessoa
+2. Vê aba "WhatsApp" com contador de conversas
+3. Clica e visualiza histórico de mensagens
+4. Pode responder diretamente pelo CRM
+5. Mensagens enviadas aparecem em tempo real
+6. Pode resolver conversa quando atendimento termina
+7. Pode solicitar análise IA para feedback de qualidade
