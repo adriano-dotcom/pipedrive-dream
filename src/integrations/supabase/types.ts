@@ -1424,6 +1424,7 @@ export type Database = {
           is_active: boolean | null
           metadata: Json | null
           name: string
+          owner_id: string | null
           phone_number: string | null
           timelines_channel_id: string
           updated_at: string | null
@@ -1434,6 +1435,7 @@ export type Database = {
           is_active?: boolean | null
           metadata?: Json | null
           name: string
+          owner_id?: string | null
           phone_number?: string | null
           timelines_channel_id: string
           updated_at?: string | null
@@ -1444,11 +1446,20 @@ export type Database = {
           is_active?: boolean | null
           metadata?: Json | null
           name?: string
+          owner_id?: string | null
           phone_number?: string | null
           timelines_channel_id?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_channels_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       whatsapp_conversation_analysis: {
         Row: {
