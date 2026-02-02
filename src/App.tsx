@@ -21,6 +21,7 @@ import Activities from "./pages/Activities";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import TimelinesAdmin from "./pages/TimelinesAdmin";
+import VendedoresAdmin from "./pages/VendedoresAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -132,6 +133,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <TimelinesAdmin />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/vendedores"
+                  element={
+                    <ProtectedRoute>
+                      <VendedoresAdmin />
                     </ProtectedRoute>
                   }
                 />
