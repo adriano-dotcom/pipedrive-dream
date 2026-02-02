@@ -1,152 +1,139 @@
 
-# Plano: Corrigir Checkboxes de Seleção na Tabela de Organizações
+# Diagnóstico: Preparação do Banco para 50.000 Empresas com Contatos
 
-## Problema Identificado
+## Situação Atual
 
-As caixas de seleção (checkboxes) não estão funcionando porque há um **loop de sincronização** entre o estado interno `rowSelection` e o estado externo `selectedIds`:
+| Métrica | Valor Atual |
+|---------|-------------|
+| Organizações | 841 |
+| Pessoas (contatos) | 984 |
+| Tamanho `organizations` | 664 KB |
+| Tamanho `people` | 640 KB |
 
+## Pontos Positivos (Já Implementados)
+
+1. **Paginação Server-Side** - O hook `usePaginatedQuery` já implementa paginação no servidor com prefetch da próxima página
+2. **Ordenação Server-Side** - Ordenação acontece no banco, não no frontend
+3. **Debounce na busca** - 300ms de delay antes de executar queries
+4. **Filtros Server-Side** - Filtros são aplicados diretamente na query SQL
+
+## Problemas Identificados para 50.000 Registros
+
+### 1. Falta de Índices Críticos
+
+| Índice Faltando | Impacto |
+|-----------------|---------|
+| `created_at DESC` em organizations/people | Ordenação padrão faz Seq Scan |
+| `address_city`, `address_state` | Filtros de cidade/estado sem índice |
+| `label` em organizations | Filtro de classificação sem índice |
+| `automotores` | Ordenação por frota sem índice |
+| `policy_renewal_month` | Filtro de mês de renovação sem índice |
+
+### 2. Busca ILIKE Não Otimizada
+
+A extensão `pg_trgm` **não está habilitada**. Com 50k registros, buscas como:
+
+```sql
+WHERE name ILIKE '%termo%' OR cnpj ILIKE '%termo%'
 ```
-Usuário clica no checkbox
-       │
-       ▼
-row.toggleSelected(true) atualiza rowSelection
-       │
-       ▼
-Efeito 1: detecta mudança → chama onSelectionChange(selectedRowIds)
-       │
-       ▼
-Pai: setSelectedIds(newIds)
-       │
-       ▼
-Efeito 2: detecta mudança em selectedIds → setRowSelection(newSelection)
-       │
-       ▼
-PROBLEMA: Se o array for considerado "diferente" (nova referência),
-o rowSelection é sobrescrito, causando loop ou comportamento inesperado
-```
 
-O problema específico é que os dois efeitos estão competindo:
-- Um efeito converte `rowSelection` → `selectedIds` (notifica o pai)
-- Outro efeito converte `selectedIds` → `rowSelection` (sincroniza do pai)
+Farão **Seq Scan** (varredura completa), demorando ~250-500ms por busca.
 
-Quando a tabela re-renderiza após a mudança de página/ordenação, os dados mudam e `selectedIds` é resetado, criando conflito.
+### 3. Índices GIN para Busca Textual
+
+Não existem índices GIN para acelerar `ILIKE`. Com 50k registros, isso será gargalo.
 
 ---
 
-## Solução
+## Plano de Otimização
 
-Modificar a lógica de sincronização para evitar o loop:
+### Fase 1: Índices B-tree para Ordenação e Filtros
 
-1. **Remover sincronização bidirecional** - usar apenas um sentido
-2. **Comparar valores antes de atualizar** - evitar atualizações desnecessárias
+```sql
+-- Ordenação padrão (created_at DESC)
+CREATE INDEX CONCURRENTLY idx_organizations_created_at 
+  ON organizations(created_at DESC);
 
----
+CREATE INDEX CONCURRENTLY idx_people_created_at 
+  ON people(created_at DESC);
 
-## Correção Proposta
+-- Ordenação por automotores (muito usado no CRM de seguros)
+CREATE INDEX CONCURRENTLY idx_organizations_automotores 
+  ON organizations(automotores DESC NULLS LAST);
 
-Modificar `OrganizationsTable.tsx` para:
+-- Filtros frequentes
+CREATE INDEX CONCURRENTLY idx_organizations_label 
+  ON organizations(label) WHERE label IS NOT NULL;
 
-1. Usar apenas `selectedIds` como fonte de verdade
-2. Comparar arrays antes de chamar `onSelectionChange` para evitar chamadas desnecessárias
-3. Evitar que o segundo useEffect sobrescreva seleções válidas
+CREATE INDEX CONCURRENTLY idx_organizations_city 
+  ON organizations(address_city) WHERE address_city IS NOT NULL;
 
-```typescript
-// Sync row selection with parent callback - com proteção contra loop
-useEffect(() => {
-  const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
-  // Comparar arrays para evitar chamadas desnecessárias
-  const currentIds = selectedIds || [];
-  const isSame = 
-    selectedRowIds.length === currentIds.length && 
-    selectedRowIds.every(id => currentIds.includes(id));
-  
-  if (!isSame) {
-    onSelectionChange?.(selectedRowIds);
-  }
-}, [rowSelection]);  // Remover onSelectionChange e selectedIds das dependências
+CREATE INDEX CONCURRENTLY idx_organizations_state 
+  ON organizations(address_state) WHERE address_state IS NOT NULL;
 
-// Sync incoming selectedIds with local rowSelection state
-// Apenas quando selectedIds muda externamente (ex: reset após ação bulk)
-useEffect(() => {
-  // Converter selectedIds para o formato esperado pelo TanStack Table
-  const newSelection: RowSelectionState = {};
-  (selectedIds || []).forEach(id => {
-    newSelection[id] = true;
-  });
-  
-  // Comparar para evitar loop infinito
-  const currentKeys = Object.keys(rowSelection).filter(k => rowSelection[k]);
-  const incomingKeys = selectedIds || [];
-  const isSame = 
-    currentKeys.length === incomingKeys.length && 
-    currentKeys.every(id => incomingKeys.includes(id));
-  
-  if (!isSame) {
-    setRowSelection(newSelection);
-  }
-}, [selectedIds]);  // Remover rowSelection das dependências
+CREATE INDEX CONCURRENTLY idx_organizations_renewal_month 
+  ON organizations(policy_renewal_month) WHERE policy_renewal_month IS NOT NULL;
+```
+
+### Fase 2: Índices GIN para Busca Textual
+
+```sql
+-- Habilitar extensão para buscas ILIKE performáticas
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Índice GIN para busca textual em organizations
+CREATE INDEX CONCURRENTLY idx_organizations_name_gin 
+  ON organizations USING gin (name gin_trgm_ops);
+
+CREATE INDEX CONCURRENTLY idx_organizations_cnpj_gin 
+  ON organizations USING gin (cnpj gin_trgm_ops);
+
+-- Índice GIN para busca textual em people
+CREATE INDEX CONCURRENTLY idx_people_name_gin 
+  ON people USING gin (name gin_trgm_ops);
+
+CREATE INDEX CONCURRENTLY idx_people_phone_gin 
+  ON people USING gin (phone gin_trgm_ops);
+```
+
+### Fase 3: Índice Composto para Query Principal
+
+```sql
+-- Índice composto para a query mais comum (listagem paginada)
+CREATE INDEX CONCURRENTLY idx_organizations_list 
+  ON organizations(created_at DESC, id);
 ```
 
 ---
 
-## Arquivo a Modificar
+## Comparativo de Performance Estimada
+
+| Operação | Sem Índices (50k) | Com Índices (50k) |
+|----------|-------------------|-------------------|
+| Listagem paginada | ~500ms | ~10ms |
+| Busca ILIKE | ~300ms | ~20ms |
+| Filtro por cidade | ~200ms | ~5ms |
+| Ordenar por automotores | ~400ms | ~15ms |
+
+---
+
+## Detalhes Técnicos da Migração
+
+A migration SQL completa incluirá:
+
+1. **Criar extensão `pg_trgm`** - Necessária para índices GIN
+2. **Índices B-tree** para ordenação e filtros com `WHERE` parcial
+3. **Índices GIN** para colunas de busca textual
+4. **Índice composto** para a query principal de listagem
+
+Todos os índices usam `CREATE INDEX CONCURRENTLY` para não bloquear operações durante a criação (pode levar alguns minutos com 50k registros).
+
+---
+
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/components/organizations/OrganizationsTable.tsx` | Corrigir useEffects de sincronização para evitar loop |
+| Nova migration SQL | Criar ~12 índices otimizados |
 
----
-
-## Código da Correção
-
-Substituir os dois useEffects (linhas 203-216) por:
-
-```typescript
-// Sync row selection with parent callback - avoid infinite loop
-useEffect(() => {
-  const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
-  const currentIds = selectedIds || [];
-  
-  // Only call if arrays are actually different
-  const isSame = 
-    selectedRowIds.length === currentIds.length && 
-    selectedRowIds.every(id => currentIds.includes(id));
-  
-  if (!isSame && onSelectionChange) {
-    onSelectionChange(selectedRowIds);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [rowSelection]); // Intentionally exclude selectedIds to prevent loop
-
-// Sync incoming selectedIds with local rowSelection state
-// This handles external resets (e.g., after bulk delete)
-useEffect(() => {
-  const currentKeys = Object.keys(rowSelection).filter(k => rowSelection[k]);
-  const incomingKeys = selectedIds || [];
-  
-  // Only update if truly different (external change)
-  const isSame = 
-    currentKeys.length === incomingKeys.length && 
-    currentKeys.every(id => incomingKeys.includes(id));
-  
-  if (!isSame) {
-    const newSelection: RowSelectionState = {};
-    incomingKeys.forEach(id => {
-      newSelection[id] = true;
-    });
-    setRowSelection(newSelection);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [selectedIds]); // Intentionally exclude rowSelection to prevent loop
-```
-
----
-
-## Resultado Esperado
-
-1. Usuário clica no checkbox de uma organização
-2. `row.toggleSelected(true)` atualiza `rowSelection`
-3. Efeito 1 compara e detecta diferença → chama `onSelectionChange`
-4. Pai atualiza `selectedIds`
-5. Efeito 2 compara e detecta que são iguais → **não faz nada** (evita loop)
-6. Checkbox permanece marcado corretamente
+A implementação frontend já está preparada (paginação server-side, ordenação server-side). Apenas os índices do banco precisam ser adicionados.
