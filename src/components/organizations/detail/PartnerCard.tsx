@@ -40,6 +40,18 @@ function maskDocument(doc: string | null): string {
   return '*'.repeat(halfLen) + clean.slice(halfLen);
 }
 
+function formatWhatsAppUrl(phone: string): string {
+  // Remove todos os caracteres não numéricos
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // Adiciona código do Brasil (55) se não tiver
+  if (cleaned.length === 10 || cleaned.length === 11) {
+    cleaned = '55' + cleaned;
+  }
+  
+  return `https://wa.me/${cleaned}`;
+}
+
 export function PartnerCard({ 
   partner, 
   linkedPerson, 
@@ -111,10 +123,15 @@ export function PartnerCard({
                 </span>
               )}
               {partner.whatsapp && (
-                <span className="flex items-center gap-1">
+                <a
+                  href={formatWhatsAppUrl(partner.whatsapp)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 hover:underline"
+                >
                   <MessageCircle className="h-3 w-3" />
                   {partner.whatsapp}
-                </span>
+                </a>
               )}
             </div>
           )}
