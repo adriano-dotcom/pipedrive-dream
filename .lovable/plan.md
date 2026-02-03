@@ -1,226 +1,189 @@
 
-# Plano: Painel de Administração de Vendedores
+# Plano: Corrigir Contatos "Contato WhatsApp"
 
-## Situação Atual
+## Diagnóstico
 
-### O que já existe:
-- **Página de Login/Cadastro** (`/auth`): Funcional com abas para Entrar e Cadastrar
-- **Sistema de Roles**: Tabela `user_roles` com enum `app_role` (admin, corretor)
-- **Perfis**: Tabela `profiles` com dados dos usuários
-- **Trigger automático**: `handle_new_user` cria perfil e atribui role "corretor" por padrão (primeiro usuário vira admin)
+### Problema Principal
+O webhook do Timelines.ai está criando contatos duplicados com nome "Contato WhatsApp" devido a:
 
-### Usuário atual:
-| Nome | Role | Email |
-|------|------|-------|
-| ADRIANO JACOMETO | admin | (logado) |
+1. **Formato inconsistente de números de telefone/WhatsApp**
+   - Registros existentes: `'+5544999229296`, `+55 43 99101 5557`
+   - Webhook salva como: `554497597441`
+   - A busca `ilike` não encontra correspondência
 
-## O que será criado
+2. **Nome não fornecido no payload**
+   - O Timelines.ai às vezes envia apenas o número como `full_name`
+   - Fallback atual: `'Contato WhatsApp'`
 
-### 1. Página de Administração de Vendedores (`/admin/vendedores`)
+### Dados Encontrados
+| ID | Nome | WhatsApp | Origem |
+|----|------|----------|--------|
+| f8b92... | Contato WhatsApp | 554497597441 | Webhook |
+| ec80ae... | Contato WhatsApp | 554898210217 | Webhook |
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ 👥 Gestão de Vendedores                                        │
-│ Gerencie a equipe de corretores do sistema                     │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  [+ Convidar Vendedor]                                          │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐
-│  │ Vendedores Cadastrados                                      │
-│  ├─────────────────────────────────────────────────────────────┤
-│  │ Avatar │ Nome              │ Email         │ Role   │ Ação  │
-│  │────────┼───────────────────┼───────────────┼────────┼───────│
-│  │ [AJ]   │ ADRIANO JACOMETO  │ adriano@...   │ Admin  │ ⚙️    │
-│  │ [LS]   │ Leonardo Sanches  │ leo@...       │ Corretor│ ⚙️   │
-│  │ [BF]   │ Bárbara Francisconi│ barbara@...  │ Corretor│ ⚙️   │
-│  └─────────────────────────────────────────────────────────────┘
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐
-│  │ ℹ️ Como funciona                                            │
-│  │                                                             │
-│  │ • Vendedores podem se cadastrar em /auth                   │
-│  │ • Novos cadastros recebem automaticamente role "Corretor"  │
-│  │ • Aqui você pode promover para Admin ou remover acesso     │
-│  └─────────────────────────────────────────────────────────────┘
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+## Correções Propostas
 
-### 2. Funcionalidades do Painel Admin
-
-| Funcionalidade | Descrição |
-|----------------|-----------|
-| **Listar vendedores** | Ver todos os usuários com seus roles |
-| **Alterar role** | Promover corretor para admin ou rebaixar |
-| **Editar perfil** | Alterar nome e telefone do vendedor |
-| **Remover acesso** | Desativar conta de um vendedor |
-| **Estatísticas** | Cards com total de admins e corretores |
-
-## Arquitetura
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                   /admin/vendedores                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  VendedoresAdmin.tsx (Página - Admin Only)                      │
-│  ├── Header com título e estatísticas                           │
-│  ├── StatsCards (total admins, corretores)                      │
-│  ├── VendedoresTable.tsx                                        │
-│  │   ├── Avatar + Nome                                          │
-│  │   ├── Email                                                  │
-│  │   ├── Role (Select para alterar)                             │
-│  │   ├── Telefone                                               │
-│  │   ├── Data de cadastro                                       │
-│  │   └── Ações (editar, remover)                                │
-│  └── VendedorFormSheet.tsx (editar perfil)                      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Componentes
-
-### 1. VendedoresAdmin.tsx (Página)
-- Acesso restrito a admins
-- Lista todos os usuários do sistema
-- Cards com estatísticas
-
-### 2. VendedoresTable.tsx
-- Tabela com todos os vendedores
-- Select inline para alterar role
-- Botões de ação
-
-### 3. VendedorFormSheet.tsx
-- Editar nome e telefone
-- Ver email (read-only)
-- Ver role atual
-
-## Hooks
-
-### useVendedores.ts
+### 1. Melhorar normalização de telefone no webhook
 
 ```typescript
-export function useVendedores() {
-  return useQuery({
-    queryKey: ['vendedores'],
-    queryFn: async () => {
-      // Buscar profiles com roles
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          user_id,
-          full_name,
-          phone,
-          avatar_url,
-          created_at
-        `)
-        .order('created_at', { ascending: false });
-
-      // Buscar roles separadamente
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      // Combinar dados
-      return data.map(profile => ({
-        ...profile,
-        role: roles?.find(r => r.user_id === profile.user_id)?.role || 'corretor'
-      }));
-    }
-  });
+// Antes (só remove não-dígitos)
+function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, '');
 }
 
-export function useUpdateVendedorRole() {
-  return useMutation({
-    mutationFn: async ({ userId, role }) => {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role })
-        .eq('user_id', userId);
-      if (error) throw error;
-    }
-  });
+// Depois (garante formato brasileiro consistente)
+function normalizePhone(phone: string): string {
+  let digits = phone.replace(/\D/g, '');
+  // Remover código do país se presente (55)
+  if (digits.startsWith('55') && digits.length > 11) {
+    digits = digits.substring(2);
+  }
+  return digits;
 }
 ```
 
-## Segurança
+### 2. Melhorar busca de pessoa existente
 
-As policies RLS existentes já protegem adequadamente:
+```typescript
+// Buscar por múltiplas variações do número
+const phoneVariations = [
+  contactPhone,                    // 44999229296
+  `55${contactPhone}`,             // 5544999229296
+  `+55${contactPhone}`,            // +5544999229296
+  `+${contactPhone}`,              // +44999229296
+];
 
-| Tabela | SELECT | UPDATE | DELETE |
-|--------|--------|--------|--------|
-| profiles | ✅ Todos | ✅ Próprio | ❌ |
-| user_roles | ✅ Todos | ✅ Admin only | ✅ Admin only |
-
-**Importante**: A alteração de roles só pode ser feita por admins (já configurado no banco).
-
-## Navegação
-
-### Sidebar Update
-Adicionar link "Vendedores" visível apenas para admins, abaixo de "Timelines.ai":
-
-```text
-📊 Dashboard
-🏢 Organizações
-👥 Pessoas
-🤝 Negócios
-📋 Atividades
-📈 Relatórios
-────────────
-💬 Timelines.ai (admin only)
-👤 Vendedores (admin only) ← NOVO
+const orConditions = phoneVariations.flatMap(p => [
+  `whatsapp.ilike.%${p}%`,
+  `phone.ilike.%${p}%`,
+]).join(',');
 ```
 
-## Arquivos a Criar
+### 3. Usar número formatado como nome (melhor que "Contato WhatsApp")
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/pages/VendedoresAdmin.tsx` | Página de administração |
-| `src/components/vendedores/VendedoresTable.tsx` | Tabela de vendedores |
-| `src/components/vendedores/VendedorFormSheet.tsx` | Form de edição |
-| `src/hooks/useVendedores.ts` | Hooks para CRUD |
+```typescript
+// Nome fallback mais útil
+const contactName = payload.chat.full_name 
+  || payload.message?.sender.full_name 
+  || formatPhoneForDisplay(payload.chat.phone); // "+55 44 99959-7441"
+```
+
+### 4. Normalizar whatsapp ao salvar pessoa
+
+```typescript
+// Ao criar nova pessoa, salvar whatsapp no formato padrão
+.insert({
+  name: contactName,
+  whatsapp: formatPhoneStandard(payload.chat.phone), // +5544999597441
+  lead_source: 'WhatsApp',
+})
+```
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/App.tsx` | Adicionar rota `/admin/vendedores` |
-| `src/components/layout/AppSidebar.tsx` | Adicionar link "Vendedores" (admin only) |
+| `supabase/functions/timelines-webhook/index.ts` | Melhorar normalização e busca |
 
-## Fluxo de Uso
+## Código do Webhook Atualizado
 
-```text
-                    Vendedor
-                        │
-                        ▼
-            Acessa /auth → Cadastrar
-                        │
-                        ▼
-        Preenche nome, email, senha
-                        │
-                        ▼
-    Trigger cria profile + role "corretor"
-                        │
-                        ▼
-          Vendedor acessa o sistema
-                        
-                        
-                    Admin
-                        │
-                        ▼
-        Acessa /admin/vendedores
-                        │
-                        ├── Vê lista de todos os vendedores
-                        ├── Pode alterar role (corretor ↔ admin)
-                        ├── Pode editar nome/telefone
-                        └── Pode remover acesso
+```typescript
+// Normaliza número removendo caracteres especiais e padronizando
+function normalizePhoneForSearch(phone: string): string {
+  // Remove tudo exceto dígitos
+  let digits = phone.replace(/\D/g, '');
+  
+  // Se começar com 55 e tiver mais de 11 dígitos, remove o 55
+  if (digits.startsWith('55') && digits.length > 11) {
+    return digits.substring(2);
+  }
+  
+  return digits;
+}
+
+// Formata telefone para exibição
+function formatPhoneForDisplay(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 11) {
+    return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+  }
+  return phone;
+}
+
+// Buscar pessoa existente com busca mais robusta
+const searchPhone = normalizePhoneForSearch(payload.chat.phone);
+
+// Buscar por variações do número
+let { data: existingPerson } = await supabase
+  .from('people')
+  .select('id, name, whatsapp, phone')
+  .or(`whatsapp.ilike.%${searchPhone}%,phone.ilike.%${searchPhone}%`)
+  .limit(1)
+  .maybeSingle();
+
+// Se não encontrou, tentar com código do país
+if (!existingPerson && !searchPhone.startsWith('55')) {
+  const { data: foundWithCountry } = await supabase
+    .from('people')
+    .select('id, name, whatsapp, phone')
+    .or(`whatsapp.ilike.%55${searchPhone}%,phone.ilike.%55${searchPhone}%`)
+    .limit(1)
+    .maybeSingle();
+  
+  existingPerson = foundWithCountry;
+}
+
+// Nome: usar nome real ou número formatado (nunca "Contato WhatsApp" genérico)
+const rawName = payload.chat.full_name || payload.message?.sender.full_name;
+const isValidName = rawName && !rawName.match(/^\+?\d[\d\s\-]+$/); // Não é apenas número
+
+const contactName = isValidName 
+  ? rawName 
+  : formatPhoneForDisplay(payload.chat.phone);
+```
+
+## Limpeza de Dados Existentes
+
+Também precisamos atualizar os contatos existentes que foram criados incorretamente:
+
+```sql
+-- Atualizar contatos "Contato WhatsApp" com o número formatado
+UPDATE people 
+SET name = '(' || 
+  SUBSTRING(whatsapp FROM 3 FOR 2) || ') ' || 
+  SUBSTRING(whatsapp FROM 5 FOR 5) || '-' || 
+  SUBSTRING(whatsapp FROM 10 FOR 4)
+WHERE name = 'Contato WhatsApp' 
+  AND whatsapp IS NOT NULL 
+  AND LENGTH(whatsapp) >= 11;
 ```
 
 ## Resultado Esperado
 
-1. **Vendedores** podem se cadastrar normalmente em `/auth`
-2. **Admins** têm controle total sobre a equipe em `/admin/vendedores`
-3. Alterações de role são imediatas e seguras
-4. Interface consistente com o resto do sistema
+1. **Busca mais robusta** - Encontra contatos existentes independente do formato do número
+2. **Nomes mais úteis** - Usa número formatado ao invés de "Contato WhatsApp"
+3. **Formato consistente** - Todos os novos números salvos no mesmo padrão
+4. **Menos duplicatas** - Sistema reconhece o mesmo contato em formatos diferentes
+
+## Fluxo Corrigido
+
+```text
+Mensagem WhatsApp chega
+         │
+         ▼
+Normaliza número: "554497597441"
+         │
+         ▼
+Busca pessoa por:
+├── whatsapp LIKE %97597441%
+├── phone LIKE %97597441%
+├── whatsapp LIKE %5597597441%
+└── phone LIKE %5597597441%
+         │
+         ▼
+    Encontrou? ──────────────────┐
+         │ Não                   │ Sim
+         ▼                       ▼
+Cria com nome:              Usa pessoa
+"(44) 97597-441"            existente
+```
