@@ -56,6 +56,7 @@ export function useAllMergeBackups(entityType?: 'person' | 'organization') {
     queryFn: async () => {
       const now = new Date().toISOString();
       
+      // RLS now restricts to user's own merges OR admins see all
       let query = supabase
         .from('merge_backups')
         .select('*')
