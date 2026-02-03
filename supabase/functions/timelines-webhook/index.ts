@@ -1,10 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-webhook-secret',
 };
+
+// Attachment format v1 (singular) from Timelines.ai
+interface AttachmentV1 {
+  temporary_download_url: string;
+  filename: string;
+  size: number;
+  mimetype: string;
+}
+
+// Attachment format v2 (array) for backwards compatibility
+interface AttachmentV2 {
+  url?: string;
+  temporary_download_url?: string;
+  mime_type?: string;
+  mimetype?: string;
+  type?: string;
+  filename?: string;
+}
 
 interface TimelinesPayload {
   event_type: string;
@@ -27,20 +45,33 @@ interface TimelinesPayload {
       phone: string;
       full_name: string;
     };
-    attachments?: Array<{
-      url: string;
-      mime_type: string;
-      type: string;
-    }>;
+    // v1 format (singular)
+    attachment?: AttachmentV1;
+    // v2 format (array) - backwards compatibility
+    attachments?: AttachmentV2[];
   };
 }
+
+// Maximum file size: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// Allowed mime types
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/aac', 'audio/mp4',
+  'video/mp4', 'video/3gpp', 'video/quicktime',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+];
 
 // Validate webhook secret
 function validateWebhookSecret(req: Request): boolean {
   const webhookSecret = Deno.env.get('TIMELINES_WEBHOOK_SECRET');
   
-  // If no secret is configured, log a warning but allow for backward compatibility
-  // IMPORTANT: Configure TIMELINES_WEBHOOK_SECRET in production for security
   if (!webhookSecret) {
     console.warn('TIMELINES_WEBHOOK_SECRET not configured - webhook authentication disabled');
     return true;
@@ -55,7 +86,6 @@ function validateWebhookSecret(req: Request): boolean {
     return false;
   }
   
-  // Constant-time comparison to prevent timing attacks
   if (providedSecret.length !== webhookSecret.length) {
     return false;
   }
@@ -76,7 +106,6 @@ function validatePayload(payload: unknown): payload is TimelinesPayload {
   
   const p = payload as Record<string, unknown>;
   
-  // Check required fields
   if (typeof p.event_type !== 'string') {
     console.error('Invalid payload: missing event_type');
     return false;
@@ -104,7 +133,6 @@ function validatePayload(payload: unknown): payload is TimelinesPayload {
     return false;
   }
   
-  // Validate message if present
   if (p.message) {
     if (typeof p.message !== 'object') {
       console.error('Invalid payload: message must be an object');
@@ -126,40 +154,35 @@ function validatePayload(payload: unknown): payload is TimelinesPayload {
   return true;
 }
 
-// Normaliza número de telefone removendo caracteres especiais
+// Normalize phone number
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
-// Normaliza número para busca (remove código do país se presente)
+// Normalize phone for search
 function normalizePhoneForSearch(phone: string): string {
   let digits = phone.replace(/\D/g, '');
-  // Se começar com 55 e tiver mais de 11 dígitos, remove o 55
   if (digits.startsWith('55') && digits.length > 11) {
     return digits.substring(2);
   }
   return digits;
 }
 
-// Formata telefone para exibição como nome
+// Format phone for display
 function formatPhoneForDisplay(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  // Formato brasileiro: (XX) XXXXX-XXXX
   if (digits.length === 11) {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   }
-  // Formato com código do país: (XX) XXXXX-XXXX
   if (digits.length === 13 && digits.startsWith('55')) {
     return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
   }
-  // Retorna o número original se não conseguir formatar
   return phone;
 }
 
-// Formata telefone para salvar no padrão consistente
+// Format phone for storage
 function formatPhoneForStorage(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  // Garantir que tenha código do país
   if (digits.length === 11) {
     return `+55${digits}`;
   }
@@ -169,25 +192,138 @@ function formatPhoneForStorage(phone: string): string {
   return phone;
 }
 
-// Sanitize text content to prevent injection
+// Sanitize text content
 function sanitizeText(text: string | undefined | null): string {
   if (!text) return '';
-  // Remove any potential script tags and HTML
   return text
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/<[^>]*>/g, '')
     .trim()
-    .slice(0, 10000); // Limit length
+    .slice(0, 10000);
 }
 
-// Determina o tipo de mensagem baseado nos attachments
-function getMessageType(attachments?: Array<{ type: string }>): string {
-  if (!attachments || attachments.length === 0) return 'text';
-  const type = attachments[0].type?.toLowerCase();
-  if (['image', 'audio', 'video', 'document', 'sticker', 'location', 'contact'].includes(type)) {
-    return type;
-  }
+// Get media type from mimetype
+function getMediaTypeFromMimetype(mimetype: string | undefined): string {
+  if (!mimetype) return 'document';
+  
+  if (mimetype.startsWith('image/')) return 'image';
+  if (mimetype.startsWith('audio/')) return 'audio';
+  if (mimetype.startsWith('video/')) return 'video';
+  
   return 'document';
+}
+
+// Download and store media file
+async function downloadAndStoreMedia(
+  supabase: SupabaseClient,
+  conversationId: string,
+  messageId: string,
+  tempUrl: string,
+  filename: string,
+  mimetype: string
+): Promise<string | null> {
+  try {
+    console.log('Downloading media from:', tempUrl.substring(0, 50) + '...');
+    
+    // Validate mimetype
+    if (!ALLOWED_MIME_TYPES.some(allowed => mimetype.toLowerCase().startsWith(allowed.split('/')[0]))) {
+      console.warn('Mime type not in allowed list:', mimetype);
+      // Still allow, just log warning
+    }
+    
+    // Download file from temporary URL
+    const response = await fetch(tempUrl, {
+      headers: {
+        'User-Agent': 'Lovable-CRM-Webhook/1.0',
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to download media:', response.status, response.statusText);
+      return null;
+    }
+    
+    // Check content length
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > MAX_FILE_SIZE) {
+      console.error('File too large:', contentLength);
+      return null;
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    
+    // Double-check size after download
+    if (arrayBuffer.byteLength > MAX_FILE_SIZE) {
+      console.error('Downloaded file too large:', arrayBuffer.byteLength);
+      return null;
+    }
+    
+    // Generate unique path
+    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+    const filePath = `${conversationId}/${messageId}/${sanitizedFilename}`;
+    
+    console.log('Uploading to storage:', filePath);
+    
+    // Upload to bucket
+    const { error: uploadError } = await supabase.storage
+      .from('whatsapp-media')
+      .upload(filePath, arrayBuffer, {
+        contentType: mimetype,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('Failed to upload media:', uploadError);
+      return null;
+    }
+
+    // Get public URL
+    const { data } = supabase.storage
+      .from('whatsapp-media')
+      .getPublicUrl(filePath);
+
+    console.log('Media stored successfully:', data.publicUrl);
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Error processing media:', error);
+    return null;
+  }
+}
+
+// Extract attachment from payload (supports v1 and v2 formats)
+function extractAttachment(message: TimelinesPayload['message']): {
+  tempUrl: string | null;
+  filename: string;
+  mimetype: string;
+  size: number;
+} {
+  if (!message) {
+    return { tempUrl: null, filename: '', mimetype: '', size: 0 };
+  }
+  
+  // Try v1 format first (singular attachment)
+  if (message.attachment) {
+    const att = message.attachment;
+    return {
+      tempUrl: att.temporary_download_url || null,
+      filename: att.filename || 'arquivo',
+      mimetype: att.mimetype || 'application/octet-stream',
+      size: att.size || 0,
+    };
+  }
+  
+  // Try v2 format (array)
+  if (message.attachments && message.attachments.length > 0) {
+    const att = message.attachments[0];
+    return {
+      tempUrl: att.temporary_download_url || att.url || null,
+      filename: att.filename || 'arquivo',
+      mimetype: att.mimetype || att.mime_type || 'application/octet-stream',
+      size: 0,
+    };
+  }
+  
+  return { tempUrl: null, filename: '', mimetype: '', size: 0 };
 }
 
 serve(async (req) => {
@@ -237,7 +373,7 @@ serve(async (req) => {
     const payload = rawPayload;
     console.log('Received valid webhook:', payload.event_type);
 
-    // Validar evento
+    // Validate event type
     if (!['message:received:new', 'chat:incoming:new'].includes(payload.event_type)) {
       console.log('Ignoring event type:', payload.event_type);
       return new Response(JSON.stringify({ status: 'ignored', event_type: payload.event_type }), {
@@ -245,12 +381,12 @@ serve(async (req) => {
       });
     }
 
-    // Criar cliente Supabase com service role
+    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Upsert Canal WhatsApp
+    // 1. Upsert WhatsApp Channel
     const channelPhone = normalizePhone(payload.whatsapp_account.phone);
     const channelName = sanitizeText(payload.whatsapp_account.full_name) || 'WhatsApp Business';
     
@@ -274,20 +410,18 @@ serve(async (req) => {
 
     console.log('Channel upserted:', channel.id);
 
-    // 2. Buscar ou criar pessoa pelo telefone - busca robusta
+    // 2. Find or create person by phone
     const searchPhone = normalizePhoneForSearch(payload.chat.phone);
     console.log('Searching for contact with phone:', searchPhone);
     
-    // Determinar nome do contato (nunca usar "Contato WhatsApp" genérico)
     const rawName = sanitizeText(payload.chat.full_name || payload.message?.sender.full_name);
-    const isValidName = rawName && !rawName.match(/^\+?\d[\d\s\-()]+$/); // Não é apenas número
+    const isValidName = rawName && !rawName.match(/^\+?\d[\d\s\-()]+$/);
     const contactName = isValidName 
       ? rawName.slice(0, 255) 
       : formatPhoneForDisplay(payload.chat.phone);
     
     console.log('Contact name resolved:', contactName);
 
-    // Buscar pessoa existente pelo whatsapp ou phone - múltiplas variações
     let { data: existingPerson } = await supabase
       .from('people')
       .select('id, name, whatsapp, phone')
@@ -295,7 +429,6 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
     
-    // Se não encontrou, tentar com código do país
     if (!existingPerson) {
       console.log('Person not found, trying with country code...');
       const { data: foundWithCountry } = await supabase
@@ -314,7 +447,6 @@ serve(async (req) => {
       personId = existingPerson.id;
       console.log('Found existing person:', personId, existingPerson.name);
     } else {
-      // Criar nova pessoa com número formatado
       const formattedPhone = formatPhoneForStorage(payload.chat.phone);
       console.log('Creating new person with name:', contactName, 'whatsapp:', formattedPhone);
       
@@ -336,7 +468,6 @@ serve(async (req) => {
       personId = newPerson.id;
       console.log('Created new person:', personId);
 
-      // Registrar criação na timeline
       await supabase.from('people_history').insert({
         person_id: personId,
         event_type: 'created',
@@ -344,10 +475,9 @@ serve(async (req) => {
       });
     }
 
-    // 3. Upsert Conversa
+    // 3. Upsert Conversation
     const chatId = String(payload.chat.chat_id);
     
-    // Verificar se conversa existe
     let { data: existingConversation } = await supabase
       .from('whatsapp_conversations')
       .select('id, status')
@@ -360,7 +490,6 @@ serve(async (req) => {
     if (existingConversation) {
       conversationId = existingConversation.id;
       
-      // Reabrir conversa se estava resolvida/arquivada
       if (['resolved', 'archived'].includes(existingConversation.status)) {
         await supabase
           .from('whatsapp_conversations')
@@ -372,14 +501,12 @@ serve(async (req) => {
         
         console.log('Reopened conversation:', conversationId);
       } else {
-        // Atualizar last_message_at
         await supabase
           .from('whatsapp_conversations')
           .update({ last_message_at: new Date().toISOString() })
           .eq('id', conversationId);
       }
     } else {
-      // Criar nova conversa
       const { data: newConversation, error: convError } = await supabase
         .from('whatsapp_conversations')
         .insert({
@@ -401,7 +528,6 @@ serve(async (req) => {
       isNewConversation = true;
       console.log('Created new conversation:', conversationId);
 
-      // Registrar nova conversa na timeline
       await supabase.from('people_history').insert({
         person_id: personId,
         event_type: 'whatsapp_conversation_started',
@@ -410,11 +536,11 @@ serve(async (req) => {
       });
     }
 
-    // 4. Inserir Mensagem (se houver)
+    // 4. Insert Message (if present)
     if (payload.message) {
       const messageUid = payload.message.message_uid;
 
-      // Verificar se mensagem já existe (evitar duplicatas)
+      // Check if message already exists
       const { data: existingMessage } = await supabase
         .from('whatsapp_messages')
         .select('id')
@@ -422,9 +548,33 @@ serve(async (req) => {
         .maybeSingle();
 
       if (!existingMessage) {
-        const messageType = getMessageType(payload.message.attachments);
-        const mediaAttachment = payload.message.attachments?.[0];
         const messageText = sanitizeText(payload.message.text);
+        
+        // Extract attachment (supports v1 and v2 formats)
+        const { tempUrl, filename, mimetype } = extractAttachment(payload.message);
+        
+        // Determine message type
+        let messageType = 'text';
+        let permanentMediaUrl: string | null = null;
+        
+        if (tempUrl) {
+          messageType = getMediaTypeFromMimetype(mimetype);
+          console.log('Message has attachment:', messageType, filename);
+          
+          // Download and store media
+          permanentMediaUrl = await downloadAndStoreMedia(
+            supabase,
+            conversationId,
+            messageUid,
+            tempUrl,
+            filename,
+            mimetype
+          );
+          
+          if (!permanentMediaUrl) {
+            console.warn('Failed to store media, message will be saved without media URL');
+          }
+        }
 
         const { data: newMessage, error: msgError } = await supabase
           .from('whatsapp_messages')
@@ -435,12 +585,13 @@ serve(async (req) => {
             content: messageText.slice(0, 10000),
             message_type: messageType,
             status: 'delivered',
-            media_url: mediaAttachment?.url?.slice(0, 2000),
-            media_mime_type: mediaAttachment?.mime_type?.slice(0, 100),
+            media_url: permanentMediaUrl,
+            media_mime_type: mimetype || null,
             metadata: {
               timestamp: payload.message.timestamp,
               sender_phone: payload.message.sender.phone?.slice(0, 50),
               sender_name: sanitizeText(payload.message.sender.full_name)?.slice(0, 255),
+              original_filename: filename || null,
             },
           })
           .select()
@@ -451,9 +602,9 @@ serve(async (req) => {
           throw msgError;
         }
 
-        console.log('Inserted message:', newMessage.id);
+        console.log('Inserted message:', newMessage.id, 'type:', messageType, 'has_media:', !!permanentMediaUrl);
 
-        // 5. Registrar na Timeline da Pessoa
+        // 5. Record in Person Timeline
         const eventType = payload.message.direction === 'received' 
           ? 'whatsapp_received' 
           : 'whatsapp_sent';
@@ -471,6 +622,7 @@ serve(async (req) => {
             conversation_id: conversationId,
             message_type: messageType,
             direction: payload.message.direction,
+            has_media: !!permanentMediaUrl,
           },
         });
 
@@ -492,7 +644,6 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Webhook error:', error);
-    // Return generic error to avoid information leakage
     return new Response(JSON.stringify({ 
       error: 'Internal server error'
     }), {
