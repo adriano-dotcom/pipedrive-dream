@@ -5,7 +5,7 @@ import { StageValueChart } from './StageValueChart';
 import { ForecastChart } from './ForecastChart';
 import { DealsStatusChart } from './DealsStatusChart';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format, parseISO, addMonths, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -165,12 +165,46 @@ export function DashboardCharts() {
       </div>
 
       {/* Charts Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <PipelineFunnelChart data={pipelineData || []} loading={pipelineLoading} />
-        <StageValueChart data={pipelineData || []} loading={pipelineLoading} />
-        <ForecastChart data={forecastData || []} loading={forecastLoading} />
-        <DealsStatusChart data={statusData || null} loading={statusLoading} />
-      </div>
+      <ChartGrid
+        pipelineData={pipelineData}
+        pipelineLoading={pipelineLoading}
+        forecastData={forecastData}
+        forecastLoading={forecastLoading}
+        statusData={statusData}
+        statusLoading={statusLoading}
+      />
+    </div>
+  );
+}
+
+// Componente memoizado para evitar re-renders excessivos
+interface ChartGridProps {
+  pipelineData: Array<{ name: string; color: string; count: number; value: number; weightedValue: number }> | undefined;
+  pipelineLoading: boolean;
+  forecastData: Array<{ month: string; totalValue: number; weightedValue: number }> | undefined;
+  forecastLoading: boolean;
+  statusData: { open: number; won: number; lost: number } | undefined;
+  statusLoading: boolean;
+}
+
+function ChartGrid({
+  pipelineData,
+  pipelineLoading,
+  forecastData,
+  forecastLoading,
+  statusData,
+  statusLoading,
+}: ChartGridProps) {
+  const stablePipelineData = useMemo(() => pipelineData || [], [pipelineData]);
+  const stableForecastData = useMemo(() => forecastData || [], [forecastData]);
+  const stableStatusData = useMemo(() => statusData || null, [statusData]);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <PipelineFunnelChart data={stablePipelineData} loading={pipelineLoading} />
+      <StageValueChart data={stablePipelineData} loading={pipelineLoading} />
+      <ForecastChart data={stableForecastData} loading={forecastLoading} />
+      <DealsStatusChart data={stableStatusData} loading={statusLoading} />
     </div>
   );
 }

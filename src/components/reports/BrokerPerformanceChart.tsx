@@ -114,7 +114,7 @@ export function BrokerPerformanceChart({ data, isLoading }: BrokerPerformanceCha
                 width={80}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
                 {chartData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}

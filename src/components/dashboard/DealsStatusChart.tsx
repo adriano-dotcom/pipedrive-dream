@@ -118,6 +118,7 @@ export function DealsStatusChart({ data, loading }: DealsStatusChartProps) {
               paddingAngle={2}
               dataKey="value"
               nameKey="label"
+              isAnimationActive={false}
             >
               {pieData.map((entry) => (
                 <Cell 

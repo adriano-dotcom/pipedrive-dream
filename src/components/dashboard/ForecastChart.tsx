@@ -108,7 +108,7 @@ export function ForecastChart({ data, loading }: ForecastChartProps) {
                 <stop offset="95%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0}/>
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
             <XAxis 
               dataKey="month" 
               tick={{ fontSize: 11 }}
@@ -144,6 +144,7 @@ export function ForecastChart({ data, loading }: ForecastChartProps) {
               fillOpacity={1}
               fill="url(#colorTotal)"
               name="Valor Total"
+              isAnimationActive={false}
             />
             <Area
               type="monotone"
@@ -153,6 +154,7 @@ export function ForecastChart({ data, loading }: ForecastChartProps) {
               fillOpacity={1}
               fill="url(#colorWeighted)"
               name="Valor Ponderado"
+              isAnimationActive={false}
             />
           </AreaChart>
         </ChartContainer>
