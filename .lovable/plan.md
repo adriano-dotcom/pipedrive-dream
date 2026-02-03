@@ -1,239 +1,196 @@
 
-# Correcao de Erros de Performance e Renderizacao - CRM Jacometo
+# Implementacao de Badge de Vendedor para Leads do WhatsApp
 
-## Problemas Identificados
+## Resumo do Problema
 
-Com base na analise dos console logs, session replay e codigo-fonte, identifiquei **3 problemas criticos** que estao causando os erros reportados:
+Atualmente, quando um contato e criado automaticamente via integracao com Timelines.ai (WhatsApp), nao ha indicacao visual de qual vendedor captou o lead. Os contatos sao criados com `owner_id = null` e `created_by = null`.
 
----
+### Dados Atuais
 
-## PROBLEMA 1: Warnings de Ref em Componentes de Graficos
+Ao analisar o banco de dados, identifiquei que:
+- Todos os contatos com `lead_source = 'WhatsApp'` possuem `owner_id = null`
+- Os canais do WhatsApp (`whatsapp_channels`) ja possuem `owner_id` configurado para alguns vendedores
+- O webhook atual cria pessoas sem associar o `owner_id` do canal
 
-### Sintoma
-```
-Warning: Function components cannot be given refs. Attempts to access this ref will fail.
-Check the render method of `ForecastChart` at CartesianGrid
-Check the render method of `StatCard` at Tooltip
-```
+## Solucao Proposta
 
-### Causa Raiz
-O Recharts v2.15.4 tem um problema conhecido onde alguns componentes internos (como `CartesianGrid`) tentam passar refs para function components. Isso acontece quando se usa a prop `className` diretamente no `CartesianGrid`:
+### Fase 1: Atualizar Webhook para Atribuir Owner
 
-```tsx
-// ForecastChart.tsx - Linha 111
-<CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-```
+Modificar o webhook `timelines-webhook` para:
+1. Ao criar uma nova pessoa, buscar o `owner_id` do canal WhatsApp associado
+2. Atribuir esse `owner_id` como dono do contato criado
+3. Registrar no historico quem captou o lead
 
-O `className` no CartesianGrid faz o Recharts tentar usar um ref que nao e suportado em function components.
+**Arquivo**: `supabase/functions/timelines-webhook/index.ts`
 
-### Solucao
-Remover a prop `className` do CartesianGrid e usar apenas props nativas do Recharts. O estilo ja e aplicado globalmente pelo `ChartContainer` atraves de seletores CSS.
+```typescript
+// Apos obter o channel (linha ~404)
+const channelOwnerId = channel.owner_id;
 
----
+// Na criacao da pessoa (linha ~453-461)
+const { data: newPerson, error: personError } = await supabase
+  .from('people')
+  .insert({
+    name: contactName,
+    whatsapp: formattedPhone.slice(0, 50),
+    lead_source: 'WhatsApp',
+    owner_id: channelOwnerId || null,  // Atribuir owner do canal
+  })
+  .select()
+  .single();
 
-## PROBLEMA 2: NotFoundError - removeChild on Node
-
-### Sintoma
-```
-NotFoundError: Failed to execute 'removeChild' on 'Node': 
-The node to be removed is not a child of this node.
-```
-
-### Causa Raiz
-Este erro ocorre quando:
-1. O React tenta remover um node do DOM que ja foi removido ou movido
-2. Conflitos entre re-renders do React e manipulacoes internas do Recharts
-3. Mudancas de estado durante animacoes de graficos
-
-O erro aparece especialmente na navegacao entre paginas ou quando os dados dos graficos mudam rapidamente.
-
-### Solucao
-1. Desabilitar animacoes nos graficos para evitar conflitos de estado
-2. Adicionar keys estaveis aos componentes de graficos
-3. Garantir que os dados passados aos graficos sejam estaveis (memoizados)
-
----
-
-## PROBLEMA 3: Re-renders Excessivos no Dashboard
-
-### Sintoma
-Paginas em branco e falhas ao navegar para secoes de relatorios
-
-### Causa Raiz
-O componente `DashboardCharts` dispara multiplas queries em paralelo e usa `useEffect` para definir o pipeline padrao, causando cascatas de re-renders.
-
-### Solucao
-1. Usar `useMemo` para estabilizar os dados passados aos graficos
-2. Evitar atualizacoes de estado desnecessarias
-
----
-
-## Plano de Implementacao
-
-### Fase 1: Corrigir ForecastChart
-
-Remover a prop `className` do CartesianGrid e adicionar `isAnimationActive={false}` para prevenir conflitos:
-
-```tsx
-// src/components/dashboard/ForecastChart.tsx
-
-// ANTES (linha 111):
-<CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-
-// DEPOIS:
-<CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-
-// Adicionar isAnimationActive={false} nas Areas (linhas 139-156):
-<Area
-  type="monotone"
-  dataKey="totalValue"
-  stroke="hsl(217, 91%, 60%)"
-  strokeWidth={2}
-  fillOpacity={1}
-  fill="url(#colorTotal)"
-  name="Valor Total"
-  isAnimationActive={false}
-/>
-<Area
-  type="monotone"
-  dataKey="weightedValue"
-  stroke="hsl(142, 71%, 45%)"
-  strokeWidth={2}
-  fillOpacity={1}
-  fill="url(#colorWeighted)"
-  name="Valor Ponderado"
-  isAnimationActive={false}
-/>
+// No historico (linha ~471-475)
+await supabase.from('people_history').insert({
+  person_id: personId,
+  event_type: 'created',
+  description: channelOwnerId 
+    ? `Contato criado automaticamente via WhatsApp (Canal: ${channelName})`
+    : 'Contato criado automaticamente via WhatsApp',
+  created_by: channelOwnerId || null,
+});
 ```
 
-### Fase 2: Corrigir PipelineFunnelChart e StageValueChart
+### Fase 2: Adicionar Coluna "Captado por" na Tabela de Pessoas
 
-Adicionar `isAnimationActive={false}` nos componentes Bar:
+Modificar a query e a tabela para mostrar o vendedor que captou o lead.
 
-```tsx
-// src/components/dashboard/PipelineFunnelChart.tsx
-<Bar 
-  dataKey="count" 
-  radius={[0, 4, 4, 0]}
-  maxBarSize={40}
-  isAnimationActive={false}
->
+**Arquivo**: `src/pages/People.tsx`
 
-// src/components/dashboard/StageValueChart.tsx
-<Bar 
-  dataKey="value" 
-  radius={[0, 4, 4, 0]}
-  maxBarSize={40}
-  isAnimationActive={false}
-  label={...}
->
+Atualizar a query para incluir o profile do owner:
+
+```typescript
+const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
+  let query = supabase
+    .from('people')
+    .select(`
+      *,
+      organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores),
+      owner:profiles!people_owner_id_fkey(id, user_id, full_name, avatar_url)
+    `, { count: 'exact' })
+    .order('created_at', { ascending: false });
+  // ...
+};
 ```
 
-### Fase 3: Corrigir DealsStatusChart
+**Arquivo**: `src/components/people/PeopleTable.tsx`
 
-```tsx
-// src/components/dashboard/DealsStatusChart.tsx
-<Pie
-  data={pieData}
-  cx="50%"
-  cy="50%"
-  innerRadius={50}
-  outerRadius={80}
-  paddingAngle={2}
-  dataKey="value"
-  nameKey="label"
-  isAnimationActive={false}
->
+Adicionar nova coluna "Captado por" com badge do vendedor:
+
+```typescript
+// Adicionar no columnLabels
+const columnLabels: Record<string, string> = {
+  // ...existentes...
+  owner: 'Captado por',
+};
+
+// Adicionar coluna owner apos a coluna de nome
+{
+  id: 'owner',
+  accessorFn: (row) => row.owner?.full_name ?? '',
+  header: ({ column }) => <SortableHeader column={column} title="Captado por" />,
+  cell: ({ row }) => {
+    const owner = row.original.owner;
+    const leadSource = row.original.lead_source;
+    
+    // So mostrar badge para leads de WhatsApp
+    if (leadSource !== 'WhatsApp') {
+      return <span className="text-muted-foreground/50">-</span>;
+    }
+    
+    if (!owner) {
+      return (
+        <Badge variant="outline" className="bg-muted/50 text-muted-foreground text-xs">
+          <MessageCircle className="h-3 w-3 mr-1" />
+          Nao atribuido
+        </Badge>
+      );
+    }
+    
+    return (
+      <div className="flex items-center gap-2">
+        <Avatar className="h-6 w-6">
+          <AvatarImage src={owner.avatar_url || undefined} />
+          <AvatarFallback className="text-xs bg-primary/10 text-primary">
+            {getInitials(owner.full_name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm font-medium">{owner.full_name}</span>
+      </div>
+    );
+  },
+},
 ```
 
-### Fase 4: Corrigir Graficos de Reports
+### Fase 3: Atualizar Tipos TypeScript
 
-```tsx
-// src/components/reports/BrokerPerformanceChart.tsx
-<Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+**Arquivo**: `src/components/people/PeopleTable.tsx`
 
-// src/components/reports/BrokerActivityChart.tsx
-<Bar
-  dataKey="completadas"
-  name="Completadas"
-  fill="hsl(142, 71%, 45%)"
-  radius={[4, 4, 0, 0]}
-  isAnimationActive={false}
-/>
-<Bar
-  dataKey="pendentes"
-  name="Pendentes"
-  fill="hsl(45, 93%, 47%)"
-  radius={[4, 4, 0, 0]}
-  isAnimationActive={false}
-/>
+```typescript
+interface PersonWithOrg extends Person {
+  organizations?: {
+    id: string;
+    name: string;
+    cnpj: string | null;
+    address_city: string | null;
+    address_state: string | null;
+    automotores: number | null;
+  } | null;
+  owner?: {
+    id: string;
+    user_id: string;
+    full_name: string;
+    avatar_url: string | null;
+  } | null;
+}
 ```
-
-### Fase 5: Estabilizar Dados com useMemo (DashboardCharts)
-
-```tsx
-// src/components/dashboard/DashboardCharts.tsx
-
-// Memoizar os dados passados aos graficos para evitar re-renders
-const stablePipelineData = useMemo(() => pipelineData || [], [pipelineData]);
-const stableForecastData = useMemo(() => forecastData || [], [forecastData]);
-const stableStatusData = useMemo(() => statusData || null, [statusData]);
-
-// Usar dados memoizados nos componentes:
-<PipelineFunnelChart data={stablePipelineData} loading={pipelineLoading} />
-<StageValueChart data={stablePipelineData} loading={pipelineLoading} />
-<ForecastChart data={stableForecastData} loading={forecastLoading} />
-<DealsStatusChart data={stableStatusData} loading={statusLoading} />
-```
-
----
 
 ## Arquivos a Modificar
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `src/components/dashboard/ForecastChart.tsx` | Remover className do CartesianGrid, adicionar isAnimationActive={false} |
-| `src/components/dashboard/PipelineFunnelChart.tsx` | Adicionar isAnimationActive={false} |
-| `src/components/dashboard/StageValueChart.tsx` | Adicionar isAnimationActive={false} |
-| `src/components/dashboard/DealsStatusChart.tsx` | Adicionar isAnimationActive={false} |
-| `src/components/dashboard/DashboardCharts.tsx` | Adicionar useMemo para estabilizar dados |
-| `src/components/reports/BrokerPerformanceChart.tsx` | Adicionar isAnimationActive={false} |
-| `src/components/reports/BrokerActivityChart.tsx` | Adicionar isAnimationActive={false} |
+| `supabase/functions/timelines-webhook/index.ts` | Atribuir `owner_id` do canal ao criar pessoa |
+| `src/pages/People.tsx` | Incluir join com `profiles` na query de pessoas |
+| `src/components/people/PeopleTable.tsx` | Adicionar coluna "Captado por" com Avatar e nome |
 
----
+## Comportamento Esperado
+
+1. **Novos contatos via WhatsApp**: Serao criados com o `owner_id` do canal que recebeu a mensagem
+2. **Tabela de Pessoas**: Exibira uma nova coluna "Captado por" mostrando:
+   - Avatar + nome do vendedor para leads com owner atribuido
+   - Badge "Nao atribuido" para leads de WhatsApp sem owner
+   - Traco (-) para contatos de outras origens
+
+3. **Contatos existentes**: Continuarao sem owner (sera necessario atribuir manualmente ou criar um script de migracao se desejado)
+
+## Visualizacao Esperada
+
+A coluna "Captado por" aparecera assim na tabela:
+
+| Nome | Telefone | WhatsApp | Captado por |
+|------|----------|----------|-------------|
+| 554391480358 | - | 554391480358 | [Avatar] Adriana Jacometo |
+| (44) 9759-7441 | - | +5544975974... | [Badge] Nao atribuido |
+| Guilherme Favarin | - | 554899817391 | [Avatar] Leonardo Sanches |
 
 ## Secao Tecnica
 
-### Por que desabilitar animacoes resolve o problema?
+### Foreign Key Existente
 
-O Recharts usa animacoes CSS/JS que manipulam o DOM diretamente. Quando o React tenta fazer um re-render durante uma animacao, pode ocorrer um conflito onde:
+A tabela `people` ja possui o campo `owner_id` que faz referencia a `auth.users`. Para o join funcionar, precisamos usar a tabela `profiles` que tem `user_id` como referencia.
 
-1. A animacao do Recharts remove/move um elemento do DOM
-2. O React tenta remover o mesmo elemento (que ja foi movido)
-3. Resultado: `NotFoundError: The node to be removed is not a child of this node`
+### Performance
 
-Desabilitar animacoes (`isAnimationActive={false}`) garante que apenas o React manipule o DOM, eliminando conflitos.
+O join adicional com `profiles` e leve pois:
+- E um JOIN 1:1 (cada pessoa tem no maximo 1 owner)
+- A tabela `profiles` e pequena (apenas usuarios do sistema)
+- O campo `user_id` na tabela profiles tem indice implicito
 
-### Por que remover className do CartesianGrid?
+### Consideracoes de Migracao
 
-O Recharts v2.x tem um bug conhecido onde passar `className` para certos componentes internos (CartesianGrid, XAxis, YAxis) faz com que o componente tente usar refs de forma incorreta. A solucao e usar as props nativas do SVG (`stroke`, `opacity`) ou aplicar estilos via CSS global (que ja e feito pelo ChartContainer).
+Os contatos criados antes desta mudanca continuarao com `owner_id = null`. Para atribuir owners retroativamente, seria necessario:
 
-### Impacto Visual
+1. Identificar a conversa do WhatsApp associada ao contato
+2. Buscar o canal dessa conversa
+3. Atribuir o `owner_id` do canal ao contato
 
-As animacoes de entrada dos graficos serao removidas, mas isso:
-- Melhora significativamente a estabilidade
-- Reduz o tempo de renderizacao
-- Elimina os erros de console
-- Previne paginas em branco
-
----
-
-## Resultado Esperado
-
-Apos as correcoes:
-
-1. Os warnings de ref desaparecerao do console
-2. O erro `NotFoundError: removeChild` sera eliminado
-3. A navegacao entre paginas funcionara corretamente
-4. Os graficos serao renderizados de forma estavel
-5. A pagina de Reports carregara sem erros
+Isso pode ser feito posteriormente via script SQL se necessario.
