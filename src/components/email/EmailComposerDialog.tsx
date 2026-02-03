@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Sparkles, Send, FileText, Loader2 } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/sanitize';
 import {
   Dialog,
   DialogContent,
@@ -223,7 +224,7 @@ export function EmailComposerDialog({
               <p className="mb-2 font-medium">Assinatura (será adicionada automaticamente):</p>
               <div 
                 className="text-xs bg-muted/50 p-3 rounded-lg"
-                dangerouslySetInnerHTML={{ __html: signature.signature_html }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(signature.signature_html) }}
               />
             </div>
           )}

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tables } from '@/integrations/supabase/types';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 type Activity = Tables<'activities'>;
 type DealNote = Tables<'deal_notes'>;
@@ -145,7 +146,7 @@ export function DealSummary({
         <CardContent>
           {latestNote ? (
             <div className="space-y-1">
-              <p className="text-sm line-clamp-3" dangerouslySetInnerHTML={{ __html: latestNote.content }} />
+              <p className="text-sm line-clamp-3" dangerouslySetInnerHTML={{ __html: sanitizeHtml(latestNote.content) }} />
               <p className="text-xs text-muted-foreground">
                 <Clock className="h-3 w-3 inline mr-1" />
                 {formatDistanceToNow(new Date(latestNote.created_at || ''), { 

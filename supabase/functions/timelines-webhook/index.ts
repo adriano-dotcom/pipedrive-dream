@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-webhook-secret',
 };
 
 interface TimelinesPayload {
@@ -33,6 +33,97 @@ interface TimelinesPayload {
       type: string;
     }>;
   };
+}
+
+// Validate webhook secret
+function validateWebhookSecret(req: Request): boolean {
+  const webhookSecret = Deno.env.get('TIMELINES_WEBHOOK_SECRET');
+  
+  // If no secret is configured, log a warning but allow for backward compatibility
+  // IMPORTANT: Configure TIMELINES_WEBHOOK_SECRET in production for security
+  if (!webhookSecret) {
+    console.warn('TIMELINES_WEBHOOK_SECRET not configured - webhook authentication disabled');
+    return true;
+  }
+  
+  const providedSecret = req.headers.get('x-webhook-secret') || 
+                         req.headers.get('X-Webhook-Secret') ||
+                         new URL(req.url).searchParams.get('secret');
+  
+  if (!providedSecret) {
+    console.error('Webhook secret missing from request');
+    return false;
+  }
+  
+  // Constant-time comparison to prevent timing attacks
+  if (providedSecret.length !== webhookSecret.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < webhookSecret.length; i++) {
+    result |= webhookSecret.charCodeAt(i) ^ providedSecret.charCodeAt(i);
+  }
+  
+  return result === 0;
+}
+
+// Validate payload structure
+function validatePayload(payload: unknown): payload is TimelinesPayload {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  
+  const p = payload as Record<string, unknown>;
+  
+  // Check required fields
+  if (typeof p.event_type !== 'string') {
+    console.error('Invalid payload: missing event_type');
+    return false;
+  }
+  
+  if (!p.chat || typeof p.chat !== 'object') {
+    console.error('Invalid payload: missing chat object');
+    return false;
+  }
+  
+  const chat = p.chat as Record<string, unknown>;
+  if (typeof chat.chat_id !== 'number' || typeof chat.phone !== 'string') {
+    console.error('Invalid payload: invalid chat structure');
+    return false;
+  }
+  
+  if (!p.whatsapp_account || typeof p.whatsapp_account !== 'object') {
+    console.error('Invalid payload: missing whatsapp_account object');
+    return false;
+  }
+  
+  const account = p.whatsapp_account as Record<string, unknown>;
+  if (typeof account.phone !== 'string') {
+    console.error('Invalid payload: invalid whatsapp_account structure');
+    return false;
+  }
+  
+  // Validate message if present
+  if (p.message) {
+    if (typeof p.message !== 'object') {
+      console.error('Invalid payload: message must be an object');
+      return false;
+    }
+    
+    const msg = p.message as Record<string, unknown>;
+    if (typeof msg.direction !== 'string' || !['received', 'sent'].includes(msg.direction)) {
+      console.error('Invalid payload: invalid message direction');
+      return false;
+    }
+    
+    if (typeof msg.message_uid !== 'string') {
+      console.error('Invalid payload: missing message_uid');
+      return false;
+    }
+  }
+  
+  return true;
 }
 
 // Normaliza número de telefone removendo caracteres especiais
@@ -78,6 +169,17 @@ function formatPhoneForStorage(phone: string): string {
   return phone;
 }
 
+// Sanitize text content to prevent injection
+function sanitizeText(text: string | undefined | null): string {
+  if (!text) return '';
+  // Remove any potential script tags and HTML
+  return text
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .trim()
+    .slice(0, 10000); // Limit length
+}
+
 // Determina o tipo de mensagem baseado nos attachments
 function getMessageType(attachments?: Array<{ type: string }>): string {
   if (!attachments || attachments.length === 0) return 'text';
@@ -94,9 +196,46 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    console.error('Invalid method:', req.method);
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
-    const payload: TimelinesPayload = await req.json();
-    console.log('Received webhook:', JSON.stringify(payload, null, 2));
+    // Validate webhook secret
+    if (!validateWebhookSecret(req)) {
+      console.error('Webhook authentication failed');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Parse and validate payload
+    let rawPayload: unknown;
+    try {
+      rawPayload = await req.json();
+    } catch {
+      console.error('Invalid JSON payload');
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!validatePayload(rawPayload)) {
+      return new Response(JSON.stringify({ error: 'Invalid payload structure' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const payload = rawPayload;
+    console.log('Received valid webhook:', payload.event_type);
 
     // Validar evento
     if (!['message:received:new', 'chat:incoming:new'].includes(payload.event_type)) {
@@ -113,12 +252,14 @@ serve(async (req) => {
 
     // 1. Upsert Canal WhatsApp
     const channelPhone = normalizePhone(payload.whatsapp_account.phone);
+    const channelName = sanitizeText(payload.whatsapp_account.full_name) || 'WhatsApp Business';
+    
     const { data: channel, error: channelError } = await supabase
       .from('whatsapp_channels')
       .upsert({
         timelines_channel_id: channelPhone,
-        name: payload.whatsapp_account.full_name || 'WhatsApp Business',
-        phone_number: payload.whatsapp_account.phone,
+        name: channelName.slice(0, 255),
+        phone_number: payload.whatsapp_account.phone.slice(0, 50),
         is_active: true,
       }, {
         onConflict: 'timelines_channel_id',
@@ -138,13 +279,13 @@ serve(async (req) => {
     console.log('Searching for contact with phone:', searchPhone);
     
     // Determinar nome do contato (nunca usar "Contato WhatsApp" genérico)
-    const rawName = payload.chat.full_name || payload.message?.sender.full_name;
+    const rawName = sanitizeText(payload.chat.full_name || payload.message?.sender.full_name);
     const isValidName = rawName && !rawName.match(/^\+?\d[\d\s\-()]+$/); // Não é apenas número
     const contactName = isValidName 
-      ? rawName 
+      ? rawName.slice(0, 255) 
       : formatPhoneForDisplay(payload.chat.phone);
     
-    console.log('Contact name resolved:', contactName, '(from raw:', rawName, ')');
+    console.log('Contact name resolved:', contactName);
 
     // Buscar pessoa existente pelo whatsapp ou phone - múltiplas variações
     let { data: existingPerson } = await supabase
@@ -181,7 +322,7 @@ serve(async (req) => {
         .from('people')
         .insert({
           name: contactName,
-          whatsapp: formattedPhone,
+          whatsapp: formattedPhone.slice(0, 50),
           lead_source: 'WhatsApp',
         })
         .select()
@@ -283,6 +424,7 @@ serve(async (req) => {
       if (!existingMessage) {
         const messageType = getMessageType(payload.message.attachments);
         const mediaAttachment = payload.message.attachments?.[0];
+        const messageText = sanitizeText(payload.message.text);
 
         const { data: newMessage, error: msgError } = await supabase
           .from('whatsapp_messages')
@@ -290,15 +432,15 @@ serve(async (req) => {
             timelines_message_id: messageUid,
             conversation_id: conversationId,
             sender_type: payload.message.direction === 'received' ? 'contact' : 'agent',
-            content: payload.message.text,
+            content: messageText.slice(0, 10000),
             message_type: messageType,
             status: 'delivered',
-            media_url: mediaAttachment?.url,
-            media_mime_type: mediaAttachment?.mime_type,
+            media_url: mediaAttachment?.url?.slice(0, 2000),
+            media_mime_type: mediaAttachment?.mime_type?.slice(0, 100),
             metadata: {
               timestamp: payload.message.timestamp,
-              sender_phone: payload.message.sender.phone,
-              sender_name: payload.message.sender.full_name,
+              sender_phone: payload.message.sender.phone?.slice(0, 50),
+              sender_name: sanitizeText(payload.message.sender.full_name)?.slice(0, 255),
             },
           })
           .select()
@@ -316,9 +458,9 @@ serve(async (req) => {
           ? 'whatsapp_received' 
           : 'whatsapp_sent';
 
-        const messagePreview = payload.message.text?.length > 100 
-          ? payload.message.text.substring(0, 100) + '...' 
-          : payload.message.text || `[${messageType}]`;
+        const messagePreview = messageText.length > 100 
+          ? messageText.substring(0, 100) + '...' 
+          : messageText || `[${messageType}]`;
 
         await supabase.from('people_history').insert({
           person_id: personId,
@@ -350,8 +492,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Webhook error:', error);
+    // Return generic error to avoid information leakage
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: 'Internal server error'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
