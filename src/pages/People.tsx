@@ -35,6 +35,12 @@ interface PersonWithOrg extends Person {
     address_state: string | null;
     automotores: number | null;
   } | null;
+  owner?: {
+    id: string;
+    user_id: string;
+    full_name: string;
+    avatar_url: string | null;
+  } | null;
 }
 
 const STORAGE_KEY = 'people-advanced-filters';
@@ -119,8 +125,7 @@ export default function People() {
       .from('people')
       .select(`
         *,
-        organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores),
-        owner:profiles!people_owner_id_fkey(id, user_id, full_name, avatar_url)
+        organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores)
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
@@ -191,7 +196,29 @@ export default function People() {
 
     const { data, error, count } = await query;
     if (error) throw error;
-    return { data: data as PersonWithOrg[], count };
+    
+    // Fetch profiles for owners (can't use foreign key join since owner_id references auth.users)
+    const ownerIds = [...new Set((data || []).map(p => p.owner_id).filter(Boolean))] as string[];
+    let ownerProfiles: Record<string, { id: string; user_id: string; full_name: string; avatar_url: string | null }> = {};
+    
+    if (ownerIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', ownerIds);
+      
+      if (profiles) {
+        ownerProfiles = Object.fromEntries(profiles.map(p => [p.user_id, p]));
+      }
+    }
+    
+    // Map owner data to people
+    const peopleWithOwners = (data || []).map(person => ({
+      ...person,
+      owner: person.owner_id ? ownerProfiles[person.owner_id] || null : null,
+    })) as PersonWithOrg[];
+    
+    return { data: peopleWithOwners, count };
   };
 
   // Check if tag query is ready before running main query
