@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CpfInput } from '@/components/ui/cpf-input';
 import {
   Select,
@@ -23,6 +23,17 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { PersonTagsSelector } from './PersonTagsSelector';
 import { usePersonTagAssignments, useAssignPersonTags } from '@/hooks/usePersonTags';
+import { useVendedores } from '@/hooks/useVendedores';
+
+const getInitials = (name: string) => {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+};
 
 type Person = Tables<'people'>;
 
@@ -34,6 +45,7 @@ const personSchema = z.object({
   whatsapp: z.string().trim().max(20, 'WhatsApp inválido').optional().or(z.literal('')),
   job_title: z.string().trim().max(100, 'Cargo muito longo').optional().or(z.literal('')),
   organization_id: z.string().uuid().optional().or(z.literal('')),
+  owner_id: z.string().uuid().optional().or(z.literal('')),
   notes: z.string().trim().max(2000, 'Observações muito longas').optional().or(z.literal('')),
   label: z.string().optional().or(z.literal('')),
   lead_source: z.string().trim().max(100, 'Origem muito longa').optional().or(z.literal('')),
@@ -142,6 +154,9 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     staleTime: 5 * 60 * 1000, // Cache por 5 minutos
   });
 
+  // Fetch vendedores for owner selector
+  const { data: vendedores } = useVendedores();
+
   const {
     register,
     handleSubmit,
@@ -158,11 +173,12 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
       whatsapp: person?.whatsapp || '',
       job_title: person?.job_title || '',
       organization_id: person?.organization_id || '',
+      owner_id: person?.owner_id || '',
       notes: person?.notes || '',
       label: person?.label || '',
       lead_source: person?.lead_source || '',
       utm_source: person?.utm_source || '',
-      utm_medium: person?.utm_medium || '',
+      utm_medium: person?.utm_campaign || '',
       utm_campaign: person?.utm_campaign || '',
     },
   });
@@ -207,7 +223,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         utm_source: data.utm_source || null,
         utm_medium: data.utm_medium || null,
         utm_campaign: data.utm_campaign || null,
-        owner_id: user?.id,
+        owner_id: data.owner_id || user?.id,
         created_by: user?.id,
       }).select().single();
       if (error) throw error;
@@ -288,6 +304,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         ...data,
         email: data.email?.toLowerCase() || null,
         organization_id: data.organization_id || null,
+        owner_id: data.owner_id || null,
       };
       const { error } = await supabase
         .from('people')
@@ -353,6 +370,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   const isLoading = createMutation.isPending || updateMutation.isPending;
   const labelValue = watch('label');
   const organizationValue = watch('organization_id');
+  const ownerValue = watch('owner_id');
 
   // Handler para validação de email no blur
   const handleEmailBlur = async () => {
@@ -434,6 +452,32 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
                 {organizations?.map((org) => (
                   <SelectItem key={org.id} value={org.id}>
                     {org.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="owner_id">Captado por</Label>
+            <Select
+              value={ownerValue || ''}
+              onValueChange={(value) => setValue('owner_id', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o vendedor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {vendedores?.map((vendedor) => (
+                  <SelectItem key={vendedor.user_id} value={vendedor.user_id}>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={vendedor.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                          {getInitials(vendedor.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {vendedor.full_name}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
