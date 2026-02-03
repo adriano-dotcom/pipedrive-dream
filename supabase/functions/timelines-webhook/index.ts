@@ -35,9 +35,47 @@ interface TimelinesPayload {
   };
 }
 
-// Normaliza número de telefone para comparação
+// Normaliza número de telefone removendo caracteres especiais
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
+}
+
+// Normaliza número para busca (remove código do país se presente)
+function normalizePhoneForSearch(phone: string): string {
+  let digits = phone.replace(/\D/g, '');
+  // Se começar com 55 e tiver mais de 11 dígitos, remove o 55
+  if (digits.startsWith('55') && digits.length > 11) {
+    return digits.substring(2);
+  }
+  return digits;
+}
+
+// Formata telefone para exibição como nome
+function formatPhoneForDisplay(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  // Formato brasileiro: (XX) XXXXX-XXXX
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  // Formato com código do país: (XX) XXXXX-XXXX
+  if (digits.length === 13 && digits.startsWith('55')) {
+    return `(${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  }
+  // Retorna o número original se não conseguir formatar
+  return phone;
+}
+
+// Formata telefone para salvar no padrão consistente
+function formatPhoneForStorage(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  // Garantir que tenha código do país
+  if (digits.length === 11) {
+    return `+55${digits}`;
+  }
+  if (digits.length === 13 && digits.startsWith('55')) {
+    return `+${digits}`;
+  }
+  return phone;
 }
 
 // Determina o tipo de mensagem baseado nos attachments
@@ -95,30 +133,55 @@ serve(async (req) => {
 
     console.log('Channel upserted:', channel.id);
 
-    // 2. Buscar ou criar pessoa pelo telefone
-    const contactPhone = normalizePhone(payload.chat.phone);
-    const contactName = payload.chat.full_name || payload.message?.sender.full_name || 'Contato WhatsApp';
+    // 2. Buscar ou criar pessoa pelo telefone - busca robusta
+    const searchPhone = normalizePhoneForSearch(payload.chat.phone);
+    console.log('Searching for contact with phone:', searchPhone);
+    
+    // Determinar nome do contato (nunca usar "Contato WhatsApp" genérico)
+    const rawName = payload.chat.full_name || payload.message?.sender.full_name;
+    const isValidName = rawName && !rawName.match(/^\+?\d[\d\s\-()]+$/); // Não é apenas número
+    const contactName = isValidName 
+      ? rawName 
+      : formatPhoneForDisplay(payload.chat.phone);
+    
+    console.log('Contact name resolved:', contactName, '(from raw:', rawName, ')');
 
-    // Buscar pessoa existente pelo whatsapp ou phone
+    // Buscar pessoa existente pelo whatsapp ou phone - múltiplas variações
     let { data: existingPerson } = await supabase
       .from('people')
       .select('id, name, whatsapp, phone')
-      .or(`whatsapp.ilike.%${contactPhone}%,phone.ilike.%${contactPhone}%`)
+      .or(`whatsapp.ilike.%${searchPhone}%,phone.ilike.%${searchPhone}%`)
       .limit(1)
       .maybeSingle();
+    
+    // Se não encontrou, tentar com código do país
+    if (!existingPerson) {
+      console.log('Person not found, trying with country code...');
+      const { data: foundWithCountry } = await supabase
+        .from('people')
+        .select('id, name, whatsapp, phone')
+        .or(`whatsapp.ilike.%55${searchPhone}%,phone.ilike.%55${searchPhone}%`)
+        .limit(1)
+        .maybeSingle();
+      
+      existingPerson = foundWithCountry;
+    }
 
     let personId: string;
 
     if (existingPerson) {
       personId = existingPerson.id;
-      console.log('Found existing person:', personId);
+      console.log('Found existing person:', personId, existingPerson.name);
     } else {
-      // Criar nova pessoa
+      // Criar nova pessoa com número formatado
+      const formattedPhone = formatPhoneForStorage(payload.chat.phone);
+      console.log('Creating new person with name:', contactName, 'whatsapp:', formattedPhone);
+      
       const { data: newPerson, error: personError } = await supabase
         .from('people')
         .insert({
           name: contactName,
-          whatsapp: payload.chat.phone,
+          whatsapp: formattedPhone,
           lead_source: 'WhatsApp',
         })
         .select()
