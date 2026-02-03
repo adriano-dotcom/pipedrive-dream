@@ -1,196 +1,133 @@
 
-# Implementacao de Badge de Vendedor para Leads do WhatsApp
+# Adicionar Campo "Captado por" no Formulário de Pessoas
 
-## Resumo do Problema
+## Resumo
 
-Atualmente, quando um contato e criado automaticamente via integracao com Timelines.ai (WhatsApp), nao ha indicacao visual de qual vendedor captou o lead. Os contatos sao criados com `owner_id = null` e `created_by = null`.
+O usuário deseja poder atribuir manualmente o vendedor responsável ("Captado por") ao criar ou editar uma pessoa. Atualmente, esse campo só é preenchido automaticamente quando o contato vem do WhatsApp.
 
-### Dados Atuais
+---
 
-Ao analisar o banco de dados, identifiquei que:
-- Todos os contatos com `lead_source = 'WhatsApp'` possuem `owner_id = null`
-- Os canais do WhatsApp (`whatsapp_channels`) ja possuem `owner_id` configurado para alguns vendedores
-- O webhook atual cria pessoas sem associar o `owner_id` do canal
+## O Que Será Implementado
 
-## Solucao Proposta
+### 1. Adicionar Campo de Seleção de Vendedor no Formulário
 
-### Fase 1: Atualizar Webhook para Atribuir Owner
+Será adicionado um novo campo "Captado por" na seção de "Informações Básicas" do formulário de pessoas, permitindo selecionar qualquer membro da equipe como responsável pelo lead.
 
-Modificar o webhook `timelines-webhook` para:
-1. Ao criar uma nova pessoa, buscar o `owner_id` do canal WhatsApp associado
-2. Atribuir esse `owner_id` como dono do contato criado
-3. Registrar no historico quem captou o lead
+### 2. Comportamento
 
-**Arquivo**: `supabase/functions/timelines-webhook/index.ts`
+- **Novo contato**: O campo inicia vazio, mas pode ser preenchido manualmente
+- **Editar contato**: O campo mostra o vendedor atual (se houver) e permite alterar
+- **Visual**: Dropdown com avatar + nome do vendedor (similar ao usado em outras partes do sistema)
 
-```typescript
-// Apos obter o channel (linha ~404)
-const channelOwnerId = channel.owner_id;
-
-// Na criacao da pessoa (linha ~453-461)
-const { data: newPerson, error: personError } = await supabase
-  .from('people')
-  .insert({
-    name: contactName,
-    whatsapp: formattedPhone.slice(0, 50),
-    lead_source: 'WhatsApp',
-    owner_id: channelOwnerId || null,  // Atribuir owner do canal
-  })
-  .select()
-  .single();
-
-// No historico (linha ~471-475)
-await supabase.from('people_history').insert({
-  person_id: personId,
-  event_type: 'created',
-  description: channelOwnerId 
-    ? `Contato criado automaticamente via WhatsApp (Canal: ${channelName})`
-    : 'Contato criado automaticamente via WhatsApp',
-  created_by: channelOwnerId || null,
-});
-```
-
-### Fase 2: Adicionar Coluna "Captado por" na Tabela de Pessoas
-
-Modificar a query e a tabela para mostrar o vendedor que captou o lead.
-
-**Arquivo**: `src/pages/People.tsx`
-
-Atualizar a query para incluir o profile do owner:
-
-```typescript
-const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
-  let query = supabase
-    .from('people')
-    .select(`
-      *,
-      organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores),
-      owner:profiles!people_owner_id_fkey(id, user_id, full_name, avatar_url)
-    `, { count: 'exact' })
-    .order('created_at', { ascending: false });
-  // ...
-};
-```
-
-**Arquivo**: `src/components/people/PeopleTable.tsx`
-
-Adicionar nova coluna "Captado por" com badge do vendedor:
-
-```typescript
-// Adicionar no columnLabels
-const columnLabels: Record<string, string> = {
-  // ...existentes...
-  owner: 'Captado por',
-};
-
-// Adicionar coluna owner apos a coluna de nome
-{
-  id: 'owner',
-  accessorFn: (row) => row.owner?.full_name ?? '',
-  header: ({ column }) => <SortableHeader column={column} title="Captado por" />,
-  cell: ({ row }) => {
-    const owner = row.original.owner;
-    const leadSource = row.original.lead_source;
-    
-    // So mostrar badge para leads de WhatsApp
-    if (leadSource !== 'WhatsApp') {
-      return <span className="text-muted-foreground/50">-</span>;
-    }
-    
-    if (!owner) {
-      return (
-        <Badge variant="outline" className="bg-muted/50 text-muted-foreground text-xs">
-          <MessageCircle className="h-3 w-3 mr-1" />
-          Nao atribuido
-        </Badge>
-      );
-    }
-    
-    return (
-      <div className="flex items-center gap-2">
-        <Avatar className="h-6 w-6">
-          <AvatarImage src={owner.avatar_url || undefined} />
-          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-            {getInitials(owner.full_name)}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-sm font-medium">{owner.full_name}</span>
-      </div>
-    );
-  },
-},
-```
-
-### Fase 3: Atualizar Tipos TypeScript
-
-**Arquivo**: `src/components/people/PeopleTable.tsx`
-
-```typescript
-interface PersonWithOrg extends Person {
-  organizations?: {
-    id: string;
-    name: string;
-    cnpj: string | null;
-    address_city: string | null;
-    address_state: string | null;
-    automotores: number | null;
-  } | null;
-  owner?: {
-    id: string;
-    user_id: string;
-    full_name: string;
-    avatar_url: string | null;
-  } | null;
-}
-```
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudanca |
+| Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/timelines-webhook/index.ts` | Atribuir `owner_id` do canal ao criar pessoa |
-| `src/pages/People.tsx` | Incluir join com `profiles` na query de pessoas |
-| `src/components/people/PeopleTable.tsx` | Adicionar coluna "Captado por" com Avatar e nome |
+| `src/components/people/PersonForm.tsx` | Adicionar campo `owner_id` no formulário com dropdown de vendedores |
 
-## Comportamento Esperado
+---
 
-1. **Novos contatos via WhatsApp**: Serao criados com o `owner_id` do canal que recebeu a mensagem
-2. **Tabela de Pessoas**: Exibira uma nova coluna "Captado por" mostrando:
-   - Avatar + nome do vendedor para leads com owner atribuido
-   - Badge "Nao atribuido" para leads de WhatsApp sem owner
-   - Traco (-) para contatos de outras origens
+## Detalhes Técnicos
 
-3. **Contatos existentes**: Continuarao sem owner (sera necessario atribuir manualmente ou criar um script de migracao se desejado)
+### Mudanças no PersonForm.tsx
 
-## Visualizacao Esperada
+**1. Adicionar campo no schema Zod:**
+```typescript
+const personSchema = z.object({
+  // ... campos existentes ...
+  owner_id: z.string().uuid().optional().or(z.literal('')),
+});
+```
 
-A coluna "Captado por" aparecera assim na tabela:
+**2. Adicionar import do hook de vendedores:**
+```typescript
+import { useVendedores } from '@/hooks/useVendedores';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+```
 
-| Nome | Telefone | WhatsApp | Captado por |
-|------|----------|----------|-------------|
-| 554391480358 | - | 554391480358 | [Avatar] Adriana Jacometo |
-| (44) 9759-7441 | - | +5544975974... | [Badge] Nao atribuido |
-| Guilherme Favarin | - | 554899817391 | [Avatar] Leonardo Sanches |
+**3. Buscar lista de vendedores:**
+```typescript
+const { data: vendedores } = useVendedores();
+```
 
-## Secao Tecnica
+**4. Adicionar defaultValue para owner_id:**
+```typescript
+defaultValues: {
+  // ... existentes ...
+  owner_id: person?.owner_id || '',
+}
+```
 
-### Foreign Key Existente
+**5. Adicionar campo no formulário (após Organização):**
+```tsx
+<div className="space-y-2">
+  <Label htmlFor="owner_id">Captado por</Label>
+  <Select
+    value={ownerValue || ''}
+    onValueChange={(value) => setValue('owner_id', value)}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Selecione o vendedor..." />
+    </SelectTrigger>
+    <SelectContent>
+      {vendedores?.map((vendedor) => (
+        <SelectItem key={vendedor.user_id} value={vendedor.user_id}>
+          <div className="flex items-center gap-2">
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={vendedor.avatar_url || undefined} />
+              <AvatarFallback className="text-xs">
+                {getInitials(vendedor.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            {vendedor.full_name}
+          </div>
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
+```
 
-A tabela `people` ja possui o campo `owner_id` que faz referencia a `auth.users`. Para o join funcionar, precisamos usar a tabela `profiles` que tem `user_id` como referencia.
+**6. Atualizar mutations para incluir owner_id:**
 
-### Performance
+Na criação:
+```typescript
+owner_id: data.owner_id || user?.id,  // Se não selecionado, usa o próprio usuário
+```
 
-O join adicional com `profiles` e leve pois:
-- E um JOIN 1:1 (cada pessoa tem no maximo 1 owner)
-- A tabela `profiles` e pequena (apenas usuarios do sistema)
-- O campo `user_id` na tabela profiles tem indice implicito
+Na atualização:
+```typescript
+owner_id: data.owner_id || null,
+```
 
-### Consideracoes de Migracao
+---
 
-Os contatos criados antes desta mudanca continuarao com `owner_id = null`. Para atribuir owners retroativamente, seria necessario:
+## Visualização Esperada
 
-1. Identificar a conversa do WhatsApp associada ao contato
-2. Buscar o canal dessa conversa
-3. Atribuir o `owner_id` do canal ao contato
+O formulário de pessoa terá um novo campo:
 
-Isso pode ser feito posteriormente via script SQL se necessario.
+```text
+┌─────────────────────────────────────────────────┐
+│ Informações Básicas                              │
+├─────────────────────────────────────────────────┤
+│ Nome Completo *         │ CPF                    │
+│ [João da Silva     ]    │ [000.000.000-00]       │
+├─────────────────────────────────────────────────┤
+│ Cargo                   │ Organização            │
+│ [Gerente          ]     │ [Empresa XYZ ▼]        │
+├─────────────────────────────────────────────────┤
+│ Captado por             │ Status/Temperatura     │  ← NOVO
+│ [[👤] Adriana Jac... ▼] │ [🔥 Quente ▼]          │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+## Resultado Esperado
+
+1. Usuários podem definir manualmente quem captou o lead ao criar uma pessoa
+2. Usuários podem alterar o vendedor responsável ao editar uma pessoa
+3. O campo mostra avatar e nome do vendedor para fácil identificação
+4. Mantém compatibilidade com leads criados automaticamente via WhatsApp
