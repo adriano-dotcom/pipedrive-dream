@@ -44,7 +44,7 @@ export function useMergeBackups(entityId: string, entityType: 'person' | 'organi
 
       if (error) throw error;
       
-      return data?.[0] as unknown as MergeBackup | undefined;
+      return (data?.[0] ?? null) as unknown as MergeBackup | null;
     },
     enabled: !!entityId,
   });

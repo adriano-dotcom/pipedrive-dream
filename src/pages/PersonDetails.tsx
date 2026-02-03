@@ -109,7 +109,7 @@ export default function PersonDetails() {
   const { data: mergeBackup } = useMergeBackups(id || '', 'person');
   const { undoMerge, isUndoing } = useUndoMergeContact();
 
-  // Fetch default pipeline for new deals
+  // Fetch default pipeline for new deals - only when deal sheet is open
   const { data: defaultPipeline } = useQuery({
     queryKey: ['default-pipeline'],
     queryFn: async () => {
@@ -130,9 +130,10 @@ export default function PersonDetails() {
       }
       return data;
     },
+    enabled: dealSheetOpen,
   });
 
-  // Fetch stages for default pipeline
+  // Fetch stages for default pipeline - only when deal sheet is open
   const { data: defaultStages = [] } = useQuery({
     queryKey: ['stages', defaultPipeline?.id],
     queryFn: async () => {
@@ -143,7 +144,7 @@ export default function PersonDetails() {
         .order('position');
       return data || [];
     },
-    enabled: !!defaultPipeline?.id,
+    enabled: dealSheetOpen && !!defaultPipeline?.id,
   });
 
   // Calculate activity stats

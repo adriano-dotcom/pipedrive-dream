@@ -177,7 +177,7 @@ export function DealFormSheet({
     },
   });
 
-  // Fetch all pipelines
+  // Fetch all pipelines - only when sheet is open
   const { data: pipelines = [] } = useQuery({
     queryKey: ['pipelines-select'],
     queryFn: async () => {
@@ -188,6 +188,7 @@ export function DealFormSheet({
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
   // Watch selected pipeline and stage
@@ -240,7 +241,7 @@ export function DealFormSheet({
     enabled: !!selectedPipelineId,
   });
 
-  // Fetch organizations
+  // Fetch organizations - only when sheet is open
   const { data: organizations = [] } = useQuery({
     queryKey: ['organizations-select'],
     queryFn: async () => {
@@ -251,9 +252,10 @@ export function DealFormSheet({
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
-  // Fetch people based on selected organization
+  // Fetch people based on selected organization - only when sheet is open
   const selectedOrgId = form.watch('organization_id');
   const { data: people = [] } = useQuery({
     queryKey: ['people-select', selectedOrgId],
@@ -266,6 +268,7 @@ export function DealFormSheet({
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
   // Reset form when deal changes

@@ -147,7 +147,7 @@ export function ActivityFormSheet({
     }
   }, [activity, form, defaultOrganizationId, defaultDealId, defaultPersonId]);
 
-  // Fetch deals for linking
+  // Fetch deals for linking - only when sheet is open
   const { data: deals } = useQuery({
     queryKey: ['deals-select'],
     queryFn: async () => {
@@ -159,9 +159,10 @@ export function ActivityFormSheet({
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
-  // Fetch people for linking
+  // Fetch people for linking - only when sheet is open
   const { data: people } = useQuery({
     queryKey: ['people-select'],
     queryFn: async () => {
@@ -172,9 +173,10 @@ export function ActivityFormSheet({
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
-  // Fetch organizations for linking
+  // Fetch organizations for linking - only when sheet is open
   const { data: organizations } = useQuery({
     queryKey: ['organizations-select'],
     queryFn: async () => {
@@ -185,6 +187,7 @@ export function ActivityFormSheet({
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
   const mutation = useMutation({
