@@ -1,235 +1,189 @@
 
-# Implementacao de Armazenamento de Arquivos WhatsApp
+# Correcao de Erros de Performance e Renderizacao - CRM Jacometo
 
-## Problema Identificado
+## Problemas Identificados
 
-Ao analisar o banco de dados, identifiquei que **todos os documentos recebidos via WhatsApp estao sendo salvos com `media_url = null`**:
-
-```sql
-SELECT message_type, media_url, media_mime_type FROM whatsapp_messages WHERE message_type = 'document';
-
--- Resultado: Todos os 10+ documentos tem media_url = null
-```
-
-A causa raiz e que o **webhook esta mapeando os campos incorretamente** em relacao ao formato enviado pelo Timelines.ai.
+Com base na analise dos console logs, session replay e codigo-fonte, identifiquei **3 problemas criticos** que estao causando os erros reportados:
 
 ---
 
-## Causa Raiz Tecnica
+## PROBLEMA 1: Warnings de Ref em Componentes de Graficos
 
-### Formato Esperado pelo Codigo Atual
-
-```typescript
-// supabase/functions/timelines-webhook/index.ts (linhas 27-35)
-attachments?: Array<{
-  url: string,          // Campo esperado
-  mime_type: string,    // Campo esperado
-  type: string
-}>
+### Sintoma
+```
+Warning: Function components cannot be given refs. Attempts to access this ref will fail.
+Check the render method of `ForecastChart` at CartesianGrid
+Check the render method of `StatCard` at Tooltip
 ```
 
-### Formato Real do Timelines.ai (Documentacao v1)
+### Causa Raiz
+O Recharts v2.15.4 tem um problema conhecido onde alguns componentes internos (como `CartesianGrid`) tentam passar refs para function components. Isso acontece quando se usa a prop `className` diretamente no `CartesianGrid`:
 
-```json
-{
-  "message": {
-    "text": "lorem ipsum",
-    "attachment": {                          // Singular, nao array
-      "temporary_download_url": "...",       // Nome diferente
-      "filename": "documento.pdf",
-      "size": 12345,
-      "mimetype": "application/pdf"          // Nome diferente
-    }
-  }
-}
+```tsx
+// ForecastChart.tsx - Linha 111
+<CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
 ```
 
-### Problema Adicional
+O `className` no CartesianGrid faz o Recharts tentar usar um ref que nao e suportado em function components.
 
-As URLs do Timelines.ai sao **temporarias e expiram em 15 minutos**. Mesmo que o mapeamento seja corrigido, os arquivos precisam ser baixados e persistidos no storage do projeto.
+### Solucao
+Remover a prop `className` do CartesianGrid e usar apenas props nativas do Recharts. O estilo ja e aplicado globalmente pelo `ChartContainer` atraves de seletores CSS.
+
+---
+
+## PROBLEMA 2: NotFoundError - removeChild on Node
+
+### Sintoma
+```
+NotFoundError: Failed to execute 'removeChild' on 'Node': 
+The node to be removed is not a child of this node.
+```
+
+### Causa Raiz
+Este erro ocorre quando:
+1. O React tenta remover um node do DOM que ja foi removido ou movido
+2. Conflitos entre re-renders do React e manipulacoes internas do Recharts
+3. Mudancas de estado durante animacoes de graficos
+
+O erro aparece especialmente na navegacao entre paginas ou quando os dados dos graficos mudam rapidamente.
+
+### Solucao
+1. Desabilitar animacoes nos graficos para evitar conflitos de estado
+2. Adicionar keys estaveis aos componentes de graficos
+3. Garantir que os dados passados aos graficos sejam estaveis (memoizados)
+
+---
+
+## PROBLEMA 3: Re-renders Excessivos no Dashboard
+
+### Sintoma
+Paginas em branco e falhas ao navegar para secoes de relatorios
+
+### Causa Raiz
+O componente `DashboardCharts` dispara multiplas queries em paralelo e usa `useEffect` para definir o pipeline padrao, causando cascatas de re-renders.
+
+### Solucao
+1. Usar `useMemo` para estabilizar os dados passados aos graficos
+2. Evitar atualizacoes de estado desnecessarias
 
 ---
 
 ## Plano de Implementacao
 
-### Fase 1: Criar Bucket de Storage para Midia WhatsApp
+### Fase 1: Corrigir ForecastChart
 
-Criar um bucket `whatsapp-media` com as policies apropriadas:
+Remover a prop `className` do CartesianGrid e adicionar `isAnimationActive={false}` para prevenir conflitos:
 
-```sql
--- Criar bucket para midia do WhatsApp
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('whatsapp-media', 'whatsapp-media', true)
-ON CONFLICT (id) DO NOTHING;
+```tsx
+// src/components/dashboard/ForecastChart.tsx
 
--- Policy: Usuarios autenticados podem visualizar arquivos
-CREATE POLICY "Auth users can read whatsapp media"
-ON storage.objects FOR SELECT TO authenticated
-USING (bucket_id = 'whatsapp-media');
+// ANTES (linha 111):
+<CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
 
--- Policy: Service role pode fazer upload (webhook)
-CREATE POLICY "Service role can upload whatsapp media"
-ON storage.objects FOR INSERT TO service_role
-WITH CHECK (bucket_id = 'whatsapp-media');
+// DEPOIS:
+<CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+
+// Adicionar isAnimationActive={false} nas Areas (linhas 139-156):
+<Area
+  type="monotone"
+  dataKey="totalValue"
+  stroke="hsl(217, 91%, 60%)"
+  strokeWidth={2}
+  fillOpacity={1}
+  fill="url(#colorTotal)"
+  name="Valor Total"
+  isAnimationActive={false}
+/>
+<Area
+  type="monotone"
+  dataKey="weightedValue"
+  stroke="hsl(142, 71%, 45%)"
+  strokeWidth={2}
+  fillOpacity={1}
+  fill="url(#colorWeighted)"
+  name="Valor Ponderado"
+  isAnimationActive={false}
+/>
 ```
 
-### Fase 2: Corrigir Interface do Webhook
+### Fase 2: Corrigir PipelineFunnelChart e StageValueChart
 
-Atualizar a interface `TimelinesPayload` para suportar **ambos os formatos** (v1 singular e possivel v2 array):
+Adicionar `isAnimationActive={false}` nos componentes Bar:
 
-```typescript
-// supabase/functions/timelines-webhook/index.ts
+```tsx
+// src/components/dashboard/PipelineFunnelChart.tsx
+<Bar 
+  dataKey="count" 
+  radius={[0, 4, 4, 0]}
+  maxBarSize={40}
+  isAnimationActive={false}
+>
 
-interface TimelinesPayload {
-  // ... campos existentes ...
-  message?: {
-    text: string;
-    direction: 'received' | 'sent';
-    timestamp: string;
-    message_uid: string;
-    sender: { phone: string; full_name: string };
-    // Formato v1 (singular)
-    attachment?: {
-      temporary_download_url: string;
-      filename: string;
-      size: number;
-      mimetype: string;
-    };
-    // Formato v2 (array) - manter compatibilidade
-    attachments?: Array<{
-      url?: string;
-      temporary_download_url?: string;
-      mime_type?: string;
-      mimetype?: string;
-      type?: string;
-      filename?: string;
-    }>;
-  };
-}
+// src/components/dashboard/StageValueChart.tsx
+<Bar 
+  dataKey="value" 
+  radius={[0, 4, 4, 0]}
+  maxBarSize={40}
+  isAnimationActive={false}
+  label={...}
+>
 ```
 
-### Fase 3: Implementar Download e Upload de Arquivos
+### Fase 3: Corrigir DealsStatusChart
 
-Adicionar funcao para baixar o arquivo do Timelines.ai e fazer upload para o Storage:
-
-```typescript
-async function downloadAndStoreMedia(
-  supabase: SupabaseClient,
-  conversationId: string,
-  messageId: string,
-  tempUrl: string,
-  filename: string,
-  mimetype: string
-): Promise<string | null> {
-  try {
-    // Baixar arquivo da URL temporaria
-    const response = await fetch(tempUrl);
-    if (!response.ok) {
-      console.error('Failed to download media:', response.status);
-      return null;
-    }
-
-    const blob = await response.blob();
-    
-    // Gerar path unico: whatsapp-media/{conversation_id}/{message_id}/{filename}
-    const filePath = `${conversationId}/${messageId}/${filename}`;
-
-    // Upload para o bucket
-    const { error: uploadError } = await supabase.storage
-      .from('whatsapp-media')
-      .upload(filePath, blob, {
-        contentType: mimetype,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error('Failed to upload media:', uploadError);
-      return null;
-    }
-
-    // Retornar URL publica
-    const { data } = supabase.storage
-      .from('whatsapp-media')
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
-  } catch (error) {
-    console.error('Error processing media:', error);
-    return null;
-  }
-}
+```tsx
+// src/components/dashboard/DealsStatusChart.tsx
+<Pie
+  data={pieData}
+  cx="50%"
+  cy="50%"
+  innerRadius={50}
+  outerRadius={80}
+  paddingAngle={2}
+  dataKey="value"
+  nameKey="label"
+  isAnimationActive={false}
+>
 ```
 
-### Fase 4: Atualizar Logica de Insercao de Mensagem
+### Fase 4: Corrigir Graficos de Reports
 
-Modificar o trecho que insere mensagens para:
-1. Detectar attachment (v1 singular ou v2 array)
-2. Baixar e persistir o arquivo
-3. Salvar a URL permanente na mensagem
+```tsx
+// src/components/reports/BrokerPerformanceChart.tsx
+<Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
 
-```typescript
-// Na secao de insercao de mensagem (linha ~424)
-if (!existingMessage) {
-  // Extrair attachment - suportar v1 (singular) e v2 (array)
-  const attachment = payload.message.attachment || payload.message.attachments?.[0];
-  
-  // Normalizar campos
-  const tempUrl = attachment?.temporary_download_url || attachment?.url;
-  const mimetype = attachment?.mimetype || attachment?.mime_type;
-  const filename = attachment?.filename || 'arquivo';
-  const mediaType = attachment?.type || getMediaTypeFromMimetype(mimetype);
-
-  let permanentMediaUrl: string | null = null;
-
-  // Se tiver URL temporaria, baixar e persistir
-  if (tempUrl) {
-    permanentMediaUrl = await downloadAndStoreMedia(
-      supabase,
-      conversationId,
-      messageUid,
-      tempUrl,
-      filename,
-      mimetype
-    );
-  }
-
-  // Inserir mensagem com URL permanente
-  const { data: newMessage, error: msgError } = await supabase
-    .from('whatsapp_messages')
-    .insert({
-      timelines_message_id: messageUid,
-      conversation_id: conversationId,
-      sender_type: payload.message.direction === 'received' ? 'contact' : 'agent',
-      content: messageText.slice(0, 10000),
-      message_type: mediaType,
-      status: 'delivered',
-      media_url: permanentMediaUrl,  // URL permanente do storage
-      media_mime_type: mimetype,
-      metadata: {
-        timestamp: payload.message.timestamp,
-        sender_phone: payload.message.sender.phone,
-        sender_name: payload.message.sender.full_name,
-        original_filename: filename,  // Preservar nome original
-      },
-    })
-    .select()
-    .single();
-}
+// src/components/reports/BrokerActivityChart.tsx
+<Bar
+  dataKey="completadas"
+  name="Completadas"
+  fill="hsl(142, 71%, 45%)"
+  radius={[4, 4, 0, 0]}
+  isAnimationActive={false}
+/>
+<Bar
+  dataKey="pendentes"
+  name="Pendentes"
+  fill="hsl(45, 93%, 47%)"
+  radius={[4, 4, 0, 0]}
+  isAnimationActive={false}
+/>
 ```
 
-### Fase 5: Funcao Auxiliar para Tipo de Midia
+### Fase 5: Estabilizar Dados com useMemo (DashboardCharts)
 
-```typescript
-function getMediaTypeFromMimetype(mimetype: string | undefined): string {
-  if (!mimetype) return 'document';
-  
-  if (mimetype.startsWith('image/')) return 'image';
-  if (mimetype.startsWith('audio/')) return 'audio';
-  if (mimetype.startsWith('video/')) return 'video';
-  if (mimetype === 'application/pdf') return 'document';
-  
-  return 'document';
-}
+```tsx
+// src/components/dashboard/DashboardCharts.tsx
+
+// Memoizar os dados passados aos graficos para evitar re-renders
+const stablePipelineData = useMemo(() => pipelineData || [], [pipelineData]);
+const stableForecastData = useMemo(() => forecastData || [], [forecastData]);
+const stableStatusData = useMemo(() => statusData || null, [statusData]);
+
+// Usar dados memoizados nos componentes:
+<PipelineFunnelChart data={stablePipelineData} loading={pipelineLoading} />
+<StageValueChart data={stablePipelineData} loading={pipelineLoading} />
+<ForecastChart data={stableForecastData} loading={forecastLoading} />
+<DealsStatusChart data={stableStatusData} loading={statusLoading} />
 ```
 
 ---
@@ -238,28 +192,48 @@ function getMediaTypeFromMimetype(mimetype: string | undefined): string {
 
 | Arquivo | Mudanca |
 |---------|---------|
-| Nova migracao SQL | Criar bucket `whatsapp-media` com policies |
-| `supabase/functions/timelines-webhook/index.ts` | Corrigir interface, adicionar funcao de download/upload, atualizar logica de insercao |
-| `src/components/whatsapp/MessageBubble.tsx` | Nenhuma mudanca necessaria (ja suporta media_url) |
+| `src/components/dashboard/ForecastChart.tsx` | Remover className do CartesianGrid, adicionar isAnimationActive={false} |
+| `src/components/dashboard/PipelineFunnelChart.tsx` | Adicionar isAnimationActive={false} |
+| `src/components/dashboard/StageValueChart.tsx` | Adicionar isAnimationActive={false} |
+| `src/components/dashboard/DealsStatusChart.tsx` | Adicionar isAnimationActive={false} |
+| `src/components/dashboard/DashboardCharts.tsx` | Adicionar useMemo para estabilizar dados |
+| `src/components/reports/BrokerPerformanceChart.tsx` | Adicionar isAnimationActive={false} |
+| `src/components/reports/BrokerActivityChart.tsx` | Adicionar isAnimationActive={false} |
 
 ---
 
-## Consideracoes de Seguranca
+## Secao Tecnica
 
-1. **Bucket publico**: O bucket `whatsapp-media` sera publico para que os usuarios possam visualizar os arquivos sem autenticacao adicional. Isso e necessario porque as URLs sao exibidas diretamente no chat.
+### Por que desabilitar animacoes resolve o problema?
 
-2. **Validacao de mimetype**: Validar tipos de arquivo permitidos para evitar upload de arquivos maliciosos.
+O Recharts usa animacoes CSS/JS que manipulam o DOM diretamente. Quando o React tenta fazer um re-render durante uma animacao, pode ocorrer um conflito onde:
 
-3. **Limite de tamanho**: Implementar limite de 10MB por arquivo para evitar abuso.
+1. A animacao do Recharts remove/move um elemento do DOM
+2. O React tenta remover o mesmo elemento (que ja foi movido)
+3. Resultado: `NotFoundError: The node to be removed is not a child of this node`
+
+Desabilitar animacoes (`isAnimationActive={false}`) garante que apenas o React manipule o DOM, eliminando conflitos.
+
+### Por que remover className do CartesianGrid?
+
+O Recharts v2.x tem um bug conhecido onde passar `className` para certos componentes internos (CartesianGrid, XAxis, YAxis) faz com que o componente tente usar refs de forma incorreta. A solucao e usar as props nativas do SVG (`stroke`, `opacity`) ou aplicar estilos via CSS global (que ja e feito pelo ChartContainer).
+
+### Impacto Visual
+
+As animacoes de entrada dos graficos serao removidas, mas isso:
+- Melhora significativamente a estabilidade
+- Reduz o tempo de renderizacao
+- Elimina os erros de console
+- Previne paginas em branco
 
 ---
 
 ## Resultado Esperado
 
-Apos a implementacao:
+Apos as correcoes:
 
-1. Arquivos recebidos via WhatsApp serao baixados automaticamente
-2. Arquivos serao armazenados permanentemente no Lovable Cloud Storage
-3. URLs permanentes serao salvas na tabela `whatsapp_messages`
-4. O componente `MessageBubble` exibira os arquivos corretamente (imagens, documentos, audio, video)
-5. Arquivos antigos com `media_url = null` continuarao sem midia (nao ha como recuperar as URLs temporarias que ja expiraram)
+1. Os warnings de ref desaparecerao do console
+2. O erro `NotFoundError: removeChild` sera eliminado
+3. A navegacao entre paginas funcionara corretamente
+4. Os graficos serao renderizados de forma estavel
+5. A pagina de Reports carregara sem erros
