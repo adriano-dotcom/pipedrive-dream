@@ -14,6 +14,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSentEmails } from '@/hooks/useSentEmails';
 import { EmailComposerDialog } from './EmailComposerDialog';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 interface SentEmailsListProps {
   entityType: 'deal' | 'person' | 'organization';
@@ -148,7 +149,7 @@ export function SentEmailsList({
               <ScrollArea className="h-[400px] border rounded-lg p-4">
                 <div 
                   className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: previewEmail.body }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewEmail.body) }}
                 />
               </ScrollArea>
               {previewEmail.status === 'failed' && previewEmail.error_message && (

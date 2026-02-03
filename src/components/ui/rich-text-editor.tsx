@@ -22,6 +22,7 @@ import {
 import { Button } from './button';
 import { MentionList, MentionListRef, MentionUser } from './mention-list';
 import { cn } from '@/lib/utils';
+import { sanitizeHtml } from '@/lib/sanitize';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTeamMembers } from '@/hooks/useTeamMembers';
 
@@ -341,6 +342,8 @@ interface RichTextContentProps {
 }
 
 export function RichTextContent({ content, className }: RichTextContentProps) {
+  const sanitizedContent = sanitizeHtml(content);
+  
   return (
     <div 
       className={cn(
@@ -349,7 +352,7 @@ export function RichTextContent({ content, className }: RichTextContentProps) {
         "prose-a:text-primary prose-a:underline",
         className
       )}
-      dangerouslySetInnerHTML={{ __html: content }} 
+      dangerouslySetInnerHTML={{ __html: sanitizedContent }} 
     />
   );
 }
