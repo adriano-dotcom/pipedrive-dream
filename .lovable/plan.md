@@ -1,178 +1,164 @@
 
-# Correção: Lentidão ao Clicar em Contatos
+# Auditoria de Seguranca e Desempenho do Banco de Dados
 
-## Diagnóstico
+## Resumo Executivo
 
-A página de detalhes de pessoa (`PersonDetails.tsx`) está lenta porque:
+A auditoria identificou **23 problemas**, sendo **17 criticos de seguranca** e **6 avisos de desempenho/configuracao**. O problema mais grave e que **dados sensiveis estao acessiveis publicamente** sem autenticacao.
 
-### 1. Excesso de Queries Simultâneas (11+ queries paralelas)
+---
 
-Ao abrir a página, as seguintes queries são disparadas **imediatamente**:
+## PROBLEMAS CRITICOS DE SEGURANCA (17 issues)
 
-| Query | Fonte | Problema |
-|-------|-------|----------|
-| `person` | usePersonDetails | Necessária |
-| `person-history` | usePersonDetails | Necessária |
-| `person-notes` | usePersonDetails | Necessária |
-| `person-activities` | usePersonDetails | Necessária |
-| `person-deals` | usePersonDetails | Necessária |
-| `person-files` | usePersonFiles | Necessária |
-| `sent-emails` | useSentEmails | Necessária |
-| `whatsapp-conversations` | usePersonWhatsAppConversations | Necessária |
-| `merge-backups` | useMergeBackups | **Pode retornar undefined** |
-| `person-tag-assignments` | usePersonTagAssignments | Necessária |
-| `default-pipeline` | PersonDetails | **Carrega antes de ser usada** |
-| `stages` | PersonDetails | **Carrega antes de ser usada** |
-| `team-members` | useTeamMembers | **Sempre carrega** |
+### 1. Policies RLS com Role `public` em vez de `authenticated`
 
-### 2. Queries de Formulários Carregadas Antecipadamente
+Varias tabelas com dados sensiveis tem policies de SELECT aplicadas ao role `public` em vez de `authenticated`, permitindo acesso **sem login**:
 
-Os componentes `ActivityFormSheet` e `DealFormSheet` são montados na renderizacao inicial e suas queries executam **mesmo com os sheets fechados**:
+| Tabela | Dados Expostos | Risco |
+|--------|----------------|-------|
+| `people` | Emails, telefones, WhatsApp, CPF | Identidade, LGPD |
+| `organizations` | CNPJ, emails, telefones, dados financeiros | Inteligencia competitiva |
+| `organization_partners` | Documentos de socios, dados de representantes legais | Fraude |
+| `sent_emails` | Conteudo completo de emails | Comunicacoes confidenciais |
+| `whatsapp_messages` | Mensagens de clientes | Violacao de privacidade |
+| `whatsapp_channels` | Numeros de telefone comerciais | Spam, impersonacao |
+| `deal_notes` | Notas internas sobre negocios | Estrategia de vendas |
+| `people_notes` | Notas sobre clientes | Relacionamento com clientes |
+| `organization_notes` | Notas sobre organizacoes | Inteligencia interna |
+| `deal_history` | Historico de alteracoes em deals | Pipeline de vendas |
+| `people_history` | Historico de contatos | Relacionamentos |
+| `organization_history` | Historico de organizacoes | Operacoes |
+| `organization_files` | Metadados de arquivos | Nomes de documentos confidenciais |
+| `whatsapp_conversation_analysis` | Metricas de qualidade | Performance interna |
+| `profiles` | Nomes e telefones de funcionarios | Dados de RH |
 
-| Query | Componente | Registros Carregados |
-|-------|------------|---------------------|
-| `deals-select` | ActivityFormSheet | Todos os deals abertos |
-| `people-select` | ActivityFormSheet | **Todas as 990+ pessoas** |
-| `organizations-select` | ActivityFormSheet | Todas as organizacoes |
-| `pipelines-select` | DealFormSheet | Todos os pipelines |
-| `organizations-select` | DealFormSheet | Duplicado! |
-| `people-select` | DealFormSheet | **Todas as 990+ pessoas** |
+### 2. Policies com `USING (true)` sem restricao de role
 
-### 3. Erro no useMergeBackups
+Policies aplicadas a `public` (nao autenticados) com `USING (true)`:
 
-O console mostra: `Query data cannot be undefined`
-
-```
-Error: Query data cannot be undefined.
-Affected query key: ["merge-backups","0d892c1c-...","person"]
+```sql
+-- PROBLEMA: Qualquer pessoa pode ver
+roles:{public} qual:true
 ```
 
-O hook retorna `undefined` quando nao encontra backup, mas React Query exige retorno de valor definido.
+### 3. Leaked Password Protection Desabilitada
 
-## Solucao
+A protecao contra senhas vazadas esta desativada, permitindo que usuarios usem senhas comprometidas em vazamentos de dados.
 
-### Correcao 1: useMergeBackups - Retornar null em vez de undefined
+---
 
-**Arquivo**: `src/hooks/useMergeBackups.ts`
+## PROBLEMAS DE DESEMPENHO (6 issues)
 
-```typescript
-// ANTES (linha 47)
-return data?.[0] as unknown as MergeBackup | undefined;
+### 1. Indices GIN Nao Utilizados
 
-// DEPOIS
-return (data?.[0] ?? null) as unknown as MergeBackup | null;
+Os seguintes indices GIN (216KB + 128KB) **nunca foram usados**:
+
+| Indice | Tamanho | Uso |
+|--------|---------|-----|
+| `idx_organizations_name_gin` | 216 KB | 0 scans |
+| `idx_organizations_cnpj_gin` | 128 KB | 0 scans |
+
+Esses indices sao para buscas `ILIKE`, mas a aplicacao pode nao estar usando-os corretamente.
+
+### 2. Sequential Scans Excessivos
+
+As tabelas `people` e `organizations` tem milhoes de sequential scans:
+
+| Tabela | Seq Scans | Rows Scanned | Index Scans |
+|--------|-----------|--------------|-------------|
+| `organizations` | 5,680 | 2.14M | 290,195 |
+| `people` | 5,502 | 2.37M | 420,597 |
+
+Isso indica queries sem `WHERE` apropriado ou falta de indices.
+
+### 3. Extensao pg_trgm no Schema Public
+
+A extensao `pg_trgm` esta instalada no schema `public` em vez de `extensions`, o que pode causar problemas de seguranca.
+
+### 4. Indices Nunca Utilizados
+
+20+ indices nunca foram usados, ocupando espaco:
+
+- `idx_people_email` (72 KB)
+- `idx_organizations_cnpj` (56 KB)
+- `idx_activities_assigned_to` (16 KB)
+- E mais 17 indices...
+
+---
+
+## SOLUCAO PROPOSTA
+
+### Fase 1: Corrigir Policies RLS (URGENTE)
+
+Alterar todas as policies de SELECT de `public` para `authenticated`:
+
+```sql
+-- Exemplo para cada tabela afetada
+DROP POLICY IF EXISTS "Authenticated users can view deal history" ON deal_history;
+CREATE POLICY "Authenticated users can view deal history" 
+  ON deal_history FOR SELECT 
+  TO authenticated
+  USING (true);
 ```
 
-### Correcao 2: ActivityFormSheet - Adicionar `enabled: open` nas queries
+**Tabelas a corrigir (16 tabelas):**
+1. deal_history
+2. deal_notes
+3. deal_tag_assignments
+4. deal_tags
+5. merge_backups
+6. organization_files
+7. organization_history
+8. organization_notes
+9. organization_partners
+10. organization_tag_assignments
+11. organization_tags
+12. people_files
+13. people_history
+14. people_notes
+15. person_tag_assignments
+16. person_tags
+17. sent_emails
+18. whatsapp_channels
+19. whatsapp_conversation_analysis
+20. whatsapp_conversations
+21. whatsapp_messages
 
-**Arquivo**: `src/components/activities/ActivityFormSheet.tsx`
+### Fase 2: Habilitar Leaked Password Protection
 
-Adicionar `enabled: open` em cada query para que so execute quando o sheet estiver aberto:
+Configurar protecao contra senhas vazadas nas configuracoes de autenticacao.
 
-```typescript
-// Query de deals (linha 151-162)
-const { data: deals } = useQuery({
-  queryKey: ['deals-select'],
-  queryFn: async () => { ... },
-  enabled: open, // ADICIONAR
-});
+### Fase 3: Mover Extensao para Schema Correto
 
-// Query de people (linha 165-175)
-const { data: people } = useQuery({
-  queryKey: ['people-select'],
-  queryFn: async () => { ... },
-  enabled: open, // ADICIONAR
-});
-
-// Query de organizations (linha 178-188)
-const { data: organizations } = useQuery({
-  queryKey: ['organizations-select'],
-  queryFn: async () => { ... },
-  enabled: open, // ADICIONAR
-});
+```sql
+-- Recriar extensao no schema extensions
+CREATE SCHEMA IF NOT EXISTS extensions;
+DROP EXTENSION IF EXISTS pg_trgm;
+CREATE EXTENSION pg_trgm SCHEMA extensions;
 ```
 
-### Correcao 3: DealFormSheet - Adicionar `enabled: open` nas queries base
+### Fase 4: Otimizar Indices (Opcional)
 
-**Arquivo**: `src/components/deals/DealFormSheet.tsx`
+Remover indices nao utilizados para liberar espaco e melhorar performance de escrita.
 
-```typescript
-// Query de pipelines (linha 181-191)
-const { data: pipelines = [] } = useQuery({
-  queryKey: ['pipelines-select'],
-  queryFn: async () => { ... },
-  enabled: open, // ADICIONAR
-});
+---
 
-// Query de organizations (linha 244-254)
-const { data: organizations = [] } = useQuery({
-  queryKey: ['organizations-select'],
-  queryFn: async () => { ... },
-  enabled: open, // ADICIONAR
-});
+## Resumo das Alteracoes
 
-// Query de people (linha 258-269)
-const { data: people = [] } = useQuery({
-  queryKey: ['people-select', selectedOrgId],
-  queryFn: async () => { ... },
-  enabled: open, // MODIFICAR para: enabled: open
-});
-```
+| Categoria | Quantidade | Prioridade |
+|-----------|------------|------------|
+| Policies RLS a corrigir | 21 | CRITICA |
+| Leaked Password Protection | 1 | ALTA |
+| Extensao em schema errado | 1 | MEDIA |
+| Indices nao utilizados | 20+ | BAIXA |
 
-### Correcao 4: PersonForm - Adicionar `enabled` baseado no sheet
+---
 
-**Arquivo**: `src/components/people/PersonForm.tsx`
+## Detalhes Tecnicos da Migration
 
-Como PersonForm e renderizado dentro de PersonFormSheet, precisamos passar uma prop ou usar contexto. A forma mais simples:
+A migracao SQL completa incluira:
 
-```typescript
-// Query de organizations (linhas 132-142)
-const { data: organizations } = useQuery({
-  queryKey: ['organizations-select'],
-  queryFn: async () => { ... },
-  staleTime: 5 * 60 * 1000, // Cache por 5 minutos para evitar refetch
-});
-```
+1. **DROP** das policies antigas com role `public`
+2. **CREATE** das novas policies com role `authenticated`
+3. **Recriar extensao** pg_trgm no schema extensions
 
-### Correcao 5: PersonDetails - Lazy loading das queries de pipeline
-
-**Arquivo**: `src/pages/PersonDetails.tsx`
-
-Mover as queries de `default-pipeline` e `stages` para dentro de `DealFormSheet`, ja que so sao usadas la:
-
-```typescript
-// REMOVER estas queries de PersonDetails (linhas 112-147):
-// - default-pipeline query
-// - stages query
-
-// O DealFormSheet ja tem acesso a pipelines/stages via suas proprias queries
-```
-
-## Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/hooks/useMergeBackups.ts` | Retornar null em vez de undefined |
-| `src/components/activities/ActivityFormSheet.tsx` | Adicionar `enabled: open` em 3 queries |
-| `src/components/deals/DealFormSheet.tsx` | Adicionar `enabled: open` em 3 queries |
-| `src/pages/PersonDetails.tsx` | Remover queries de pipeline/stages desnecessarias |
-
-## Impacto Esperado
-
-- **Reducao de ~8 queries** na carga inicial da pagina
-- **Eliminacao do erro de React Query** (undefined data)
-- **Carregamento 50-70% mais rapido** ao clicar em contatos
-
-## Detalhes Tecnicos
-
-### Quantidade de Queries Antes vs Depois
-
-| Momento | Antes | Depois |
-|---------|-------|--------|
-| Carga inicial | 15+ queries | 8 queries |
-| Abrir ActivityFormSheet | 0 queries (ja carregadas) | 3 queries (on-demand) |
-| Abrir DealFormSheet | 0 queries (ja carregadas) | 3 queries (on-demand) |
-
-### Estrategia de Cache
-
-As queries com `enabled: open` usarao o cache do React Query quando o sheet for reaberto, entao o delay sera minimo apos a primeira abertura.
+Impacto: Apos a correcao, usuarios nao autenticados **nao poderao mais acessar** nenhum dado do CRM. Apenas usuarios logados terao acesso.
