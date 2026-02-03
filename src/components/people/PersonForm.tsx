@@ -128,7 +128,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
     return !!data;
   };
 
-  // Fetch organizations for dropdown
+  // Fetch organizations for dropdown - with cache to avoid refetch
   const { data: organizations } = useQuery({
     queryKey: ['organizations-select'],
     queryFn: async () => {
@@ -139,6 +139,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
       if (error) throw error;
       return data;
     },
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
   });
 
   const {
