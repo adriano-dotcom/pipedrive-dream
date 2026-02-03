@@ -109,6 +109,7 @@ export function PipelineFunnelChart({ data, loading }: PipelineFunnelChartProps)
               dataKey="count" 
               radius={[0, 4, 4, 0]}
               maxBarSize={40}
+              isAnimationActive={false}
             >
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />

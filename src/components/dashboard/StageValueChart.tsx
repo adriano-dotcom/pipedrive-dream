@@ -123,6 +123,7 @@ export function StageValueChart({ data, loading }: StageValueChartProps) {
               dataKey="value" 
               radius={[0, 4, 4, 0]}
               maxBarSize={40}
+              isAnimationActive={false}
               label={{
                 position: 'right',
                 formatter: (value: number) => formatCurrency(value),

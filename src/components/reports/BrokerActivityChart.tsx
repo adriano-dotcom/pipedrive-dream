@@ -101,12 +101,14 @@ export function BrokerActivityChart({ data, isLoading }: BrokerActivityChartProp
                 name="Completadas"
                 fill="hsl(142, 71%, 45%)"
                 radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
               />
               <Bar
                 dataKey="pendentes"
                 name="Pendentes"
                 fill="hsl(45, 93%, 47%)"
                 radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
               />
             </BarChart>
           </ResponsiveContainer>
