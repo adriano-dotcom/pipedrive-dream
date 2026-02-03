@@ -39,7 +39,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2 } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2, User } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
 import type { ExportColumn } from '@/lib/export';
@@ -60,6 +61,22 @@ interface PersonWithOrg extends Person {
     address_state: string | null;
     automotores: number | null;
   } | null;
+  owner?: {
+    id: string;
+    user_id: string;
+    full_name: string;
+    avatar_url: string | null;
+  } | null;
+}
+
+// Helper to get initials from name
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 }
 
 interface PeopleTableProps {
@@ -89,6 +106,7 @@ const columnLabels: Record<string, string> = {
   phone: 'Telefone',
   whatsapp: 'WhatsApp',
   email: 'Email',
+  capturedBy: 'Captado por',
   organization: 'Empresa',
   cnpj: 'CNPJ',
   city: 'Cidade',
@@ -331,6 +349,41 @@ export function PeopleTable({
           </span>
         ) : <span className="text-muted-foreground/50">-</span>
       ),
+    },
+    {
+      id: 'capturedBy',
+      accessorFn: (row) => row.owner?.full_name ?? '',
+      header: ({ column }) => <SortableHeader column={column} title="Captado por" />,
+      cell: ({ row }) => {
+        const owner = row.original.owner;
+        const leadSource = row.original.lead_source;
+        
+        // Only show badge for WhatsApp leads
+        if (leadSource !== 'WhatsApp') {
+          return <span className="text-muted-foreground/50">-</span>;
+        }
+        
+        if (!owner) {
+          return (
+            <Badge variant="outline" className="bg-muted/50 text-muted-foreground text-xs">
+              <MessageCircle className="h-3 w-3 mr-1" />
+              Não atribuído
+            </Badge>
+          );
+        }
+        
+        return (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-6 w-6">
+              <AvatarImage src={owner.avatar_url || undefined} />
+              <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                {getInitials(owner.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">{owner.full_name}</span>
+          </div>
+        );
+      },
     },
     {
       id: 'organization',

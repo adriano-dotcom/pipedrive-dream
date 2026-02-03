@@ -117,7 +117,11 @@ export default function People() {
   const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
     let query = supabase
       .from('people')
-      .select('*, organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores)', { count: 'exact' })
+      .select(`
+        *,
+        organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores),
+        owner:profiles!people_owner_id_fkey(id, user_id, full_name, avatar_url)
+      `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
     // Search filter (server-side)

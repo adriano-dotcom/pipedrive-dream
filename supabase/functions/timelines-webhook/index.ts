@@ -409,6 +409,9 @@ serve(async (req) => {
     }
 
     console.log('Channel upserted:', channel.id);
+    
+    // Get channel owner for attribution
+    const channelOwnerId = channel.owner_id;
 
     // 2. Find or create person by phone
     const searchPhone = normalizePhoneForSearch(payload.chat.phone);
@@ -456,6 +459,7 @@ serve(async (req) => {
           name: contactName,
           whatsapp: formattedPhone.slice(0, 50),
           lead_source: 'WhatsApp',
+          owner_id: channelOwnerId || null,
         })
         .select()
         .single();
@@ -466,12 +470,15 @@ serve(async (req) => {
       }
 
       personId = newPerson.id;
-      console.log('Created new person:', personId);
+      console.log('Created new person:', personId, 'owner:', channelOwnerId || 'none');
 
       await supabase.from('people_history').insert({
         person_id: personId,
         event_type: 'created',
-        description: 'Contato criado automaticamente via WhatsApp',
+        description: channelOwnerId 
+          ? `Contato criado automaticamente via WhatsApp (Canal: ${channelName})`
+          : 'Contato criado automaticamente via WhatsApp',
+        created_by: channelOwnerId || null,
       });
     }
 
