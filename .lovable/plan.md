@@ -1,49 +1,56 @@
 
-# Preview de PDFs no Chat do WhatsApp
+# Histórico Agrupado por Dia com Expand/Collapse
 
 ## Resumo
 
-Atualmente, os PDFs recebidos via WhatsApp aparecem apenas como um link de download. Este plano implementa um preview inline do PDF diretamente no chat, com opção de expandir em tela cheia.
-
----
-
-## O Que Será Implementado
-
-### 1. Detectar PDFs e Renderizar Preview
-
-Quando o `message_type` for `document` e o `media_mime_type` for `application/pdf`, mostrar um preview inline usando `<iframe>` ao invés do link de download padrão.
-
-### 2. Expandir PDF em Dialog
-
-Um botão "Expandir" permitirá abrir o PDF em um Dialog de tela cheia para melhor visualização.
+Modificar o componente `PersonTimeline` para agrupar os eventos do histórico por dia, permitindo que o usuário expanda ou recolha cada grupo de dia clicando no cabeçalho.
 
 ---
 
 ## Visualização Esperada
 
-**Antes (apenas download):**
-```text
-┌────────────────────────────────────┐
-│ [📄] proposta.pdf                  │
-│      application/pdf    [⬇️]      │
-└────────────────────────────────────┘
+**Antes (lista plana):**
+```
+Histórico (22)
+├── WhatsApp: "[document]"    02/02/26 19:22
+├── WhatsApp: "Perfeito"      02/02/26 19:22
+├── WhatsApp: "Oi"            02/02/26 18:45
+├── Nota adicionada           01/02/26 14:30
+└── ...
 ```
 
-**Depois (com preview):**
-```text
-┌────────────────────────────────────┐
-│ [PDF Preview - iframe]             │
-│ ┌────────────────────────────────┐ │
-│ │                                │ │
-│ │   📄 Documento PDF             │ │
-│ │   renderizado inline           │ │
-│ │                                │ │
-│ └────────────────────────────────┘ │
-│                                    │
-│ proposta.pdf                       │
-│ [🔍 Expandir]  [⬇️ Baixar]        │
-└────────────────────────────────────┘
+**Depois (agrupado por dia, com expand/collapse):**
 ```
+Histórico (22)
+
+▼ Hoje - 04/02/2026 (3 eventos)
+├── WhatsApp: "Oi"            14:30
+├── Nota adicionada           10:15
+└── Arquivo enviado           09:00
+
+► Ontem - 03/02/2026 (5 eventos)
+  [recolhido - clique para expandir]
+
+▼ 02/02/2026 (14 eventos)
+├── WhatsApp: "[document]"    19:22
+├── WhatsApp: "Perfeito"      19:22
+└── ...
+```
+
+---
+
+## Comportamento
+
+### Grupos de Dias
+- Eventos agrupados por data (dia/mês/ano)
+- Header mostra: data formatada + quantidade de eventos
+- Datas especiais: "Hoje", "Ontem" quando aplicável
+
+### Expand/Collapse
+- Clique no header do dia para expandir/recolher
+- Ícone de seta (ChevronDown/ChevronRight) indica estado
+- Estado inicial: primeiro dia expandido, demais recolhidos
+- Animação suave ao expandir/recolher
 
 ---
 
@@ -51,137 +58,199 @@ Um botão "Expandir" permitirá abrir o PDF em um Dialog de tela cheia para melh
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/whatsapp/MessageBubble.tsx` | Adicionar lógica de preview de PDF com iframe e dialog |
+| `src/components/people/detail/PersonTimeline.tsx` | Agrupar eventos por dia com Collapsible |
 
 ---
 
 ## Detalhes Técnicos
 
-### Mudanças no MessageBubble.tsx
+### 1. Adicionar imports necessários
 
-**1. Adicionar imports necessários:**
 ```typescript
-import { Maximize2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { useState, useMemo } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { isToday, isYesterday, startOfDay, format } from 'date-fns';
+import { 
+  Collapsible, 
+  CollapsibleTrigger, 
+  CollapsibleContent 
+} from '@/components/ui/collapsible';
 ```
 
-**2. Adicionar estado para o dialog do PDF:**
-```typescript
-const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
-```
+### 2. Criar função para agrupar eventos por dia
 
-**3. Criar função helper para detectar PDF:**
 ```typescript
-const isPdfDocument = message.message_type === 'document' && 
-  message.media_mime_type?.toLowerCase() === 'application/pdf';
-```
+interface DayGroup {
+  date: Date;
+  dateKey: string;
+  label: string;
+  events: PersonHistory[];
+}
 
-**4. Atualizar o case `document` no `renderContent`:**
-```typescript
-case 'document':
-  const fileName = (message.metadata as Record<string, unknown>)?.fileName as string || 'Documento';
-  const isPdf = message.media_mime_type?.toLowerCase() === 'application/pdf';
+const groupEventsByDay = (history: PersonHistory[]): DayGroup[] => {
+  const groups = new Map<string, DayGroup>();
   
-  if (isPdf && message.media_url) {
-    return (
-      <div className="space-y-2">
-        {/* Preview inline do PDF */}
-        <div className="rounded-lg overflow-hidden border border-border/50 bg-background">
-          <iframe
-            src={`${message.media_url}#toolbar=0&navpanes=0`}
-            className="w-full h-[200px]"
-            title={fileName}
-          />
-        </div>
-        
-        {/* Nome e ações */}
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium truncate flex-1">{fileName}</p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2"
-              onClick={() => setIsPdfDialogOpen(true)}
-            >
-              <Maximize2 className="h-3.5 w-3.5 mr-1" />
-              Expandir
-            </Button>
-            <a
-              href={message.media_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 h-7 text-xs hover:bg-muted/50 rounded-md transition-colors"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Baixar
-            </a>
-          </div>
-        </div>
+  history.forEach(event => {
+    const eventDate = new Date(event.created_at);
+    const dayStart = startOfDay(eventDate);
+    const dateKey = format(dayStart, 'yyyy-MM-dd');
+    
+    if (!groups.has(dateKey)) {
+      let label = format(dayStart, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+      if (isToday(dayStart)) {
+        label = `Hoje - ${format(dayStart, 'dd/MM/yyyy')}`;
+      } else if (isYesterday(dayStart)) {
+        label = `Ontem - ${format(dayStart, 'dd/MM/yyyy')}`;
+      }
+      
+      groups.set(dateKey, {
+        date: dayStart,
+        dateKey,
+        label,
+        events: [],
+      });
+    }
+    
+    groups.get(dateKey)!.events.push(event);
+  });
+  
+  // Ordenar por data decrescente
+  return Array.from(groups.values())
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
+};
+```
 
-        {/* Dialog para PDF expandido */}
-        <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
-          <DialogContent className="max-w-4xl h-[90vh] p-0">
-            <DialogHeader className="p-4 pb-0">
-              <DialogTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                {fileName}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 p-4 pt-2">
-              <iframe
-                src={message.media_url}
-                className="w-full h-full rounded-lg border"
-                title={fileName}
-              />
+### 3. Gerenciar estado de expansão
+
+```typescript
+export function PersonTimeline({ history }: PersonTimelineProps) {
+  // Agrupar eventos por dia
+  const dayGroups = useMemo(() => groupEventsByDay(history), [history]);
+  
+  // Estado: primeiro dia aberto, demais fechados
+  const [openDays, setOpenDays] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (dayGroups.length > 0) {
+      initial.add(dayGroups[0].dateKey);
+    }
+    return initial;
+  });
+
+  const toggleDay = (dateKey: string) => {
+    setOpenDays(prev => {
+      const next = new Set(prev);
+      if (next.has(dateKey)) {
+        next.delete(dateKey);
+      } else {
+        next.add(dateKey);
+      }
+      return next;
+    });
+  };
+```
+
+### 4. Renderizar grupos com Collapsible
+
+```typescript
+return (
+  <Card className="glass border-border/50">
+    <CardHeader className="pb-4">
+      <CardTitle className="text-base flex items-center gap-2">
+        <History className="h-4 w-4 text-primary" />
+        Histórico ({history.length})
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-3">
+      {dayGroups.map((group) => (
+        <Collapsible
+          key={group.dateKey}
+          open={openDays.has(group.dateKey)}
+          onOpenChange={() => toggleDay(group.dateKey)}
+        >
+          <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
+            <div className="flex items-center gap-2">
+              {openDays.has(group.dateKey) ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="font-medium text-sm">{group.label}</span>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
-  
-  // Fallback para outros documentos (não-PDF)
-  return (
-    <a 
-      href={message.media_url || '#'} 
-      target="_blank" 
-      rel="noopener noreferrer"
-      className="flex items-center gap-3 p-2 bg-background/50 rounded-lg hover:bg-background/80 transition-colors"
-    >
-      {/* ... código existente ... */}
-    </a>
-  );
+            <span className="text-xs text-muted-foreground">
+              {group.events.length} {group.events.length === 1 ? 'evento' : 'eventos'}
+            </span>
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent>
+            <div className="relative mt-2 ml-2">
+              {/* Timeline line */}
+              <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
+              
+              <div className="space-y-3">
+                {group.events.map((event) => (
+                  <div key={event.id} className="relative flex gap-4 pl-10">
+                    {/* Event icon */}
+                    <div className={`absolute left-0 h-8 w-8 rounded-full flex items-center justify-center ${getEventColor(event.event_type)}`}>
+                      {getEventIcon(event.event_type)}
+                    </div>
+                    
+                    {/* Event content */}
+                    <div className="flex-1 min-w-0 pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">{event.description}</p>
+                          {event.new_value && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {event.old_value && `${event.old_value} → `}{event.new_value}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(event.created_at), 'HH:mm', { locale: ptBR })}
+                          </p>
+                        </div>
+                      </div>
+                      {event.profile && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          por {event.profile.full_name}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
+    </CardContent>
+  </Card>
+);
 ```
 
 ---
 
-## Considerações de UX
+## Detalhes de UX
 
-### Preview Inline
-- Altura de 200px para não ocupar muito espaço no chat
-- Toolbar do PDF oculta (`#toolbar=0`) para visual limpo
-- Borda sutil para delimitar o preview
+### Visual do Header do Dia
+- Fundo suave (`bg-muted/50`) com hover
+- Ícone de seta à esquerda (ChevronDown quando aberto, ChevronRight quando fechado)
+- Data formatada no centro
+- Contador de eventos à direita
 
-### Dialog Expandido
-- 90% da altura da tela para máxima visualização
-- Mantém o nome do arquivo no header
-- Toolbar do PDF visível para navegação completa
+### Hora vs Data Completa
+- Dentro de cada grupo, mostramos apenas a **hora** (ex: `14:30`)
+- A data já está no header do grupo, evitando repetição
 
-### Fallback
-- Outros tipos de documento (Word, Excel, etc.) continuam com o comportamento atual de download
-- Se o iframe falhar, o usuário ainda pode baixar o arquivo
+### Animação
+- O `CollapsibleContent` do Radix UI já inclui animação suave
+- Transição de opacidade e altura automática
 
 ---
 
-## Compatibilidade
+## Estado Inicial
 
-- ✅ Chrome, Firefox, Edge, Safari suportam preview de PDF em iframe
-- ✅ Mobile browsers geralmente suportam (podem abrir em app externo)
-- ⚠️ Alguns PDFs protegidos podem não renderizar (fallback disponível)
+- Primeiro grupo (dia mais recente) começa **expandido**
+- Demais grupos começam **recolhidos**
+- Usuário pode expandir múltiplos grupos simultaneamente
