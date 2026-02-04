@@ -1,322 +1,187 @@
 
-# Otimização de Performance da Página /people
+# Preview de PDFs no Chat do WhatsApp
 
-## Problemas Identificados
+## Resumo
 
-Após análise detalhada do código, identifiquei **4 problemas críticos** que causam lentidão na navegação e interação:
-
----
-
-## PROBLEMA 1: Animações Escalonadas Bloqueiam Interação
-
-### Sintoma
-Ao navegar para /people, as linhas da tabela não são clicáveis por alguns segundos.
-
-### Causa Raiz
-Cada linha da tabela tem uma animação `animate-fade-in` com delay escalonado:
-
-```tsx
-// PeopleTable.tsx - Linha 738-739
-<TableRow
-  key={row.id}
-  className="animate-fade-in"
-  style={{ animationDelay: `${index * 30}ms` }}
->
-```
-
-Com 100 registros por página, a última linha só anima após **3000ms** (3 segundos)! Durante a animação, a opacidade começa em 0 e os elementos não recebem eventos de clique corretamente.
-
-### Solução
-Remover o delay escalonado e usar animação instantânea ou sem animação nas linhas individuais. A animação de fade-in já está na página principal (`People.tsx linha 323`).
+Atualmente, os PDFs recebidos via WhatsApp aparecem apenas como um link de download. Este plano implementa um preview inline do PDF diretamente no chat, com opção de expandir em tela cheia.
 
 ---
 
-## PROBLEMA 2: Query Secundária para Profiles Bloqueia Renderização
+## O Que Será Implementado
 
-### Sintoma
-A tabela demora para mostrar dados mesmo após receber resposta do servidor.
+### 1. Detectar PDFs e Renderizar Preview
 
-### Causa Raiz
-Na função `fetchPeople` (People.tsx linhas 200-221), após buscar os dados das pessoas, há uma segunda query síncrona para buscar profiles dos owners:
+Quando o `message_type` for `document` e o `media_mime_type` for `application/pdf`, mostrar um preview inline usando `<iframe>` ao invés do link de download padrão.
 
-```typescript
-// Bloqueia a resposta até buscar profiles
-if (ownerIds.length > 0) {
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, user_id, full_name, avatar_url')
-    .in('user_id', ownerIds);
-  // ...
-}
-```
+### 2. Expandir PDF em Dialog
 
-Isso adiciona latência extra à query principal.
-
-### Solução
-Buscar os profiles em paralelo usando `Promise.all` ou mover para uma query separada que não bloqueia a renderização inicial.
+Um botão "Expandir" permitirá abrir o PDF em um Dialog de tela cheia para melhor visualização.
 
 ---
 
-## PROBLEMA 3: Query de Tags Assignments Dispara em Cada Renderização
+## Visualização Esperada
 
-### Sintoma
-Re-renders desnecessários e queries duplicadas.
-
-### Causa Raiz
-No `PeopleTable.tsx` (linhas 203-228), a query de tag assignments é disparada baseada no `personIds`, que muda a cada re-render:
-
-```typescript
-const personIds = useMemo(() => people.map(p => p.id), [people]);
-const personIdsKey = useMemo(() => personIds.slice().sort().join(','), [personIds]);
-
-const { data: allTagAssignments = [] } = useQuery({
-  queryKey: ['person-tag-assignments-bulk', personIdsKey],
-  // ...
-});
+**Antes (apenas download):**
+```text
+┌────────────────────────────────────┐
+│ [📄] proposta.pdf                  │
+│      application/pdf    [⬇️]      │
+└────────────────────────────────────┘
 ```
 
-O problema é que `people` é um array novo a cada render (vem de `usePaginatedQuery`), causando recálculos desnecessários.
-
-### Solução
-Usar uma referência estável para comparação ou implementar um hook com cache mais inteligente.
-
----
-
-## PROBLEMA 4: PersonDetails Faz 6+ Queries em Paralelo na Montagem
-
-### Sintoma
-Ao clicar em uma pessoa, a página demora para abrir.
-
-### Causa Raiz
-O hook `usePersonDetails` (linhas 57-179) dispara 5 queries em paralelo imediatamente:
-1. `person` - dados da pessoa
-2. `person-history` - histórico
-3. `person-notes` - notas
-4. `person-activities` - atividades
-5. `person-deals` - negócios
-
-Além disso, `PersonDetails.tsx` adiciona mais queries:
-- `usePersonFiles`
-- `useSentEmails`
-- `usePersonWhatsAppConversations`
-- `useMergeBackups`
-
-E ainda há queries condicionais para `default-pipeline` e `stages`.
-
-### Solução
-Implementar lazy loading - carregar apenas os dados essenciais inicialmente (pessoa + sidebar) e carregar o resto quando o usuário acessar cada tab.
-
----
-
-## Plano de Implementação
-
-### Fase 1: Remover Animações Bloqueantes na Tabela
-
-**Arquivo**: `src/components/people/PeopleTable.tsx`
-
-Remover o delay escalonado das animações:
-
-```tsx
-// ANTES (linhas 736-740):
-<TableRow
-  key={row.id}
-  className="animate-fade-in"
-  style={{ animationDelay: `${index * 30}ms` }}
->
-
-// DEPOIS:
-<TableRow
-  key={row.id}
-  className="transition-colors"
->
-```
-
-### Fase 2: Paralelizar Query de Profiles
-
-**Arquivo**: `src/pages/People.tsx`
-
-Executar a busca de dados principais e profiles em paralelo:
-
-```typescript
-const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
-  // Query principal
-  let query = supabase
-    .from('people')
-    .select(`
-      *,
-      organizations:organizations!people_organization_id_fkey(id, name, cnpj, address_city, address_state, automotores)
-    `, { count: 'exact' })
-    .order('created_at', { ascending: false });
-
-  // ... aplicar filtros ...
-
-  const { data, error, count } = await query;
-  if (error) throw error;
-  
-  // Retornar imediatamente sem esperar profiles
-  // Profiles serão carregados em query separada
-  return { data: data as PersonWithOrg[], count };
-};
-```
-
-Mover a busca de profiles para uma query separada no `PeopleTable`:
-
-```typescript
-// PeopleTable.tsx
-const ownerIds = useMemo(() => 
-  [...new Set(people.map(p => p.owner_id).filter(Boolean))],
-  [people]
-);
-
-const { data: ownerProfiles } = useQuery({
-  queryKey: ['owner-profiles', ownerIds.sort().join(',')],
-  queryFn: async () => {
-    if (ownerIds.length === 0) return {};
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, user_id, full_name, avatar_url')
-      .in('user_id', ownerIds);
-    return Object.fromEntries((data || []).map(p => [p.user_id, p]));
-  },
-  enabled: ownerIds.length > 0,
-  staleTime: 60000, // Cache por 1 minuto
-});
-```
-
-### Fase 3: Implementar Lazy Loading no PersonDetails
-
-**Arquivo**: `src/hooks/usePersonDetails.ts`
-
-Adicionar flag `enabled` baseada na tab ativa:
-
-```typescript
-export function usePersonDetails(personId: string, options?: { loadHistory?: boolean; loadNotes?: boolean; loadActivities?: boolean; loadDeals?: boolean }) {
-  const { loadHistory = true, loadNotes = true, loadActivities = true, loadDeals = true } = options || {};
-
-  // Query de pessoa (sempre carrega)
-  const { data: person, isLoading, ... } = useQuery({
-    queryKey: ['person', personId],
-    queryFn: async () => { ... },
-    enabled: !!personId,
-  });
-
-  // Queries secundárias com lazy loading
-  const { data: history = [] } = useQuery({
-    queryKey: ['person-history', personId],
-    queryFn: async () => { ... },
-    enabled: !!personId && loadHistory,
-  });
-
-  const { data: notes = [] } = useQuery({
-    queryKey: ['person-notes', personId],
-    queryFn: async () => { ... },
-    enabled: !!personId && loadNotes,
-  });
-
-  // ... etc
-}
-```
-
-**Arquivo**: `src/pages/PersonDetails.tsx`
-
-Usar estado de tab ativa para lazy loading:
-
-```typescript
-const [activeTab, setActiveTab] = useState('notes');
-
-const {
-  person,
-  history,
-  notes,
-  activities,
-  deals,
-  isLoading,
-  ...
-} = usePersonDetails(id || '', {
-  loadHistory: activeTab === 'history',
-  loadNotes: activeTab === 'notes',
-  loadActivities: activeTab === 'activities',
-  loadDeals: activeTab === 'deals',
-});
-```
-
-### Fase 4: Estabilizar personIds no PeopleTable
-
-**Arquivo**: `src/components/people/PeopleTable.tsx`
-
-Usar referência estável para evitar re-renders:
-
-```typescript
-// Estabilizar a key baseada nos IDs ordenados
-const personIdsStableKey = useMemo(() => {
-  const ids = people.map(p => p.id);
-  ids.sort();
-  return ids.join(',');
-}, [people]);
-
-const { data: allTagAssignments = [] } = useQuery({
-  queryKey: ['person-tag-assignments-bulk', personIdsStableKey],
-  queryFn: async () => {
-    const personIds = personIdsStableKey.split(',');
-    if (personIds.length === 0 || personIds[0] === '') return [];
-    // ... query
-  },
-  enabled: people.length > 0,
-  staleTime: 30000,
-});
+**Depois (com preview):**
+```text
+┌────────────────────────────────────┐
+│ [PDF Preview - iframe]             │
+│ ┌────────────────────────────────┐ │
+│ │                                │ │
+│ │   📄 Documento PDF             │ │
+│ │   renderizado inline           │ │
+│ │                                │ │
+│ └────────────────────────────────┘ │
+│                                    │
+│ proposta.pdf                       │
+│ [🔍 Expandir]  [⬇️ Baixar]        │
+└────────────────────────────────────┘
 ```
 
 ---
 
-## Arquivos a Modificar
+## Arquivo a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/components/people/PeopleTable.tsx` | Remover animação escalonada, estabilizar queries, adicionar query de profiles |
-| `src/pages/People.tsx` | Remover busca de profiles da função fetchPeople |
-| `src/hooks/usePersonDetails.ts` | Adicionar lazy loading com flags enabled |
-| `src/pages/PersonDetails.tsx` | Implementar lazy loading baseado em tab ativa |
+| `src/components/whatsapp/MessageBubble.tsx` | Adicionar lógica de preview de PDF com iframe e dialog |
 
 ---
 
-## Impacto Esperado
+## Detalhes Técnicos
 
-### Antes
-- 3+ segundos até linhas serem clicáveis
-- 2-3 segundos para carregar página de detalhes
-- Queries duplicadas em cada navegação
+### Mudanças no MessageBubble.tsx
 
-### Depois
-- Linhas clicáveis imediatamente (< 500ms)
-- Página de detalhes carrega em < 1 segundo
-- Queries otimizadas com cache inteligente
+**1. Adicionar imports necessários:**
+```typescript
+import { Maximize2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+```
+
+**2. Adicionar estado para o dialog do PDF:**
+```typescript
+const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
+```
+
+**3. Criar função helper para detectar PDF:**
+```typescript
+const isPdfDocument = message.message_type === 'document' && 
+  message.media_mime_type?.toLowerCase() === 'application/pdf';
+```
+
+**4. Atualizar o case `document` no `renderContent`:**
+```typescript
+case 'document':
+  const fileName = (message.metadata as Record<string, unknown>)?.fileName as string || 'Documento';
+  const isPdf = message.media_mime_type?.toLowerCase() === 'application/pdf';
+  
+  if (isPdf && message.media_url) {
+    return (
+      <div className="space-y-2">
+        {/* Preview inline do PDF */}
+        <div className="rounded-lg overflow-hidden border border-border/50 bg-background">
+          <iframe
+            src={`${message.media_url}#toolbar=0&navpanes=0`}
+            className="w-full h-[200px]"
+            title={fileName}
+          />
+        </div>
+        
+        {/* Nome e ações */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium truncate flex-1">{fileName}</p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => setIsPdfDialogOpen(true)}
+            >
+              <Maximize2 className="h-3.5 w-3.5 mr-1" />
+              Expandir
+            </Button>
+            <a
+              href={message.media_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2 h-7 text-xs hover:bg-muted/50 rounded-md transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Baixar
+            </a>
+          </div>
+        </div>
+
+        {/* Dialog para PDF expandido */}
+        <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+          <DialogContent className="max-w-4xl h-[90vh] p-0">
+            <DialogHeader className="p-4 pb-0">
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                {fileName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 p-4 pt-2">
+              <iframe
+                src={message.media_url}
+                className="w-full h-full rounded-lg border"
+                title={fileName}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+  
+  // Fallback para outros documentos (não-PDF)
+  return (
+    <a 
+      href={message.media_url || '#'} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 p-2 bg-background/50 rounded-lg hover:bg-background/80 transition-colors"
+    >
+      {/* ... código existente ... */}
+    </a>
+  );
+```
 
 ---
 
-## Seção Técnica
+## Considerações de UX
 
-### Por que as animações escalonadas bloqueiam cliques?
+### Preview Inline
+- Altura de 200px para não ocupar muito espaço no chat
+- Toolbar do PDF oculta (`#toolbar=0`) para visual limpo
+- Borda sutil para delimitar o preview
 
-A animação `animate-fade-in` começa com `opacity: 0`. Durante a animação:
-1. O elemento está no DOM mas com opacidade 0
-2. O browser pode otimizar elementos invisíveis, não processando eventos de clique
-3. Links e botões dentro da linha herdam o comportamento
+### Dialog Expandido
+- 90% da altura da tela para máxima visualização
+- Mantém o nome do arquivo no header
+- Toolbar do PDF visível para navegação completa
 
-### Por que lazy loading melhora a performance?
+### Fallback
+- Outros tipos de documento (Word, Excel, etc.) continuam com o comportamento atual de download
+- Se o iframe falhar, o usuário ainda pode baixar o arquivo
 
-Atualmente, ao abrir PersonDetails, 8+ queries são disparadas em paralelo:
-- Isso satura a conexão
-- O servidor processa todas simultaneamente
-- O browser espera todas completarem para "first contentful paint"
+---
 
-Com lazy loading:
-- Apenas 2-3 queries críticas são feitas inicialmente
-- Dados secundários são carregados conforme necessário
-- A página fica interativa muito mais rápido
+## Compatibilidade
 
-### Stale Time e Cache
-
-O `staleTime: 30000` (30 segundos) significa:
-- Dados são considerados "frescos" por 30 segundos
-- Navegações rápidas entre páginas não refazem queries
-- Melhora significativamente a UX em navegação frequente
+- ✅ Chrome, Firefox, Edge, Safari suportam preview de PDF em iframe
+- ✅ Mobile browsers geralmente suportam (podem abrir em app externo)
+- ⚠️ Alguns PDFs protegidos podem não renderizar (fallback disponível)
