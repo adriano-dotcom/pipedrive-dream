@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   FileText, 
@@ -11,13 +12,27 @@ import {
   MessageCircle,
   Send,
   MessageSquarePlus,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, isToday, isYesterday, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { 
+  Collapsible, 
+  CollapsibleTrigger, 
+  CollapsibleContent 
+} from '@/components/ui/collapsible';
 import type { PersonHistory } from '@/hooks/usePersonDetails';
 
 interface PersonTimelineProps {
   history: PersonHistory[];
+}
+
+interface DayGroup {
+  date: Date;
+  dateKey: string;
+  label: string;
+  events: PersonHistory[];
 }
 
 const getEventIcon = (eventType: string) => {
@@ -80,7 +95,63 @@ const getEventColor = (eventType: string) => {
   }
 };
 
+const groupEventsByDay = (history: PersonHistory[]): DayGroup[] => {
+  const groups = new Map<string, DayGroup>();
+  
+  history.forEach(event => {
+    const eventDate = new Date(event.created_at);
+    const dayStart = startOfDay(eventDate);
+    const dateKey = format(dayStart, 'yyyy-MM-dd');
+    
+    if (!groups.has(dateKey)) {
+      let label = format(dayStart, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+      if (isToday(dayStart)) {
+        label = `Hoje - ${format(dayStart, 'dd/MM/yyyy')}`;
+      } else if (isYesterday(dayStart)) {
+        label = `Ontem - ${format(dayStart, 'dd/MM/yyyy')}`;
+      }
+      
+      groups.set(dateKey, {
+        date: dayStart,
+        dateKey,
+        label,
+        events: [],
+      });
+    }
+    
+    groups.get(dateKey)!.events.push(event);
+  });
+  
+  // Ordenar por data decrescente
+  return Array.from(groups.values())
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
+};
+
 export function PersonTimeline({ history }: PersonTimelineProps) {
+  // Agrupar eventos por dia
+  const dayGroups = useMemo(() => groupEventsByDay(history), [history]);
+  
+  // Estado: primeiro dia aberto, demais fechados
+  const [openDays, setOpenDays] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (dayGroups.length > 0) {
+      initial.add(dayGroups[0].dateKey);
+    }
+    return initial;
+  });
+
+  const toggleDay = (dateKey: string) => {
+    setOpenDays(prev => {
+      const next = new Set(prev);
+      if (next.has(dateKey)) {
+        next.delete(dateKey);
+      } else {
+        next.add(dateKey);
+      }
+      return next;
+    });
+  };
+
   if (history.length === 0) {
     return (
       <Card className="glass border-border/50">
@@ -105,49 +176,70 @@ export function PersonTimeline({ history }: PersonTimelineProps) {
           Histórico ({history.length})
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="relative">
-          {/* Timeline line */}
-          <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
-          
-          <div className="space-y-4">
-            {history.map((event) => (
-              <div key={event.id} className="relative flex gap-4 pl-10">
-                {/* Event icon */}
-                <div className={`absolute left-0 h-8 w-8 rounded-full flex items-center justify-center ${getEventColor(event.event_type)}`}>
-                  {getEventIcon(event.event_type)}
-                </div>
+      <CardContent className="space-y-3">
+        {dayGroups.map((group) => (
+          <Collapsible
+            key={group.dateKey}
+            open={openDays.has(group.dateKey)}
+            onOpenChange={() => toggleDay(group.dateKey)}
+          >
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
+              <div className="flex items-center gap-2">
+                {openDays.has(group.dateKey) ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+                <span className="font-medium text-sm">{group.label}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {group.events.length} {group.events.length === 1 ? 'evento' : 'eventos'}
+              </span>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent>
+              <div className="relative mt-2 ml-2">
+                {/* Timeline line */}
+                <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
                 
-                {/* Event content */}
-                <div className="flex-1 min-w-0 pb-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">{event.description}</p>
-                      {event.new_value && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {event.old_value && `${event.old_value} → `}{event.new_value}
-                        </p>
-                      )}
+                <div className="space-y-3">
+                  {group.events.map((event) => (
+                    <div key={event.id} className="relative flex gap-4 pl-10">
+                      {/* Event icon */}
+                      <div className={`absolute left-0 h-8 w-8 rounded-full flex items-center justify-center ${getEventColor(event.event_type)}`}>
+                        {getEventIcon(event.event_type)}
+                      </div>
+                      
+                      {/* Event content */}
+                      <div className="flex-1 min-w-0 pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">{event.description}</p>
+                            {event.new_value && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {event.old_value && `${event.old_value} → `}{event.new_value}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(event.created_at), 'HH:mm', { locale: ptBR })}
+                            </p>
+                          </div>
+                        </div>
+                        {event.profile && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            por {event.profile.full_name}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(event.created_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
-                      </p>
-                      <p className="text-xs text-muted-foreground/70">
-                        {formatDistanceToNow(new Date(event.created_at), { locale: ptBR, addSuffix: true })}
-                      </p>
-                    </div>
-                  </div>
-                  {event.profile && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      por {event.profile.full_name}
-                    </p>
-                  )}
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </CollapsibleContent>
+          </Collapsible>
+        ))}
       </CardContent>
     </Card>
   );
