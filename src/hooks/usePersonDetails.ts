@@ -49,11 +49,26 @@ export interface PersonDeal {
   created_at: string;
 }
 
-export function usePersonDetails(personId: string) {
+export interface UsePersonDetailsOptions {
+  loadHistory?: boolean;
+  loadNotes?: boolean;
+  loadActivities?: boolean;
+  loadDeals?: boolean;
+}
+
+export function usePersonDetails(personId: string, options?: UsePersonDetailsOptions) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  
+  // Default all options to true for backwards compatibility
+  const { 
+    loadHistory = true, 
+    loadNotes = true, 
+    loadActivities = true, 
+    loadDeals = true 
+  } = options || {};
 
-  // Fetch person with related data
+  // Fetch person with related data - always loads immediately
   const { data: person, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['person', personId],
     queryFn: async () => {
@@ -74,10 +89,11 @@ export function usePersonDetails(personId: string) {
     enabled: !!personId,
     retry: 2,
     retryDelay: 1000,
+    staleTime: 30000, // Cache for 30 seconds
   });
 
-  // Fetch person history
-  const { data: history = [] } = useQuery({
+  // Fetch person history - lazy loaded based on active tab
+  const { data: history = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ['person-history', personId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -105,11 +121,12 @@ export function usePersonDetails(personId: string) {
 
       return data as PersonHistory[];
     },
-    enabled: !!personId,
+    enabled: !!personId && loadHistory,
+    staleTime: 30000,
   });
 
-  // Fetch person notes
-  const { data: notes = [] } = useQuery({
+  // Fetch person notes - lazy loaded based on active tab
+  const { data: notes = [], isLoading: isLoadingNotes } = useQuery({
     queryKey: ['person-notes', personId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -139,11 +156,12 @@ export function usePersonDetails(personId: string) {
 
       return data.map(n => ({ ...n, is_pinned: n.is_pinned ?? false })) as PersonNote[];
     },
-    enabled: !!personId,
+    enabled: !!personId && loadNotes,
+    staleTime: 30000,
   });
 
-  // Fetch activities linked to this person
-  const { data: activities = [] } = useQuery({
+  // Fetch activities linked to this person - lazy loaded based on active tab
+  const { data: activities = [], isLoading: isLoadingActivities } = useQuery({
     queryKey: ['person-activities', personId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -155,11 +173,12 @@ export function usePersonDetails(personId: string) {
       if (error) throw error;
       return data as PersonActivity[];
     },
-    enabled: !!personId,
+    enabled: !!personId && loadActivities,
+    staleTime: 30000,
   });
 
-  // Fetch deals linked to this person
-  const { data: deals = [] } = useQuery({
+  // Fetch deals linked to this person - lazy loaded based on active tab
+  const { data: deals = [], isLoading: isLoadingDeals } = useQuery({
     queryKey: ['person-deals', personId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -175,7 +194,8 @@ export function usePersonDetails(personId: string) {
       if (error) throw error;
       return data as PersonDeal[];
     },
-    enabled: !!personId,
+    enabled: !!personId && loadDeals,
+    staleTime: 30000,
   });
 
   // Add note mutation
@@ -272,6 +292,10 @@ export function usePersonDetails(personId: string) {
     activities,
     deals,
     isLoading,
+    isLoadingHistory,
+    isLoadingNotes,
+    isLoadingActivities,
+    isLoadingDeals,
     isError,
     error,
     refetch,

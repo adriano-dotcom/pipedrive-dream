@@ -200,15 +200,48 @@ export function PeopleTable({
     setRowSelection(newSelection);
   }, [selectedIds]);
   
-  // Buscar todas as atribuições de tags para as pessoas na lista
-  // Usar useMemo para estabilizar personIds e evitar re-renders desnecessários
-  const personIds = useMemo(() => people.map(p => p.id), [people]);
-  const personIdsKey = useMemo(() => personIds.slice().sort().join(','), [personIds]);
+  // Stable key for queries based on sorted person IDs
+  const personIdsStableKey = useMemo(() => {
+    const ids = people.map(p => p.id);
+    ids.sort();
+    return ids.join(',');
+  }, [people]);
+
+  // Fetch owner profiles separately to avoid blocking main data render
+  const ownerIds = useMemo(() => 
+    [...new Set(people.map(p => p.owner_id).filter(Boolean))] as string[],
+    [people]
+  );
   
-  const { data: allTagAssignments = [] } = useQuery({
-    queryKey: ['person-tag-assignments-bulk', personIdsKey],
+  const { data: ownerProfiles = {} } = useQuery({
+    queryKey: ['owner-profiles', ownerIds.sort().join(',')],
     queryFn: async () => {
-      if (personIds.length === 0) return [];
+      if (ownerIds.length === 0) return {};
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, user_id, full_name, avatar_url')
+        .in('user_id', ownerIds);
+      return Object.fromEntries((data || []).map(p => [p.user_id, p])) as Record<string, { id: string; user_id: string; full_name: string; avatar_url: string | null }>;
+    },
+    enabled: ownerIds.length > 0,
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Map owner data to people for display
+  const peopleWithOwners = useMemo(() => 
+    people.map(person => ({
+      ...person,
+      owner: person.owner_id ? ownerProfiles[person.owner_id] || null : null,
+    })),
+    [people, ownerProfiles]
+  );
+  
+  // Fetch all tag assignments for people in the list
+  const { data: allTagAssignments = [] } = useQuery({
+    queryKey: ['person-tag-assignments-bulk', personIdsStableKey],
+    queryFn: async () => {
+      const personIds = personIdsStableKey.split(',');
+      if (personIds.length === 0 || personIds[0] === '') return [];
       
       const { data, error } = await supabase
         .from('person_tag_assignments')
@@ -223,8 +256,8 @@ export function PeopleTable({
       if (error) throw error;
       return data as { id: string; person_id: string; tag_id: string; tag: { id: string; name: string; color: string } }[];
     },
-    enabled: personIds.length > 0,
-    staleTime: 30000, // Manter dados frescos por 30s para evitar refetch desnecessário
+    enabled: people.length > 0,
+    staleTime: 30000,
   });
   
   // Criar um mapa de pessoa -> tags
@@ -534,7 +567,7 @@ export function PeopleTable({
   };
 
   const table = useReactTable({
-    data: people,
+    data: peopleWithOwners,
     columns: allColumns,
     state: {
       sorting,
@@ -732,11 +765,10 @@ export function PeopleTable({
                 </TableCell>
               </TableRow>
             ) : (
-              table.getRowModel().rows.map((row, index) => (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${index * 30}ms` }}
+                  className="transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
