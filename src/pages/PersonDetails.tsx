@@ -67,6 +67,7 @@ const getLabelColor = (label: string | null) => {
 export default function PersonDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('notes');
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
@@ -74,6 +75,7 @@ export default function PersonDetails() {
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [selectedMergePerson, setSelectedMergePerson] = useState<PersonWithOrg | null>(null);
 
+  // Lazy load data based on active tab for better performance
   const {
     person,
     history,
@@ -89,7 +91,12 @@ export default function PersonDetails() {
     togglePin,
     deleteNote,
     updateNote,
-  } = usePersonDetails(id || '');
+  } = usePersonDetails(id || '', {
+    loadHistory: activeTab === 'history',
+    loadNotes: activeTab === 'notes',
+    loadActivities: activeTab === 'activities',
+    loadDeals: activeTab === 'deals',
+  });
 
   const {
     files,
@@ -309,7 +316,7 @@ export default function PersonDetails() {
 
         {/* Tabs Content */}
         <div className="lg:col-span-2">
-          <Tabs defaultValue="notes" className="w-full">
+          <Tabs defaultValue="notes" value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="w-full justify-start bg-muted/50 p-1 flex-wrap h-auto gap-1">
               <TabsTrigger value="notes" className="flex-1 sm:flex-none">
                 Notas ({notes.length})

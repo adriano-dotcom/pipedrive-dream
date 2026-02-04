@@ -197,28 +197,9 @@ export default function People() {
     const { data, error, count } = await query;
     if (error) throw error;
     
-    // Fetch profiles for owners (can't use foreign key join since owner_id references auth.users)
-    const ownerIds = [...new Set((data || []).map(p => p.owner_id).filter(Boolean))] as string[];
-    let ownerProfiles: Record<string, { id: string; user_id: string; full_name: string; avatar_url: string | null }> = {};
-    
-    if (ownerIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, avatar_url')
-        .in('user_id', ownerIds);
-      
-      if (profiles) {
-        ownerProfiles = Object.fromEntries(profiles.map(p => [p.user_id, p]));
-      }
-    }
-    
-    // Map owner data to people
-    const peopleWithOwners = (data || []).map(person => ({
-      ...person,
-      owner: person.owner_id ? ownerProfiles[person.owner_id] || null : null,
-    })) as PersonWithOrg[];
-    
-    return { data: peopleWithOwners, count };
+    // Return data immediately - owner profiles will be loaded separately in PeopleTable
+    // This removes the blocking secondary query and improves initial load time
+    return { data: data as PersonWithOrg[], count };
   };
 
   // Check if tag query is ready before running main query
