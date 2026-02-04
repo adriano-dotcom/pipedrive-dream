@@ -1,9 +1,16 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Check, CheckCheck, FileText, MapPin, Download, Play, Pause } from 'lucide-react';
+import { Check, CheckCheck, FileText, MapPin, Download, Play, Pause, Maximize2 } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import type { WhatsAppMessage } from '@/hooks/useWhatsAppMessages';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface MessageBubbleProps {
   message: WhatsAppMessage;
@@ -11,6 +18,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const isFromContact = message.sender_type === 'contact';
@@ -113,6 +121,68 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
       case 'document':
         const fileName = (message.metadata as Record<string, unknown>)?.fileName as string || 'Documento';
+        const isPdf = message.media_mime_type?.toLowerCase() === 'application/pdf';
+        
+        if (isPdf && message.media_url) {
+          return (
+            <div className="space-y-2">
+              {/* Preview inline do PDF */}
+              <div className="rounded-lg overflow-hidden border border-border/50 bg-background">
+                <iframe
+                  src={`${message.media_url}#toolbar=0&navpanes=0`}
+                  className="w-full h-[200px]"
+                  title={fileName}
+                />
+              </div>
+              
+              {/* Nome e ações */}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium truncate flex-1">{fileName}</p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => setIsPdfDialogOpen(true)}
+                  >
+                    <Maximize2 className="h-3.5 w-3.5 mr-1" />
+                    Expandir
+                  </Button>
+                  <a
+                    href={message.media_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 h-7 text-xs hover:bg-muted/50 rounded-md transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Baixar
+                  </a>
+                </div>
+              </div>
+
+              {/* Dialog para PDF expandido */}
+              <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+                <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+                  <DialogHeader className="p-4 pb-0">
+                    <DialogTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      {fileName}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="flex-1 p-4 pt-2 min-h-0">
+                    <iframe
+                      src={message.media_url}
+                      className="w-full h-full rounded-lg border"
+                      title={fileName}
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          );
+        }
+        
+        // Fallback para outros documentos (não-PDF)
         return (
           <a 
             href={message.media_url || '#'} 
