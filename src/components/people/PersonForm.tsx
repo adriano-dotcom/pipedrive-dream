@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toTitleCase } from '@/lib/import';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -355,6 +356,9 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
   });
 
   const onSubmit = (data: PersonFormData) => {
+    // Apply title case to name
+    data.name = toTitleCase(data.name);
+    
     // Clean empty strings to null
     const cleanedData = Object.fromEntries(
       Object.entries(data).map(([key, value]) => [key, value === '' ? null : value])
