@@ -36,7 +36,7 @@ serve(async (req) => {
       });
     }
 
-    const { organizationId, recipientName, emailType, customInstructions } = await req.json();
+    const { organizationId, recipientName, emailType, customInstructions, personId } = await req.json();
 
     if (!organizationId) {
       return new Response(JSON.stringify({ error: "organizationId is required" }), {
@@ -64,6 +64,17 @@ serve(async (req) => {
       .select("title, value, status, insurance_type, insurer")
       .eq("organization_id", organizationId)
       .limit(5);
+
+    // Fetch person data if personId provided
+    let personData: { name: string; job_title: string | null; email: string | null; phone: string | null } | null = null;
+    if (personId) {
+      const { data: person } = await supabase
+        .from("people")
+        .select("name, job_title, email, phone")
+        .eq("id", personId)
+        .single();
+      personData = person;
+    }
 
     // Step 2: Perplexity research
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
@@ -137,6 +148,7 @@ DADOS DO CRM:
 - Website: ${org.website || "N/A"}
 - Notas do corretor: ${org.broker_notes || "N/A"}
 ${deals && deals.length > 0 ? `\nNEGÓCIOS RECENTES:\n${deals.map((d) => `- ${d.title}: R$ ${d.value || 0} (${d.status}) - ${d.insurance_type || "N/A"} / ${d.insurer || "N/A"}`).join("\n")}` : ""}
+${personData ? `\nDADOS DO CONTATO DESTINATÁRIO:\n- Nome: ${personData.name}\n- Cargo: ${personData.job_title || "N/A"}\n- Email: ${personData.email || "N/A"}\n- Telefone: ${personData.phone || "N/A"}` : ""}
 `.trim();
 
     const geminiPrompt = `Você é um corretor de seguros brasileiro experiente e profissional. Gere um email ${emailTypeLabels[emailType] || "personalizado"} para ${recipientName || "o responsável"} da empresa ${org.name}.

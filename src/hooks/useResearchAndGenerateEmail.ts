@@ -16,6 +16,7 @@ interface ResearchParams {
   recipientName?: string;
   emailType: string;
   customInstructions?: string;
+  personId?: string;
 }
 
 export function useResearchAndGenerateEmail() {

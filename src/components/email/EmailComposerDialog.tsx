@@ -41,6 +41,7 @@ interface EmailComposerDialogProps {
   entityName: string;
   recipientEmail?: string;
   recipientName?: string;
+  organizationId?: string;
 }
 
 export function EmailComposerDialog({
@@ -51,6 +52,7 @@ export function EmailComposerDialog({
   entityName,
   recipientEmail = '',
   recipientName = '',
+  organizationId,
 }: EmailComposerDialogProps) {
   const { user } = useAuth();
   const { templates } = useEmailTemplates();
@@ -103,12 +105,17 @@ export function EmailComposerDialog({
     }
   };
 
+  const researchOrgId = entityType === 'organization' ? entityId : organizationId;
+  const showResearchSection = entityType === 'organization' || !!organizationId;
+
   const handleResearchAndGenerate = async () => {
+    if (!researchOrgId) return;
     const result = await researchAndGenerate({
-      organizationId: entityId,
+      organizationId: researchOrgId,
       recipientName: recipientName || to,
       emailType,
       customInstructions: customInstructions || undefined,
+      personId: entityType === 'person' ? entityId : undefined,
     });
 
     if (result) {
@@ -208,8 +215,8 @@ export function EmailComposerDialog({
               </Button>
             </div>
 
-            {/* AI Research section - only for organizations */}
-            {entityType === 'organization' && (
+            {/* AI Research section - for organizations or people with linked org */}
+            {showResearchSection && (
               <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-primary/15">

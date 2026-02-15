@@ -22,6 +22,7 @@ interface SentEmailsListProps {
   entityName: string;
   recipientEmail?: string;
   recipientName?: string;
+  organizationId?: string;
 }
 
 export function SentEmailsList({
@@ -30,6 +31,7 @@ export function SentEmailsList({
   entityName,
   recipientEmail,
   recipientName,
+  organizationId,
 }: SentEmailsListProps) {
   const { emails, isLoading } = useSentEmails(entityType, entityId);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -128,6 +130,7 @@ export function SentEmailsList({
         entityName={entityName}
         recipientEmail={recipientEmail}
         recipientName={recipientName}
+        organizationId={organizationId}
       />
 
       {/* Email Preview Dialog */}

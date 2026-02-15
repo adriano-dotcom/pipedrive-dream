@@ -269,6 +269,7 @@ export function PersonSidebar({
                   entityName={person.name}
                   recipientEmail={person.email}
                   recipientName={person.name}
+                  organizationId={person.organization?.id}
                 />
               </div>
             </div>
