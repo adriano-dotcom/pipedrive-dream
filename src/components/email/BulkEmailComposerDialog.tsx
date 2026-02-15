@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Send, FileText, Loader2, Mail, AlertTriangle, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { Sparkles, Send, FileText, Loader2, Mail, AlertTriangle, ChevronDown, ChevronUp, Users, Variable } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize';
 import {
   Dialog,
@@ -32,7 +32,19 @@ interface Recipient {
   name: string;
   email: string | null;
   email_status?: string;
+  organization_name?: string | null;
+  organization_city?: string | null;
+  job_title?: string | null;
 }
+
+const TEMPLATE_VARIABLES = [
+  { label: 'Primeiro Nome', variable: '{{primeiro_nome}}' },
+  { label: 'Nome Completo', variable: '{{nome_completo}}' },
+  { label: 'Empresa', variable: '{{empresa}}' },
+  { label: 'Cidade', variable: '{{cidade}}' },
+  { label: 'Cargo', variable: '{{cargo}}' },
+  { label: 'Email', variable: '{{email}}' },
+] as const;
 
 interface BulkEmailComposerDialogProps {
   open: boolean;
@@ -117,6 +129,9 @@ export function BulkEmailComposerDialog({
         person_id: r.id,
         email: r.email!,
         name: r.name,
+        organization_name: r.organization_name || null,
+        organization_city: r.organization_city || null,
+        job_title: r.job_title || null,
       })),
       rateLimit,
     });
@@ -220,6 +235,27 @@ export function BulkEmailComposerDialog({
           <div className="space-y-2">
             <Label>Assunto</Label>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Assunto do email" />
+          </div>
+
+          {/* Template Variables */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Variable className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm">Variáveis dinâmicas</Label>
+              <span className="text-xs text-muted-foreground">(clique para inserir no corpo)</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPLATE_VARIABLES.map((v) => (
+                <Badge
+                  key={v.variable}
+                  variant="outline"
+                  className="cursor-pointer hover:bg-primary/10 hover:border-primary/30 transition-colors select-none"
+                  onClick={() => setBody((prev) => prev + v.variable)}
+                >
+                  {v.label}
+                </Badge>
+              ))}
+            </div>
           </div>
 
           {/* Body */}

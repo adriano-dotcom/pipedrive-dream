@@ -105,6 +105,17 @@ serve(async (req: Request) => {
     let sentCount = 0;
     let failedCount = 0;
 
+    function replaceVariables(text: string, r: any): string {
+      const firstName = (r.name || "").split(" ")[0];
+      return text
+        .replace(/\{\{primeiro_nome\}\}/g, firstName)
+        .replace(/\{\{nome_completo\}\}/g, r.name || "")
+        .replace(/\{\{empresa\}\}/g, r.organization_name || "")
+        .replace(/\{\{cidade\}\}/g, r.organization_city || "")
+        .replace(/\{\{cargo\}\}/g, r.job_title || "")
+        .replace(/\{\{email\}\}/g, r.email || "");
+    }
+
     for (const recipient of recipients || []) {
       // Check person's email_status
       if (recipient.person_id) {
@@ -124,15 +135,19 @@ serve(async (req: Request) => {
         }
       }
 
+      // Replace template variables per recipient
+      const personalizedSubject = replaceVariables(campaign.subject, recipient);
+      const personalizedBody = replaceVariables(campaign.body, recipient);
+
       // Insert tracking pixel
       const trackingUrl = `${trackingBaseUrl}?tid=${recipient.tracking_id}`;
-      const bodyWithPixel = campaign.body + `<img src="${trackingUrl}" width="1" height="1" style="display:none" alt="" />`;
+      const bodyWithPixel = personalizedBody + `<img src="${trackingUrl}" width="1" height="1" style="display:none" alt="" />`;
 
       try {
         const { error: emailError } = await resend.emails.send({
           from: `${fromName} <onboarding@resend.dev>`,
           to: [recipient.email],
-          subject: campaign.subject,
+          subject: personalizedSubject,
           html: bodyWithPixel,
           reply_to: fromEmail,
         });

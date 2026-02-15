@@ -476,6 +476,9 @@ export default function People() {
           name: p.name,
           email: p.email,
           email_status: (p as any).email_status,
+          organization_name: p.organizations?.name || null,
+          organization_city: p.organizations?.address_city || null,
+          job_title: p.job_title || null,
         }))}
         onSuccess={() => setSelectedIds([])}
       />

@@ -163,8 +163,11 @@ export type Database = {
           email: string
           error_message: string | null
           id: string
+          job_title: string | null
           name: string | null
           opened_at: string | null
+          organization_city: string | null
+          organization_name: string | null
           person_id: string | null
           sent_at: string | null
           status: string
@@ -176,8 +179,11 @@ export type Database = {
           email: string
           error_message?: string | null
           id?: string
+          job_title?: string | null
           name?: string | null
           opened_at?: string | null
+          organization_city?: string | null
+          organization_name?: string | null
           person_id?: string | null
           sent_at?: string | null
           status?: string
@@ -189,8 +195,11 @@ export type Database = {
           email?: string
           error_message?: string | null
           id?: string
+          job_title?: string | null
           name?: string | null
           opened_at?: string | null
+          organization_city?: string | null
+          organization_name?: string | null
           person_id?: string | null
           sent_at?: string | null
           status?: string
