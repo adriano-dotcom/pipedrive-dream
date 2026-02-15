@@ -69,10 +69,20 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
   const { data: existingPeople } = useQuery({
     queryKey: ['people-for-import'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('people')
-        .select('id, email, cpf, pipedrive_id');
-      return data || [];
+      let allData: { id: string; email: string | null; cpf: string | null; pipedrive_id: string | null }[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from('people')
+          .select('id, email, cpf, pipedrive_id')
+          .range(from, from + pageSize - 1);
+        if (!data || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return allData;
     },
     enabled: open && step >= 3,
   });
@@ -80,10 +90,20 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
   const { data: existingOrgs } = useQuery({
     queryKey: ['organizations-for-import'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('organizations')
-        .select('id, name, cnpj, pipedrive_id');
-      return data || [];
+      let allData: { id: string; name: string; cnpj: string | null; pipedrive_id: string | null }[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data } = await supabase
+          .from('organizations')
+          .select('id, name, cnpj, pipedrive_id')
+          .range(from, from + pageSize - 1);
+        if (!data || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      return allData;
     },
     enabled: open && step >= 3,
   });
@@ -567,9 +587,10 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           }
         }
       } catch (error) {
+        console.error(`[Import] Erro na linha ${row.index + 2}:`, error);
         results.push({
           success: false,
-          name: row.mappedData.name || `Linha ${row.index + 2}`,
+          name: row.mappedData.name || row.mappedData.org_name || `Linha ${row.index + 2}`,
           type: 'person',
           error: error instanceof Error ? error.message : 'Erro desconhecido',
         });
@@ -577,6 +598,11 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
 
       setImportProgress(Math.round(((i + 1) / selectedRows.length) * 100));
       setImportResults([...results]);
+
+      // Pause every 50 rows to keep browser responsive
+      if ((i + 1) % 50 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     setIsImporting(false);
