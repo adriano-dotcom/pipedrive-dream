@@ -1,174 +1,83 @@
 
-# Envio de E-mail em Massa a partir de /people
+# Variáveis de Template no E-mail em Massa
 
-## Visao Geral
+## Objetivo
+Permitir o uso de variáveis dinâmicas nos templates e no corpo do e-mail em massa, que serao substituidas automaticamente pelos dados de cada destinatario no momento do envio.
 
-Criar um sistema completo de e-mail marketing em massa integrado a listagem de Pessoas, com fila de envio, cadencia controlada, tracking de abertura e gerenciamento automatico de erros (bounces).
+## Variaveis Disponiveis
 
----
-
-## Fase 1: Banco de Dados
-
-### Nova tabela: `bulk_email_campaigns`
-Armazena cada campanha de envio em massa.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid PK | |
-| subject | text | Assunto do email |
-| body | text | Corpo HTML |
-| status | text | draft, queued, processing, completed, paused |
-| total_recipients | int | Total de destinatarios |
-| sent_count | int | Enviados com sucesso |
-| failed_count | int | Falhas |
-| opened_count | int | Abertos |
-| rate_limit | int | Emails por minuto (default 10) |
-| daily_limit | int | Limite diario (para cronjob) |
-| scheduled_at | timestamptz | Se agendado |
-| created_by | uuid | |
-| created_at / updated_at | timestamptz | |
-
-### Nova tabela: `bulk_email_recipients`
-Cada destinatario individual da campanha.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid PK | |
-| campaign_id | uuid FK | Referencia a campanha |
-| person_id | uuid FK | Referencia a pessoa |
-| email | text | Email do destinatario |
-| name | text | Nome |
-| status | text | pending, sent, failed, opened, bounced, blocked |
-| sent_at | timestamptz | |
-| opened_at | timestamptz | |
-| error_message | text | |
-| tracking_id | uuid | ID unico para pixel de rastreamento |
-| created_at | timestamptz | |
-
-### Novo campo na tabela `people`
-- `email_status` (text, default 'active') - valores: active, bounced, blocked, unsubscribed
-
-### RLS
-- INSERT: `auth.uid() = created_by`
-- SELECT: usuario logado ou admin
-- UPDATE: criador ou admin
+| Variavel | Descricao | Fonte |
+|----------|-----------|-------|
+| `{{primeiro_nome}}` | Primeiro nome da pessoa | `people.name` (split) |
+| `{{nome_completo}}` | Nome completo | `people.name` |
+| `{{empresa}}` | Nome da organizacao | `organizations.name` (via `people.organization_id`) |
+| `{{cidade}}` | Cidade da organizacao | `organizations.address_city` |
+| `{{email}}` | E-mail do destinatario | `people.email` |
+| `{{cargo}}` | Cargo da pessoa | `people.job_title` |
 
 ---
 
-## Fase 2: Edge Functions
+## Alteracoes
 
-### 1. `process-bulk-email` (nova)
-Funcao principal que processa a fila de envio:
-- Busca a proxima campanha com status "queued" ou "processing"
-- Busca recipients com status "pending" (limitado pelo rate_limit)
-- Envia via Resend em lote respeitando cadencia
-- Atualiza status de cada recipient
-- Inclui pixel de rastreamento no corpo do email (imagem 1x1 transparente apontando para `track-email-open`)
-- Atualiza contadores da campanha
+### 1. Frontend - BulkEmailComposerDialog
+- Adicionar um painel/barra com botoes de variavel (chips clicaveis) que inserem `{{variavel}}` no corpo do e-mail
+- Variaveis: Primeiro Nome, Nome Completo, Empresa, Cidade, Cargo, Email
+- Ao clicar, insere o texto da variavel na posicao atual do editor
+- Adicionar dica visual explicando que as variaveis serao substituidas por destinatario
 
-### 2. `track-email-open` (nova)
-Endpoint publico (sem JWT) que serve como pixel de rastreamento:
-- Recebe `tracking_id` como parametro
-- Retorna imagem 1x1 transparente (GIF)
-- Atualiza `opened_at` e status para "opened" no recipient
-- Atualiza `opened_count` na campanha
+### 2. Frontend - Recipient Interface
+- Expandir a interface `Recipient` para incluir `organization_name`, `organization_city`, `job_title`
+- Atualizar `People.tsx` para buscar e passar esses dados ao abrir o dialog
 
-### 3. `resend-webhook` (nova)
-Recebe webhooks do Resend para eventos como bounce e spam:
-- Atualiza status do recipient para "bounced"
-- Atualiza `email_status` da pessoa para "bounced" ou "blocked"
-- Incrementa `failed_count` na campanha
+### 3. Frontend - People.tsx
+- Ajustar a query de pessoas para incluir join com organizacao (`organizations(name, address_city)`)
+- Passar os dados adicionais no mapeamento de recipients
 
-### 4. Atualizar `send-email` existente
-- Verificar `email_status` da pessoa antes de enviar (bloquear se bounced/blocked)
-- Incluir pixel de rastreamento tambem nos emails individuais
+### 4. Backend - process-bulk-email
+- Antes de enviar cada email, buscar dados completos do person + organization
+- Substituir todas as variaveis `{{...}}` no subject E no body por destinatario
+- Se a variavel nao tiver valor, substituir por string vazia
 
----
-
-## Fase 3: Frontend
-
-### 1. Botao "Enviar Email em Massa" na toolbar de selecao
-- Aparece quando ha pessoas selecionadas (ao lado de "Excluir" e "Mesclar")
-- Filtra automaticamente pessoas sem email ou com email bloqueado
-- Mostra contagem de destinatarios validos
-
-### 2. Dialog `BulkEmailComposerDialog`
-- Campo "Para": mostra contagem de destinatarios (ex: "15 pessoas selecionadas")
-- Lista expansivel mostrando os destinatarios e seus emails
-- Alerta visual para pessoas sem email (serao ignoradas)
-- Alerta visual para emails bloqueados/bounced
-- Seletor de template (reutiliza templates existentes)
-- Geracao por IA (reutiliza `useGenerateEmail`)
-- Editor rich-text para corpo
-- Configuracao de cadencia: emails por minuto (slider, default 10)
-- Opcao de agendar envio ou enviar agora
-- Botao "Enviar para X pessoas"
-
-### 3. Pagina/Dialog de acompanhamento de campanhas
-- Listagem de campanhas anteriores com status
-- Barra de progresso (enviados / total)
-- Metricas: enviados, abertos, falhas
-- Taxa de abertura em percentual
-- Detalhes por destinatario com status individual
-- Indicador visual de emails bloqueados
-
-### 4. Indicadores na tabela de pessoas
-- Badge ao lado do email quando `email_status` = bounced ou blocked
-- Tooltip explicando por que o email esta bloqueado
-
----
-
-## Fase 4: Cronjob (Futuro)
-- Configurar `pg_cron` para chamar `process-bulk-email` periodicamente
-- Respeitar `daily_limit` configurado na campanha
-- Processar campanhas agendadas quando `scheduled_at <= now()`
+### 5. Hook useBulkEmail
+- Atualizar `CreateCampaignParams` para armazenar os dados extras por recipient (organization_name, organization_city, job_title) na tabela `bulk_email_recipients`
 
 ---
 
 ## Detalhes Tecnicos
 
-### Fluxo de envio
+### Novas colunas em `bulk_email_recipients`
+Adicionar campos para armazenar dados da pessoa no momento do envio (snapshot):
+- `organization_name` (text, nullable)
+- `organization_city` (text, nullable) 
+- `job_title` (text, nullable)
 
+### Funcao de substituicao (edge function)
 ```text
-Selecionar pessoas -> Compor email -> Criar campanha (status: queued)
--> Edge function process-bulk-email:
-   1. Buscar recipients pendentes (LIMIT = rate_limit)
-   2. Para cada recipient:
-      a. Verificar email_status da pessoa (pular se blocked/bounced)
-      b. Inserir pixel de tracking no HTML
-      c. Enviar via Resend
-      d. Atualizar status do recipient
-   3. Atualizar contadores da campanha
-   4. Se ainda ha pendentes -> manter status "processing"
-   5. Se todos processados -> status "completed"
+function replaceVariables(text, recipient):
+  primeiro_nome = recipient.name.split(" ")[0]
+  text = text.replace("{{primeiro_nome}}", primeiro_nome)
+  text = text.replace("{{nome_completo}}", recipient.name)
+  text = text.replace("{{empresa}}", recipient.organization_name || "")
+  text = text.replace("{{cidade}}", recipient.organization_city || "")
+  text = text.replace("{{cargo}}", recipient.job_title || "")
+  text = text.replace("{{email}}", recipient.email || "")
+  return text
 ```
 
-### Pixel de rastreamento
-- URL: `https://{SUPABASE_URL}/functions/v1/track-email-open?tid={tracking_id}`
-- Inserido como `<img src="..." width="1" height="1" style="display:none" />`
-- A edge function retorna um GIF 1x1 transparente com headers de no-cache
+A substituicao e aplicada tanto no `subject` quanto no `body` de cada email.
 
-### Dependencias
-- Resend (ja configurado com RESEND_API_KEY)
-- Lovable AI Gateway (ja configurado para geracao de email)
-- Nenhuma nova dependencia frontend necessaria
-
-### Arquivos novos
-- `supabase/functions/process-bulk-email/index.ts`
-- `supabase/functions/track-email-open/index.ts`
-- `supabase/functions/resend-webhook/index.ts`
-- `src/components/email/BulkEmailComposerDialog.tsx`
-- `src/components/email/BulkEmailCampaignsList.tsx`
-- `src/components/email/CampaignDetailDialog.tsx`
-- `src/hooks/useBulkEmail.ts`
+### UI dos botoes de variavel
+Uma barra horizontal com chips/badges clicaveis acima do editor:
+- `Primeiro Nome` -> insere `{{primeiro_nome}}`
+- `Nome Completo` -> insere `{{nome_completo}}`
+- `Empresa` -> insere `{{empresa}}`
+- `Cidade` -> insere `{{cidade}}`
+- `Cargo` -> insere `{{cargo}}`
+- `Email` -> insere `{{email}}`
 
 ### Arquivos modificados
-- `src/pages/People.tsx` - botao de envio em massa na toolbar
-- `src/components/people/PeopleTable.tsx` - botao na barra de selecao
-- `supabase/config.toml` - registrar novas edge functions
-- `supabase/functions/send-email/index.ts` - verificar email_status antes de enviar
-
-### Migracao SQL
-- Criar tabelas `bulk_email_campaigns` e `bulk_email_recipients`
-- Adicionar coluna `email_status` na tabela `people`
-- Criar RLS policies para as novas tabelas
+- `src/components/email/BulkEmailComposerDialog.tsx` - barra de variaveis + interface expandida
+- `src/pages/People.tsx` - query com join de organization + mapeamento expandido
+- `src/hooks/useBulkEmail.ts` - campos extras no recipient
+- `supabase/functions/process-bulk-email/index.ts` - logica de substituicao de variaveis
+- Migracao SQL para adicionar colunas em `bulk_email_recipients`
