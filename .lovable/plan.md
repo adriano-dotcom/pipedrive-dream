@@ -1,83 +1,97 @@
 
-# Variáveis de Template no E-mail em Massa
+
+# Pesquisa de Empresa + Email Ultra-Personalizado
 
 ## Objetivo
-Permitir o uso de variáveis dinâmicas nos templates e no corpo do e-mail em massa, que serao substituidas automaticamente pelos dados de cada destinatario no momento do envio.
+Adicionar um fluxo onde o usuario pode pesquisar informacoes de uma empresa na web (via Perplexity) e usar esses dados junto com o CRM para gerar um email altamente personalizado.
 
-## Variaveis Disponiveis
+## Pre-requisito: Conectar Perplexity
+O Perplexity ainda nao esta conectado ao projeto. Sera necessario conecta-lo para habilitar buscas na web em tempo real.
 
-| Variavel | Descricao | Fonte |
-|----------|-----------|-------|
-| `{{primeiro_nome}}` | Primeiro nome da pessoa | `people.name` (split) |
-| `{{nome_completo}}` | Nome completo | `people.name` |
-| `{{empresa}}` | Nome da organizacao | `organizations.name` (via `people.organization_id`) |
-| `{{cidade}}` | Cidade da organizacao | `organizations.address_city` |
-| `{{email}}` | E-mail do destinatario | `people.email` |
-| `{{cargo}}` | Cargo da pessoa | `people.job_title` |
+## Arquitetura
 
----
+```text
+[UI: Botao "Pesquisar + Gerar"]
+        |
+        v
+[Edge Function: research-company]
+        |
+        +---> Perplexity API (busca web sobre a empresa)
+        |
+        +---> Lovable AI / Gemini (gera email com contexto enriquecido)
+        |
+        v
+[Retorna: research_summary + subject + body]
+```
 
 ## Alteracoes
 
-### 1. Frontend - BulkEmailComposerDialog
-- Adicionar um painel/barra com botoes de variavel (chips clicaveis) que inserem `{{variavel}}` no corpo do e-mail
-- Variaveis: Primeiro Nome, Nome Completo, Empresa, Cidade, Cargo, Email
-- Ao clicar, insere o texto da variavel na posicao atual do editor
-- Adicionar dica visual explicando que as variaveis serao substituidas por destinatario
+### 1. Conectar Perplexity
+- Usar o conector Perplexity para disponibilizar a `PERPLEXITY_API_KEY` nas edge functions
 
-### 2. Frontend - Recipient Interface
-- Expandir a interface `Recipient` para incluir `organization_name`, `organization_city`, `job_title`
-- Atualizar `People.tsx` para buscar e passar esses dados ao abrir o dialog
+### 2. Nova Edge Function: `research-company`
+- **Etapa 1 - Pesquisa**: Chama a API do Perplexity (`sonar`) com uma query inteligente sobre a empresa (nome, CNPJ, segmento, noticias recentes, produtos, tamanho)
+- **Etapa 2 - Geracao**: Envia o resultado da pesquisa + dados do CRM (organizacao, pessoas vinculadas, deals) como contexto para o Gemini gerar o email
+- Recebe parametros: `organizationId`, `recipientName`, `emailType`, `customInstructions`
+- Retorna: `{ research_summary, subject, body }`
 
-### 3. Frontend - People.tsx
-- Ajustar a query de pessoas para incluir join com organizacao (`organizations(name, address_city)`)
-- Passar os dados adicionais no mapeamento de recipients
+### 3. Novo Hook: `useResearchAndGenerateEmail`
+- Estado: `isResearching`, `isGenerating`, `researchSummary`
+- Funcao `researchAndGenerate(params)` que chama a edge function
+- Exibe progresso em 2 etapas (pesquisando... gerando...)
 
-### 4. Backend - process-bulk-email
-- Antes de enviar cada email, buscar dados completos do person + organization
-- Substituir todas as variaveis `{{...}}` no subject E no body por destinatario
-- Se a variavel nao tiver valor, substituir por string vazia
+### 4. UI - Botao no EmailComposerDialog e OrganizationSidebar
+- Adicionar botao "Pesquisar empresa e gerar email" no `EmailComposerDialog` quando `entityType === 'organization'`
+- Ao clicar:
+  1. Mostra indicador "Pesquisando informacoes da empresa..."
+  2. Depois mostra "Gerando email personalizado..."
+  3. Preenche subject + body
+  4. Mostra um card colapsavel com o resumo da pesquisa para o usuario revisar
 
-### 5. Hook useBulkEmail
-- Atualizar `CreateCampaignParams` para armazenar os dados extras por recipient (organization_name, organization_city, job_title) na tabela `bulk_email_recipients`
-
----
+### 5. Campo opcional de instrucoes customizadas
+- Textarea para o usuario adicionar contexto extra antes de gerar (ex: "Focar em seguro de frota", "Mencionar a inauguracao da nova filial")
 
 ## Detalhes Tecnicos
 
-### Novas colunas em `bulk_email_recipients`
-Adicionar campos para armazenar dados da pessoa no momento do envio (snapshot):
-- `organization_name` (text, nullable)
-- `organization_city` (text, nullable) 
-- `job_title` (text, nullable)
+### Edge Function `research-company/index.ts`
 
-### Funcao de substituicao (edge function)
+**Query do Perplexity:**
 ```text
-function replaceVariables(text, recipient):
-  primeiro_nome = recipient.name.split(" ")[0]
-  text = text.replace("{{primeiro_nome}}", primeiro_nome)
-  text = text.replace("{{nome_completo}}", recipient.name)
-  text = text.replace("{{empresa}}", recipient.organization_name || "")
-  text = text.replace("{{cidade}}", recipient.organization_city || "")
-  text = text.replace("{{cargo}}", recipient.job_title || "")
-  text = text.replace("{{email}}", recipient.email || "")
-  return text
+"[Nome da empresa] [CNPJ] Brasil: noticias recentes, 
+produtos e servicos, tamanho da empresa, segmento de atuacao, 
+desafios do setor, expansao recente"
 ```
 
-A substituicao e aplicada tanto no `subject` quanto no `body` de cada email.
+Parametros da API:
+- model: `sonar`
+- search_recency_filter: `month` (ultimas noticias)
 
-### UI dos botoes de variavel
-Uma barra horizontal com chips/badges clicaveis acima do editor:
-- `Primeiro Nome` -> insere `{{primeiro_nome}}`
-- `Nome Completo` -> insere `{{nome_completo}}`
-- `Empresa` -> insere `{{empresa}}`
-- `Cidade` -> insere `{{cidade}}`
-- `Cargo` -> insere `{{cargo}}`
-- `Email` -> insere `{{email}}`
+**Prompt para Gemini (geracao do email):**
+O prompt incluira:
+- Dados do CRM: nome da org, CNPJ, cidade, ramo de seguro, seguradoras preferidas, valor estimado de premio
+- Pesquisa web: resumo retornado pelo Perplexity
+- Instrucoes customizadas do usuario
+- Tipo de email (proposta, follow-up, etc.)
+
+### Modelo para geracao
+- `google/gemini-2.5-pro` para melhor qualidade na personalizacao (contexto grande + raciocinio complexo)
+
+### Arquivos novos
+- `supabase/functions/research-company/index.ts` - edge function com Perplexity + Gemini
+- `src/hooks/useResearchAndGenerateEmail.ts` - hook frontend
 
 ### Arquivos modificados
-- `src/components/email/BulkEmailComposerDialog.tsx` - barra de variaveis + interface expandida
-- `src/pages/People.tsx` - query com join de organization + mapeamento expandido
-- `src/hooks/useBulkEmail.ts` - campos extras no recipient
-- `supabase/functions/process-bulk-email/index.ts` - logica de substituicao de variaveis
-- Migracao SQL para adicionar colunas em `bulk_email_recipients`
+- `src/components/email/EmailComposerDialog.tsx` - botao de pesquisa + card de resumo + textarea de instrucoes
+- `supabase/config.toml` - registro da nova funcao
+
+### Fluxo da UI
+
+1. Usuario abre EmailComposerDialog para uma organizacao
+2. Ve botao "Pesquisar e personalizar com IA" (destaque visual)
+3. Opcionalmente escreve instrucoes customizadas no textarea
+4. Clica no botao
+5. Loading em 2 fases: "Pesquisando..." -> "Gerando..."
+6. Email preenchido automaticamente
+7. Card colapsavel mostra o resumo da pesquisa com as fontes
+8. Usuario revisa, edita se quiser, e envia
+
