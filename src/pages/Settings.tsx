@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Settings as SettingsIcon, User, Shield, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, User, Shield, Loader2, Mail } from 'lucide-react';
+import { useUserSignature } from '@/hooks/useUserSignature';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +18,14 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [phone, setPhone] = useState(profile?.phone || '');
+  const { signature, isLoading: isLoadingSignature, saveSignature, isSaving } = useUserSignature();
+  const [signatureHtml, setSignatureHtml] = useState('');
+
+  useEffect(() => {
+    if (signature?.signature_html) {
+      setSignatureHtml(signature.signature_html);
+    }
+  }, [signature]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async () => {
@@ -126,6 +136,42 @@ export default function Settings() {
                 : 'Você pode gerenciar seus próprios registros'}
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Email Signature Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Assinatura de Email
+          </CardTitle>
+          <CardDescription>
+            Sua assinatura será incluída automaticamente em todos os emails enviados
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoadingSignature ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <RichTextEditor
+                content={signatureHtml}
+                onChange={setSignatureHtml}
+                placeholder="Digite sua assinatura aqui (nome, cargo, telefone, site...)"
+                minHeight="120px"
+              />
+              <Button
+                onClick={() => saveSignature(signatureHtml)}
+                disabled={isSaving}
+              >
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Assinatura
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
