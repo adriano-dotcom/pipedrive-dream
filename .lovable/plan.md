@@ -1,62 +1,41 @@
 
 
-# Corrigir Prompt do Research-Company: Nome do Corretor e Assinatura
+# Inserir Assinatura do Usuario e Melhorar Visibilidade no Compositor
 
-## Problemas Identificados
-1. O prompt nao inclui o nome real do corretor — a IA inventa "Gemini" como nome do remetente
-2. A edge function `research-company` nao busca o perfil do usuario nem a assinatura, diferente da `generate-email` que ja faz isso
+## Problema
+A tabela `user_signatures` esta vazia -- o usuario nunca salvou uma assinatura. Por isso, o preview de assinatura no `EmailComposerDialog` nao aparece e o email e enviado sem assinatura.
 
 ## Alteracoes
 
-### 1. Modificar `supabase/functions/research-company/index.ts`
+### 1. Inserir a assinatura no banco de dados
+Usar a ferramenta de insert para salvar a assinatura HTML do usuario na tabela `user_signatures`. A assinatura contera:
 
-**Buscar dados do usuario autenticado:**
-- Extrair o `userId` do token JWT (ja faz `getClaims`)
-- Buscar `full_name` e `phone` da tabela `profiles` (igual ao `generate-email`)
-- Buscar `signature_html` da tabela `user_signatures` (onde `is_active = true`)
+- Nome: Adriano Jacometo
+- Cargo: Corretor de Seguros
+- Empresa: Jacometo Corretora de Seguros
+- WhatsApp: +55 43 9 9914-5000
+- Telefone: (43) 3321-5007
+- Endereco: Rua Souza Naves, 612 - Sala 51 - Centro - Londrina/PR
+- Site: jacometoseguros.com.br
 
-**Atualizar o prompt:**
-- Adicionar o nome real do corretor: "Seu nome é [nome do perfil]"
-- Adicionar regra: "Assine o email com o nome do corretor fornecido, NAO invente nomes"
-- NÃO incluir assinatura HTML no corpo (ela sera adicionada pelo frontend ao enviar)
+O HTML sera formatado profissionalmente com links clicaveis para WhatsApp e site.
 
-**Incluir no contexto CRM:**
-- Adicionar secao "DADOS DO CORRETOR" com nome e telefone
+### 2. Nenhuma alteracao de codigo necessaria
+O sistema ja esta preparado:
+- O `EmailComposerDialog` ja exibe o preview da assinatura quando ela existe
+- O `handleSend` ja anexa `signature.signature_html` ao corpo do email antes de enviar
+- O hook `useUserSignature` ja busca a assinatura ativa do usuario
 
-### 2. Atualizar regras do prompt
-
-Adicionar ao bloco REGRAS:
-- "Seu nome como corretor é: [nome]. Use este nome para se apresentar."
-- "NÃO invente nomes de corretor ou empresa de corretagem"
-- "NÃO inclua assinatura no final do email — ela sera adicionada automaticamente"
+Basta inserir o dado no banco para tudo funcionar automaticamente.
 
 ## Detalhes Tecnicos
 
-### Codigo a adicionar (apos getClaims, antes da busca da organizacao):
+### SQL de insert
+Inserir na tabela `user_signatures` com:
+- `user_id`: ID do usuario autenticado atual
+- `signature_html`: HTML formatado da assinatura
+- `is_active`: true
 
-```text
-// Buscar perfil do usuario
-const userId = claimsData.claims.sub;
-const { data: profile } = await supabase
-  .from("profiles")
-  .select("full_name, phone")
-  .eq("user_id", userId)
-  .maybeSingle();
-
-const senderName = profile?.full_name || "Corretor";
-```
-
-### Prompt atualizado (trecho):
-
-```text
-Você é ${senderName}, um corretor de seguros brasileiro...
-
-REGRAS:
-- Seu nome é ${senderName}. Use este nome ao se apresentar.
-- NÃO invente nomes de corretor.
-- NÃO inclua assinatura no final do email (sera adicionada automaticamente)
-```
-
-### Arquivos modificados
-- `supabase/functions/research-company/index.ts` (buscar perfil + atualizar prompt)
+### Arquivo nenhum modificado
+Apenas operacao de dados no banco.
 
