@@ -1,56 +1,29 @@
 
+# Adicionar Editor de Assinatura de Email nas Configuracoes
 
-# Pesquisa de Empresa + Email Ultra-Personalizado
-
-## Objetivo
-Criar o fluxo completo: pesquisar empresa na web via Perplexity, combinar com dados do CRM, e gerar email ultra-personalizado com Gemini.
+## Contexto
+A tabela `user_signatures` e o hook `useUserSignature` ja existem. O `EmailComposerDialog` ja anexa a assinatura automaticamente ao enviar. O que falta e a **interface para o usuario criar e editar sua assinatura** na pagina de Configuracoes.
 
 ## Alteracoes
 
-### 1. Nova Edge Function: `research-company/index.ts`
-- Recebe: `organizationId`, `recipientName`, `emailType`, `customInstructions`
-- **Etapa 1**: Busca dados da organizacao no CRM (nome, CNPJ, cidade, ramo de seguro, seguradoras, deals)
-- **Etapa 2**: Chama Perplexity (`sonar`, `search_recency_filter: month`) com query inteligente sobre a empresa
-- **Etapa 3**: Envia pesquisa + dados CRM para Gemini (`google/gemini-2.5-pro`) gerar email personalizado
-- Retorna: `{ research_summary, citations, subject, body, phase }`
-- Autenticacao via `getClaims()`, `verify_jwt = false`
+### 1. Modificar `src/pages/Settings.tsx`
+- Importar `useUserSignature` e o `RichTextEditor`
+- Adicionar um novo Card "Assinatura de Email" abaixo do card de Permissoes
+- O card tera:
+  - Um `RichTextEditor` para editar a assinatura em HTML (com formatacao rica: negrito, links, etc.)
+  - Um botao "Salvar Assinatura" que chama `saveSignature()`
+  - Preview da assinatura atual quando salva
+- Inicializar o editor com o valor da assinatura existente (se houver)
 
-### 2. Registrar funcao no `supabase/config.toml`
-- Adicionar `[functions.research-company]` com `verify_jwt = false`
+### Fluxo
+1. Usuario acessa Configuracoes
+2. Ve o card "Assinatura de Email" com o editor rich text
+3. Digita/cola sua assinatura (nome, cargo, telefone, site, etc.)
+4. Clica "Salvar Assinatura"
+5. A assinatura e salva no banco e automaticamente usada em todos os emails enviados
 
-### 3. Novo Hook: `src/hooks/useResearchAndGenerateEmail.ts`
-- Estados: `phase` ("idle" | "researching" | "generating" | "done"), `researchSummary`, `citations`
-- Funcao `researchAndGenerate(params)` que chama a edge function
-- Retorna resultado com subject, body, resumo da pesquisa e fontes
-
-### 4. Atualizar `EmailComposerDialog.tsx`
-- Quando `entityType === 'organization'`: mostrar secao de pesquisa com IA
-- Textarea opcional para instrucoes customizadas
-- Botao "Pesquisar e personalizar com IA" com icone de globo/lupa
-- Loading em 2 fases visuais: "Pesquisando informacoes..." -> "Gerando email..."
-- Card colapsavel (Collapsible) mostrando o resumo da pesquisa e fontes apos conclusao
-- Preenche automaticamente subject e body
-
-## Detalhes Tecnicos
-
-### Query do Perplexity
-```text
-"[Nome] [CNPJ] Brasil: noticias recentes, produtos e servicos, 
-tamanho da empresa, segmento de atuacao, desafios do setor"
-```
-
-### Prompt do Gemini
-Inclui:
-- Dados CRM: nome, CNPJ, cidade, ramos de seguro, seguradoras preferidas, premio estimado
-- Pesquisa web: resumo do Perplexity
-- Instrucoes customizadas do usuario
-- Tipo de email (proposta, follow-up, apresentacao, personalizado)
-
-### Arquivos novos
-- `supabase/functions/research-company/index.ts`
-- `src/hooks/useResearchAndGenerateEmail.ts`
-
-### Arquivos modificados
-- `supabase/config.toml` - registro da funcao
-- `src/components/email/EmailComposerDialog.tsx` - UI de pesquisa + card de resumo
-
+### Detalhes Tecnicos
+- Reutiliza o componente `RichTextEditor` ja existente (TipTap)
+- Reutiliza o hook `useUserSignature` que ja tem `saveSignature` e `isSaving`
+- Nenhuma alteracao de banco de dados necessaria (tabela ja existe)
+- Nenhum arquivo novo, apenas modificacao do `Settings.tsx`
