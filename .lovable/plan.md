@@ -1,71 +1,35 @@
 
 
-# Tratamento de Multiplos Telefones na Importacao
+# Corrigir Erro de Mesclagem: Constraint de Email Unico
 
 ## Problema
 
-O CSV do Pipedrive pode trazer multiplos telefones na mesma celula, separados por virgula (ex: `5511992323194, 551192323194`). Alguns podem ser repetidos (mesmo numero com formatacao diferente). Precisamos:
+Ao mesclar contatos, o sistema tenta atualizar o contato mantido com o email selecionado ANTES de excluir o contato duplicado. Como existe uma constraint `people_email_unique`, o banco rejeita a operacao porque dois registros ficariam com o mesmo email simultaneamente.
 
-1. Separar os telefones
-2. Remover duplicatas (comparando apenas digitos)
-3. Colocar o primeiro no campo `phone`
-4. Se houver um segundo diferente, colocar no campo `whatsapp` (caso o whatsapp ainda nao tenha sido preenchido)
+## Solucao
 
-## Mudancas
+Reordenar as operacoes no `useMergeContacts.ts`: **limpar os campos unicos do contato que sera excluido ANTES de atualizar o contato mantido**.
 
-### Arquivo: `src/components/import/ImportDialog.tsx`
+## Mudanca Tecnica
 
-Adicionar uma funcao utilitaria `splitAndDeduplicatePhones` que:
-- Recebe a string bruta do campo telefone
-- Faz split por virgula
-- Limpa cada numero (remove tudo que nao e digito)
-- Remove duplicatas comparando os digitos limpos
-- Retorna array de numeros unicos
+### Arquivo: `src/hooks/useMergeContacts.ts`
 
-Antes de salvar a pessoa (tanto no create quanto no update), aplicar essa logica:
+Apos o backup (linha 109) e antes do update do kept record (linha 113), adicionar uma etapa para limpar email, CPF e pipedrive_id do contato que sera excluido:
 
 ```text
-phones = splitAndDeduplicatePhones(mappedData.phone)
-mappedData.phone = phones[0]  (primeiro numero)
-if phones[1] e whatsapp nao mapeado:
-  mappedData.whatsapp = phones[1]  (segundo numero)
+// ANTES do update do kept record:
+// Limpar campos unicos do contato que sera excluido para evitar conflitos de constraint
+await supabase
+  .from('people')
+  .update({ email: null, cpf: null, pipedrive_id: null })
+  .eq('id', deletePersonId);
+
+// DEPOIS: update do kept record com mergedData (ja funciona sem conflito)
 ```
 
-A mesma logica sera aplicada ao campo `whatsapp` caso tambem contenha multiplos numeros.
+Isso garante que nao haja duplicatas no momento do update, pois o contato a ser excluido ja tera seus campos unicos zerados.
 
-### Arquivo: `src/lib/import.ts` (opcional)
+### Nenhum outro arquivo precisa ser alterado
 
-A funcao pode ser adicionada aqui para manter a organizacao, ja que e uma funcao utilitaria de parsing.
+A logica de backup ja salva os dados originais do contato excluido, entao o undo continuara funcionando normalmente.
 
-## Detalhes Tecnicos
-
-```typescript
-function splitAndDeduplicatePhones(raw: string): string[] {
-  if (!raw) return [];
-  const phones = raw.split(',').map(p => p.trim()).filter(Boolean);
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const phone of phones) {
-    const digits = phone.replace(/\D/g, '');
-    if (digits && !seen.has(digits)) {
-      seen.add(digits);
-      unique.push(phone);
-    }
-  }
-  return unique;
-}
-```
-
-Logica aplicada no ImportDialog antes do insert/update da pessoa:
-
-```text
-1. Pegar mappedData.phone e fazer split+dedup
-2. Primeiro telefone unico -> phone
-3. Segundo telefone unico -> whatsapp (se whatsapp estiver vazio)
-4. Fazer o mesmo com mappedData.whatsapp se tiver multiplos valores
-```
-
-## Arquivos a editar
-
-- `src/lib/import.ts` - Adicionar funcao `splitAndDeduplicatePhones`
-- `src/components/import/ImportDialog.tsx` - Usar a funcao antes de salvar pessoa
