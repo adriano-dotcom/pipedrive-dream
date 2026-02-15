@@ -1,99 +1,71 @@
 
 
-# Atualizar Importacao para CSV do Pipedrive
+# Tratamento de Multiplos Telefones na Importacao
 
-## Resumo
+## Problema
 
-Ajustar o sistema de importacao para reconhecer automaticamente todos os cabecalhos do formato de exportacao do Pipedrive e adicionar funcionalidades que faltam.
+O CSV do Pipedrive pode trazer multiplos telefones na mesma celula, separados por virgula (ex: `5511992323194, 551192323194`). Alguns podem ser repetidos (mesmo numero com formatacao diferente). Precisamos:
 
-## Mudancas Necessarias
+1. Separar os telefones
+2. Remover duplicatas (comparando apenas digitos)
+3. Colocar o primeiro no campo `phone`
+4. Se houver um segundo diferente, colocar no campo `whatsapp` (caso o whatsapp ainda nao tenha sido preenchido)
 
-### 1. Novos aliases nos campos existentes (src/lib/import.ts)
+## Mudancas
 
-Adicionar aliases para que o auto-detect funcione com os cabecalhos do Pipedrive:
+### Arquivo: `src/components/import/ImportDialog.tsx`
 
-**Pessoa:**
-- `name`: adicionar `"pessoa - nome"`
-- `email`: adicionar `"pessoa - e-mail - trabalho"`, `"pessoa - e-mail - outros"`, `"pessoa - e-mail"`
-- `phone`: adicionar `"pessoa - telefone - trabalho"`, `"pessoa - telefone - outros"`, `"pessoa - telefone - residencial"`, `"pessoa - telefone"`
-- `whatsapp`: adicionar `"pessoa - telefone - celular"`
-- `label`: adicionar `"pessoa - etiquetas"`, `"pessoa - label"`
+Adicionar uma funcao utilitaria `splitAndDeduplicatePhones` que:
+- Recebe a string bruta do campo telefone
+- Faz split por virgula
+- Limpa cada numero (remove tudo que nao e digito)
+- Remove duplicatas comparando os digitos limpos
+- Retorna array de numeros unicos
 
-**Empresa:**
-- `pipedrive_id`: adicionar `"organização - id"`, `"organizacao - id"`
-- `org_name`: adicionar `"organização - nome"`, `"organizacao - nome"`
-- `automotores`: adicionar `"organização - automotores"`, `"organizacao - automotores"`
-- `address`: adicionar `"organização - endereço"`, `"organizacao - endereco"` (novo campo)
+Antes de salvar a pessoa (tanto no create quanto no update), aplicar essa logica:
 
-### 2. Novo campo: person_pipedrive_id (pessoa)
+```text
+phones = splitAndDeduplicatePhones(mappedData.phone)
+mappedData.phone = phones[0]  (primeiro numero)
+if phones[1] e whatsapp nao mapeado:
+  mappedData.whatsapp = phones[1]  (segundo numero)
+```
 
-Adicionar campo `person_pipedrive_id` no PERSON_FIELDS para mapear `Pessoa - ID`:
-- aliases: `"pessoa - id"`, `"person id"`, `"id da pessoa"`
+A mesma logica sera aplicada ao campo `whatsapp` caso tambem contenha multiplos numeros.
 
-### 3. Novo campo: org_address (endereco completo)
+### Arquivo: `src/lib/import.ts` (opcional)
 
-Adicionar campo `org_address` no ORGANIZATION_FIELDS para capturar o endereco no formato "Cidade,Estado,Pais" e fazer o parsing automatico para `address_city` e `address_state`.
-
-### 4. Logica de parsing de endereco (ImportDialog.tsx)
-
-No `performImport`, ao encontrar o campo `org_address`, fazer split por virgula e preencher:
-- Primeiro item -> `address_city`
-- Segundo item -> `address_state`
-- Ignorar terceiro (pais)
-
-### 5. Suporte a tags na importacao (Pessoa e Organizacao)
-
-Adicionar campo `person_tags` e `org_tags` no mapeamento. No `performImport`:
-- Fazer split das tags por virgula
-- Para cada tag, verificar se ja existe na tabela `person_tags` / `organization_tags`
-- Criar se nao existir
-- Criar o `person_tag_assignments` / `organization_tag_assignments`
-
-### 6. Migracao: campo pipedrive_id na tabela people
-
-Adicionar coluna `pipedrive_id` (text, nullable) na tabela `people` para armazenar o ID da pessoa no Pipedrive, utilizado para deduplicacao.
+A funcao pode ser adicionada aqui para manter a organizacao, ja que e uma funcao utilitaria de parsing.
 
 ## Detalhes Tecnicos
 
-### Arquivos a editar:
-- `src/lib/import.ts` - Novos aliases e novos campos
-- `src/components/import/ImportDialog.tsx` - Logica de parsing de endereco, tags e person pipedrive_id
-- `src/components/import/ImportStepMapping.tsx` - Nenhuma mudanca (usa campos de import.ts)
-- `src/components/people/PersonForm.tsx` - Exibir pipedrive_id (leitura)
-- Nova migracao SQL para `people.pipedrive_id`
-
-### Migracao SQL:
-```sql
-ALTER TABLE public.people ADD COLUMN pipedrive_id text;
+```typescript
+function splitAndDeduplicatePhones(raw: string): string[] {
+  if (!raw) return [];
+  const phones = raw.split(',').map(p => p.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const phone of phones) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits && !seen.has(digits)) {
+      seen.add(digits);
+      unique.push(phone);
+    }
+  }
+  return unique;
+}
 ```
 
-### Fluxo de deduplicacao de pessoa atualizado:
+Logica aplicada no ImportDialog antes do insert/update da pessoa:
+
 ```text
-1. Verificar por pipedrive_id (pessoa)
-2. Verificar por email
-3. Verificar por CPF
-4. Se nao encontrou -> criar nova pessoa
+1. Pegar mappedData.phone e fazer split+dedup
+2. Primeiro telefone unico -> phone
+3. Segundo telefone unico -> whatsapp (se whatsapp estiver vazio)
+4. Fazer o mesmo com mappedData.whatsapp se tiver multiplos valores
 ```
 
-### Parsing de endereco:
-```text
-"Foz Do Iguacu,Parana,Brasil"
-  -> address_city = "Foz Do Iguacu"
-  -> address_state = "Parana"
-```
+## Arquivos a editar
 
-### Parsing de tags:
-```text
-"EMAIL PENDENTE, Prospeccao Lovable IA"
-  -> ["EMAIL PENDENTE", "Prospeccao Lovable IA"]
-  -> Para cada: find_or_create na tabela de tags
-  -> Criar assignment
-```
-
-## Ordem de implementacao
-
-1. Migracao SQL (people.pipedrive_id)
-2. Atualizar aliases e campos em import.ts
-3. Atualizar logica de importacao no ImportDialog.tsx (endereco, tags, person pipedrive_id)
-4. Exibir pipedrive_id no formulario de pessoa
-
+- `src/lib/import.ts` - Adicionar funcao `splitAndDeduplicatePhones`
+- `src/components/import/ImportDialog.tsx` - Usar a funcao antes de salvar pessoa
