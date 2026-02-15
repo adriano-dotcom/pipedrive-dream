@@ -28,28 +28,32 @@ export interface ImportRow {
 
 // Person fields for mapping
 export const PERSON_FIELDS: ImportColumn[] = [
-  { id: 'name', label: 'Nome da Pessoa', required: true, aliases: ['nome', 'nome completo', 'contato', 'nome do contato', 'full name'] },
+  { id: 'person_pipedrive_id', label: 'ID Pipedrive (Pessoa)', aliases: ['pessoa - id', 'person id', 'id da pessoa'] },
+  { id: 'name', label: 'Nome da Pessoa', required: true, aliases: ['nome', 'nome completo', 'contato', 'nome do contato', 'full name', 'pessoa - nome'] },
   { id: 'first_name', label: 'Primeiro Nome', aliases: ['primeiro nome', 'first name', 'firstname', 'primeiro'] },
   { id: 'last_name', label: 'Sobrenome', aliases: ['sobrenome', 'last name', 'lastname', 'ultimo nome', 'último nome'] },
   { id: 'cpf', label: 'CPF', aliases: ['cpf', 'cpf/cnpf', 'documento'] },
-  { id: 'email', label: 'Email', aliases: ['email', 'e-mail', 'correio', 'email pessoal', 'email (pessoa)', 'email pessoa'] },
-  { id: 'phone', label: 'Telefone', aliases: ['telefone', 'fone', 'tel', 'telefone pessoal', 'telefone (pessoa)', 'telefone pessoa'] },
-  { id: 'whatsapp', label: 'WhatsApp', aliases: ['whatsapp', 'celular', 'cel', 'zap'] },
+  { id: 'email', label: 'Email', aliases: ['email', 'e-mail', 'correio', 'email pessoal', 'email (pessoa)', 'email pessoa', 'pessoa - e-mail - trabalho', 'pessoa - e-mail - outros', 'pessoa - e-mail'] },
+  { id: 'phone', label: 'Telefone', aliases: ['telefone', 'fone', 'tel', 'telefone pessoal', 'telefone (pessoa)', 'telefone pessoa', 'pessoa - telefone - trabalho', 'pessoa - telefone - outros', 'pessoa - telefone - residencial', 'pessoa - telefone'] },
+  { id: 'whatsapp', label: 'WhatsApp', aliases: ['whatsapp', 'celular', 'cel', 'zap', 'pessoa - telefone - celular'] },
   { id: 'job_title', label: 'Cargo', aliases: ['cargo', 'função', 'funcao', 'profissão', 'profissao'] },
   { id: 'notes', label: 'Observações', aliases: ['observações', 'observacoes', 'notas', 'anotações'] },
-  { id: 'label', label: 'Status/Temperatura', aliases: ['status', 'temperatura', 'etiqueta', 'label'] },
+  { id: 'label', label: 'Status/Temperatura', aliases: ['status', 'temperatura', 'etiqueta', 'label', 'pessoa - etiquetas', 'pessoa - label'] },
   { id: 'lead_source', label: 'Origem do Lead', aliases: ['origem', 'origem do lead', 'fonte', 'canal'] },
+  { id: 'person_tags', label: 'Etiquetas da Pessoa', aliases: ['pessoa - etiqueta', 'person tags', 'tags pessoa'] },
 ];
 
 // Organization fields for mapping
 export const ORGANIZATION_FIELDS: ImportColumn[] = [
   { id: 'pipedrive_id', label: 'ID Pipedrive', aliases: [
     'id', 'id da empresa', 'organization id', 'pipedrive id',
-    'id pipedrive', 'id (empresa)', 'org id', 'id organização', 'id organizacao'
+    'id pipedrive', 'id (empresa)', 'org id', 'id organização', 'id organizacao',
+    'organização - id', 'organizacao - id'
   ]},
   { id: 'org_name', label: 'Nome da Empresa', aliases: [
     'empresa', 'razão social', 'razao social', 'organização', 'organizacao', 'nome da empresa',
-    'organization', 'organization name', 'company', 'company name', 'nome (empresa)', 'nome empresa'
+    'organization', 'organization name', 'company', 'company name', 'nome (empresa)', 'nome empresa',
+    'organização - nome', 'organizacao - nome'
   ]},
   { id: 'cnpj', label: 'CNPJ', aliases: [
     'cnpj', 'cnpj da empresa', 'cnpj empresa',
@@ -59,10 +63,12 @@ export const ORGANIZATION_FIELDS: ImportColumn[] = [
   { id: 'cnae', label: 'CNAE', aliases: ['cnae', 'código cnae', 'codigo cnae'] },
   { id: 'org_phone', label: 'Telefone da Empresa', aliases: ['telefone empresa', 'fone empresa', 'tel empresa', 'telefone (empresa)'] },
   { id: 'org_email', label: 'Email da Empresa', aliases: ['email empresa', 'e-mail empresa', 'email (empresa)'] },
-  { id: 'automotores', label: 'Automotores/Frota', aliases: ['automotores', 'qtd veículos', 'qtd veiculos', 'frota', 'veículos', 'veiculos'] },
+  { id: 'automotores', label: 'Automotores/Frota', aliases: ['automotores', 'qtd veículos', 'qtd veiculos', 'frota', 'veículos', 'veiculos', 'organização - automotores', 'organizacao - automotores'] },
+  { id: 'org_address', label: 'Endereço Completo', aliases: ['organização - endereço', 'organizacao - endereco', 'endereço completo', 'endereco completo'] },
   { id: 'address_city', label: 'Cidade', aliases: ['cidade', 'municipio', 'município', 'city'] },
   { id: 'address_state', label: 'Estado', aliases: ['estado', 'uf', 'state'] },
   { id: 'address_zipcode', label: 'CEP', aliases: ['cep', 'código postal', 'codigo postal', 'zip', 'zipcode'] },
+  { id: 'org_tags', label: 'Etiquetas da Empresa', aliases: ['organização - etiqueta', 'organizacao - etiqueta', 'organization tags', 'tags empresa'] },
 ];
 
 // All fields combined
