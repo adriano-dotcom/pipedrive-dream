@@ -3,95 +3,54 @@
 # Pesquisa de Empresa + Email Ultra-Personalizado
 
 ## Objetivo
-Adicionar um fluxo onde o usuario pode pesquisar informacoes de uma empresa na web (via Perplexity) e usar esses dados junto com o CRM para gerar um email altamente personalizado.
-
-## Pre-requisito: Conectar Perplexity
-O Perplexity ainda nao esta conectado ao projeto. Sera necessario conecta-lo para habilitar buscas na web em tempo real.
-
-## Arquitetura
-
-```text
-[UI: Botao "Pesquisar + Gerar"]
-        |
-        v
-[Edge Function: research-company]
-        |
-        +---> Perplexity API (busca web sobre a empresa)
-        |
-        +---> Lovable AI / Gemini (gera email com contexto enriquecido)
-        |
-        v
-[Retorna: research_summary + subject + body]
-```
+Criar o fluxo completo: pesquisar empresa na web via Perplexity, combinar com dados do CRM, e gerar email ultra-personalizado com Gemini.
 
 ## Alteracoes
 
-### 1. Conectar Perplexity
-- Usar o conector Perplexity para disponibilizar a `PERPLEXITY_API_KEY` nas edge functions
+### 1. Nova Edge Function: `research-company/index.ts`
+- Recebe: `organizationId`, `recipientName`, `emailType`, `customInstructions`
+- **Etapa 1**: Busca dados da organizacao no CRM (nome, CNPJ, cidade, ramo de seguro, seguradoras, deals)
+- **Etapa 2**: Chama Perplexity (`sonar`, `search_recency_filter: month`) com query inteligente sobre a empresa
+- **Etapa 3**: Envia pesquisa + dados CRM para Gemini (`google/gemini-2.5-pro`) gerar email personalizado
+- Retorna: `{ research_summary, citations, subject, body, phase }`
+- Autenticacao via `getClaims()`, `verify_jwt = false`
 
-### 2. Nova Edge Function: `research-company`
-- **Etapa 1 - Pesquisa**: Chama a API do Perplexity (`sonar`) com uma query inteligente sobre a empresa (nome, CNPJ, segmento, noticias recentes, produtos, tamanho)
-- **Etapa 2 - Geracao**: Envia o resultado da pesquisa + dados do CRM (organizacao, pessoas vinculadas, deals) como contexto para o Gemini gerar o email
-- Recebe parametros: `organizationId`, `recipientName`, `emailType`, `customInstructions`
-- Retorna: `{ research_summary, subject, body }`
+### 2. Registrar funcao no `supabase/config.toml`
+- Adicionar `[functions.research-company]` com `verify_jwt = false`
 
-### 3. Novo Hook: `useResearchAndGenerateEmail`
-- Estado: `isResearching`, `isGenerating`, `researchSummary`
+### 3. Novo Hook: `src/hooks/useResearchAndGenerateEmail.ts`
+- Estados: `phase` ("idle" | "researching" | "generating" | "done"), `researchSummary`, `citations`
 - Funcao `researchAndGenerate(params)` que chama a edge function
-- Exibe progresso em 2 etapas (pesquisando... gerando...)
+- Retorna resultado com subject, body, resumo da pesquisa e fontes
 
-### 4. UI - Botao no EmailComposerDialog e OrganizationSidebar
-- Adicionar botao "Pesquisar empresa e gerar email" no `EmailComposerDialog` quando `entityType === 'organization'`
-- Ao clicar:
-  1. Mostra indicador "Pesquisando informacoes da empresa..."
-  2. Depois mostra "Gerando email personalizado..."
-  3. Preenche subject + body
-  4. Mostra um card colapsavel com o resumo da pesquisa para o usuario revisar
-
-### 5. Campo opcional de instrucoes customizadas
-- Textarea para o usuario adicionar contexto extra antes de gerar (ex: "Focar em seguro de frota", "Mencionar a inauguracao da nova filial")
+### 4. Atualizar `EmailComposerDialog.tsx`
+- Quando `entityType === 'organization'`: mostrar secao de pesquisa com IA
+- Textarea opcional para instrucoes customizadas
+- Botao "Pesquisar e personalizar com IA" com icone de globo/lupa
+- Loading em 2 fases visuais: "Pesquisando informacoes..." -> "Gerando email..."
+- Card colapsavel (Collapsible) mostrando o resumo da pesquisa e fontes apos conclusao
+- Preenche automaticamente subject e body
 
 ## Detalhes Tecnicos
 
-### Edge Function `research-company/index.ts`
-
-**Query do Perplexity:**
+### Query do Perplexity
 ```text
-"[Nome da empresa] [CNPJ] Brasil: noticias recentes, 
-produtos e servicos, tamanho da empresa, segmento de atuacao, 
-desafios do setor, expansao recente"
+"[Nome] [CNPJ] Brasil: noticias recentes, produtos e servicos, 
+tamanho da empresa, segmento de atuacao, desafios do setor"
 ```
 
-Parametros da API:
-- model: `sonar`
-- search_recency_filter: `month` (ultimas noticias)
-
-**Prompt para Gemini (geracao do email):**
-O prompt incluira:
-- Dados do CRM: nome da org, CNPJ, cidade, ramo de seguro, seguradoras preferidas, valor estimado de premio
-- Pesquisa web: resumo retornado pelo Perplexity
+### Prompt do Gemini
+Inclui:
+- Dados CRM: nome, CNPJ, cidade, ramos de seguro, seguradoras preferidas, premio estimado
+- Pesquisa web: resumo do Perplexity
 - Instrucoes customizadas do usuario
-- Tipo de email (proposta, follow-up, etc.)
-
-### Modelo para geracao
-- `google/gemini-2.5-pro` para melhor qualidade na personalizacao (contexto grande + raciocinio complexo)
+- Tipo de email (proposta, follow-up, apresentacao, personalizado)
 
 ### Arquivos novos
-- `supabase/functions/research-company/index.ts` - edge function com Perplexity + Gemini
-- `src/hooks/useResearchAndGenerateEmail.ts` - hook frontend
+- `supabase/functions/research-company/index.ts`
+- `src/hooks/useResearchAndGenerateEmail.ts`
 
 ### Arquivos modificados
-- `src/components/email/EmailComposerDialog.tsx` - botao de pesquisa + card de resumo + textarea de instrucoes
-- `supabase/config.toml` - registro da nova funcao
-
-### Fluxo da UI
-
-1. Usuario abre EmailComposerDialog para uma organizacao
-2. Ve botao "Pesquisar e personalizar com IA" (destaque visual)
-3. Opcionalmente escreve instrucoes customizadas no textarea
-4. Clica no botao
-5. Loading em 2 fases: "Pesquisando..." -> "Gerando..."
-6. Email preenchido automaticamente
-7. Card colapsavel mostra o resumo da pesquisa com as fontes
-8. Usuario revisa, edita se quiser, e envia
+- `supabase/config.toml` - registro da funcao
+- `src/components/email/EmailComposerDialog.tsx` - UI de pesquisa + card de resumo
 
