@@ -1,57 +1,44 @@
 
-# Corrigir Clique em Contatos na Tabela de Pessoas
+
+# Padronizar Nomes com Primeira Letra Maiuscula na Importacao
 
 ## Problema
 
-Ao clicar no nome de um contato na tabela de Pessoas, a navegacao nao funciona. O erro "Node is detached from document" indica que o DOM esta sendo recriado antes que o clique complete a navegacao.
-
-## Causa Raiz
-
-Existem dois `useEffect` no `PeopleTable.tsx` (linhas 188-201) que criam um loop de sincronizacao entre `rowSelection` (estado local) e `selectedIds` (prop do componente pai):
-
-1. `rowSelection` muda -> dispara `onSelectionChange` -> pai atualiza `selectedIds`
-2. `selectedIds` muda -> dispara `setRowSelection` -> volta para o passo 1
-
-Esse loop causa re-renderizacoes rapidas que destroem e recriam os elementos DOM da tabela, fazendo com que o link `<Link>` que o usuario clicou seja desconectado do documento antes que a navegacao aconteca.
+Os nomes importados do CSV vem em formatos inconsistentes (tudo maiusculo, tudo minusculo, misturado). Exemplo: "WALTER CARVALHO MARZOLA FARIA" deveria virar "Walter Carvalho Marzola Faria".
 
 ## Solucao
 
-Adicionar comparacoes de valor antes de disparar atualizacoes de estado, quebrando o loop:
-
-- No efeito que sincroniza `rowSelection` -> `selectedIds`: comparar os arrays antes de chamar `onSelectionChange`
-- No efeito que sincroniza `selectedIds` -> `rowSelection`: comparar com o estado atual antes de chamar `setRowSelection`
+Adicionar uma funcao `toTitleCase` em `src/lib/import.ts` e aplica-la aos campos de nome (`name`, `first_name`, `last_name`) durante o processamento da importacao em `src/components/import/ImportDialog.tsx`.
 
 ## Detalhes Tecnicos
 
-### Arquivo: `src/components/people/PeopleTable.tsx`
+### Arquivo: `src/lib/import.ts`
 
-Substituir os dois useEffects (linhas 188-201) por versoes que fazem comparacao de valor:
+Adicionar funcao utilitaria:
 
 ```text
-// Sync row selection -> parent (com comparacao)
-useEffect(() => {
-  const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
-  // Comparar antes de atualizar para evitar loop
-  const currentSorted = [...selectedIds].sort().join(',');
-  const newSorted = [...selectedRowIds].sort().join(',');
-  if (currentSorted !== newSorted) {
-    onSelectionChange?.(selectedRowIds);
-  }
-}, [rowSelection]);
-
-// Sync parent -> row selection (com comparacao)
-useEffect(() => {
-  const currentSelectedIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
-  const currentSorted = [...currentSelectedIds].sort().join(',');
-  const newSorted = [...selectedIds].sort().join(',');
-  if (currentSorted !== newSorted) {
-    const newSelection: RowSelectionState = {};
-    selectedIds.forEach(id => { newSelection[id] = true; });
-    setRowSelection(newSelection);
-  }
-}, [selectedIds]);
+function toTitleCase(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .split(' ')
+    .filter(word => word.length > 0)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 ```
 
-### Nenhum outro arquivo precisa ser alterado
+Particulas como "da", "de", "do", "dos", "das" serao mantidas em minusculo para nomes brasileiros (ex: "Walter da Silva").
 
-A pagina de detalhes (`PersonDetails.tsx`) funciona corretamente - o problema e exclusivamente no loop de re-renderizacao da tabela.
+### Arquivo: `src/components/import/ImportDialog.tsx`
+
+Antes de salvar a pessoa, aplicar `toTitleCase` nos campos de nome:
+
+```text
+mappedData.name = toTitleCase(mappedData.name)
+mappedData.first_name = toTitleCase(mappedData.first_name)
+mappedData.last_name = toTitleCase(mappedData.last_name)
+```
+
+### Tambem aplicar ao nome da organizacao (`org_name`) para manter consistencia.
+
