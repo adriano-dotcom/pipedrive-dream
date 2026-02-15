@@ -206,7 +206,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={cn("border border-input rounded-md bg-background/50 overflow-hidden", className)}>
+    <div className={cn("border border-input rounded-md bg-background text-foreground overflow-hidden", className)}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 p-1.5 border-b border-border/50 bg-muted/30">
         <ToolbarButton

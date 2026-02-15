@@ -302,9 +302,11 @@ export function EmailComposerDialog({
 
             {/* Signature preview */}
             {signature?.signature_html && (
-              <div className="text-sm text-muted-foreground border-t border-border/50 pt-3">
-                <p className="mb-1.5 text-xs font-medium">Assinatura (adicionada automaticamente):</p>
-                <div className="text-xs bg-muted/30 p-2.5 rounded-lg" dangerouslySetInnerHTML={{ __html: sanitizeHtml(signature.signature_html) }} />
+              <div className="text-sm text-foreground border-t border-border pt-3">
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assinatura (adicionada automaticamente):</p>
+                <ScrollArea className="max-h-[130px]">
+                  <div className="text-sm bg-card border border-border p-3 rounded-lg" dangerouslySetInnerHTML={{ __html: sanitizeHtml(signature.signature_html) }} />
+                </ScrollArea>
               </div>
             )}
           </div>
