@@ -1,35 +1,57 @@
 
-
-# Corrigir Erro de Mesclagem: Constraint de Email Unico
+# Corrigir Clique em Contatos na Tabela de Pessoas
 
 ## Problema
 
-Ao mesclar contatos, o sistema tenta atualizar o contato mantido com o email selecionado ANTES de excluir o contato duplicado. Como existe uma constraint `people_email_unique`, o banco rejeita a operacao porque dois registros ficariam com o mesmo email simultaneamente.
+Ao clicar no nome de um contato na tabela de Pessoas, a navegacao nao funciona. O erro "Node is detached from document" indica que o DOM esta sendo recriado antes que o clique complete a navegacao.
+
+## Causa Raiz
+
+Existem dois `useEffect` no `PeopleTable.tsx` (linhas 188-201) que criam um loop de sincronizacao entre `rowSelection` (estado local) e `selectedIds` (prop do componente pai):
+
+1. `rowSelection` muda -> dispara `onSelectionChange` -> pai atualiza `selectedIds`
+2. `selectedIds` muda -> dispara `setRowSelection` -> volta para o passo 1
+
+Esse loop causa re-renderizacoes rapidas que destroem e recriam os elementos DOM da tabela, fazendo com que o link `<Link>` que o usuario clicou seja desconectado do documento antes que a navegacao aconteca.
 
 ## Solucao
 
-Reordenar as operacoes no `useMergeContacts.ts`: **limpar os campos unicos do contato que sera excluido ANTES de atualizar o contato mantido**.
+Adicionar comparacoes de valor antes de disparar atualizacoes de estado, quebrando o loop:
 
-## Mudanca Tecnica
+- No efeito que sincroniza `rowSelection` -> `selectedIds`: comparar os arrays antes de chamar `onSelectionChange`
+- No efeito que sincroniza `selectedIds` -> `rowSelection`: comparar com o estado atual antes de chamar `setRowSelection`
 
-### Arquivo: `src/hooks/useMergeContacts.ts`
+## Detalhes Tecnicos
 
-Apos o backup (linha 109) e antes do update do kept record (linha 113), adicionar uma etapa para limpar email, CPF e pipedrive_id do contato que sera excluido:
+### Arquivo: `src/components/people/PeopleTable.tsx`
+
+Substituir os dois useEffects (linhas 188-201) por versoes que fazem comparacao de valor:
 
 ```text
-// ANTES do update do kept record:
-// Limpar campos unicos do contato que sera excluido para evitar conflitos de constraint
-await supabase
-  .from('people')
-  .update({ email: null, cpf: null, pipedrive_id: null })
-  .eq('id', deletePersonId);
+// Sync row selection -> parent (com comparacao)
+useEffect(() => {
+  const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+  // Comparar antes de atualizar para evitar loop
+  const currentSorted = [...selectedIds].sort().join(',');
+  const newSorted = [...selectedRowIds].sort().join(',');
+  if (currentSorted !== newSorted) {
+    onSelectionChange?.(selectedRowIds);
+  }
+}, [rowSelection]);
 
-// DEPOIS: update do kept record com mergedData (ja funciona sem conflito)
+// Sync parent -> row selection (com comparacao)
+useEffect(() => {
+  const currentSelectedIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+  const currentSorted = [...currentSelectedIds].sort().join(',');
+  const newSorted = [...selectedIds].sort().join(',');
+  if (currentSorted !== newSorted) {
+    const newSelection: RowSelectionState = {};
+    selectedIds.forEach(id => { newSelection[id] = true; });
+    setRowSelection(newSelection);
+  }
+}, [selectedIds]);
 ```
-
-Isso garante que nao haja duplicatas no momento do update, pois o contato a ser excluido ja tera seus campos unicos zerados.
 
 ### Nenhum outro arquivo precisa ser alterado
 
-A logica de backup ja salva os dados originais do contato excluido, entao o undo continuara funcionando normalmente.
-
+A pagina de detalhes (`PersonDetails.tsx`) funciona corretamente - o problema e exclusivamente no loop de re-renderizacao da tabela.
