@@ -185,19 +185,26 @@ export function PeopleTable({
   });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  // Sync row selection with parent component
+  // Sync row selection -> parent (com comparação para evitar loop)
   useEffect(() => {
     const selectedRowIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
-    onSelectionChange?.(selectedRowIds);
-  }, [rowSelection, onSelectionChange]);
+    const currentSorted = [...selectedIds].sort().join(',');
+    const newSorted = [...selectedRowIds].sort().join(',');
+    if (currentSorted !== newSorted) {
+      onSelectionChange?.(selectedRowIds);
+    }
+  }, [rowSelection]);
 
-  // Sync incoming selectedIds with local rowSelection state
+  // Sync parent -> row selection (com comparação para evitar loop)
   useEffect(() => {
-    const newSelection: RowSelectionState = {};
-    selectedIds.forEach(id => {
-      newSelection[id] = true;
-    });
-    setRowSelection(newSelection);
+    const currentSelectedIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+    const currentSorted = [...currentSelectedIds].sort().join(',');
+    const newSorted = [...selectedIds].sort().join(',');
+    if (currentSorted !== newSorted) {
+      const newSelection: RowSelectionState = {};
+      selectedIds.forEach(id => { newSelection[id] = true; });
+      setRowSelection(newSelection);
+    }
   }, [selectedIds]);
   
   // Stable key for queries based on sorted person IDs
