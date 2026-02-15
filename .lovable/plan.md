@@ -1,94 +1,102 @@
 
 
-# Adicionar ID Externo (Pipedrive) nas Organizações
+# Limpeza Completa dos Dados para Teste de Importação
 
 ## Resumo
 
-Adicionar um campo `pipedrive_id` na tabela `organizations` para armazenar o ID original do Pipedrive. Isso permite identificar empresas importadas e evitar duplicatas em importações futuras.
+Apagar todos os registros de todas as tabelas de dados do sistema para começar do zero e testar a importação do Pipedrive.
 
----
+## Dados a Serem Removidos
 
-## O Que Será Feito
+| Tabela | Registros |
+|--------|-----------|
+| whatsapp_messages | 11 |
+| whatsapp_conversations | 4 |
+| whatsapp_conversation_analysis | ? |
+| sent_emails | 1 |
+| deal_tag_assignments | 1 |
+| deal_history | 29 |
+| deal_notes | 2 |
+| deal_files | 0 |
+| activities | 8 |
+| deals | 2 |
+| person_tag_assignments | 1 |
+| people_notes | 1 |
+| people_files | 0 |
+| people_history | 25 |
+| organization_tag_assignments | 1 |
+| organization_notes | 2 |
+| organization_files | 2 |
+| organization_history | 34 |
+| organization_partners | 36 |
+| merge_backups | 0 |
+| notifications | ? |
+| people | 983 |
+| organizations | 841 |
 
-### 1. Migração do Banco de Dados
-- Adicionar coluna `pipedrive_id` (text, nullable, unique) na tabela `organizations`
+## Ordem de Execução
 
-### 2. Atualizar o Sistema de Importação
-- Adicionar campo `pipedrive_id` nos campos de mapeamento (`ORGANIZATION_FIELDS` em `src/lib/import.ts`)
-- Aliases: "id", "id da empresa", "organization id", "pipedrive id", "id pipedrive", "id (empresa)"
-- Na lógica de importação (`ImportDialog.tsx`), usar o `pipedrive_id` como critério adicional para detectar duplicatas (antes de CNPJ e nome)
-
-### 3. Exibir na Interface (Opcional/Leitura)
-- O campo será visível no formulário de organização como campo de leitura, apenas para referência
-
----
-
-## Fluxo de Importação Atualizado
+A limpeza precisa respeitar as dependências entre tabelas (apagar filhos antes dos pais):
 
 ```text
-Para cada linha do CSV:
-  1. Tem pipedrive_id? -> Busca organização por pipedrive_id
-  2. Tem CNPJ?        -> Busca organização por CNPJ
-  3. Tem nome?        -> Busca organização por nome (ilike)
-  4. Nenhum match     -> Cria nova organização
+1. WhatsApp: messages -> conversation_analysis -> conversations
+2. Emails: sent_emails
+3. Deals: deal_tag_assignments -> deal_history -> deal_notes -> deal_files -> deals
+4. Activities: activities
+5. People: person_tag_assignments -> people_notes -> people_files -> people_history -> people
+6. Organizations: organization_tag_assignments -> organization_notes -> organization_files -> organization_history -> organization_partners -> organizations
+7. Outros: merge_backups, notifications
 ```
-
----
 
 ## Detalhes Técnicos
 
-### Migração SQL
+Será executado via ferramenta de inserção/deleção do banco de dados com os seguintes comandos SQL na ordem correta:
 
 ```sql
-ALTER TABLE organizations 
-  ADD COLUMN pipedrive_id text UNIQUE;
+-- WhatsApp
+DELETE FROM whatsapp_messages;
+DELETE FROM whatsapp_conversation_analysis;
+DELETE FROM whatsapp_conversations;
+
+-- Emails
+DELETE FROM sent_emails;
+
+-- Deals
+DELETE FROM deal_tag_assignments;
+DELETE FROM deal_history;
+DELETE FROM deal_notes;
+DELETE FROM deal_files;
+DELETE FROM activities;
+DELETE FROM deals;
+
+-- People
+DELETE FROM person_tag_assignments;
+DELETE FROM people_notes;
+DELETE FROM people_files;
+DELETE FROM people_history;
+
+-- Organizations
+DELETE FROM organization_tag_assignments;
+DELETE FROM organization_notes;
+DELETE FROM organization_files;
+DELETE FROM organization_history;
+DELETE FROM organization_partners;
+
+-- Merge backups
+DELETE FROM merge_backups;
+
+-- Notifications
+DELETE FROM notifications;
+
+-- Main tables (last)
+DELETE FROM people;
+DELETE FROM organizations;
 ```
 
-### Mudanças em `src/lib/import.ts`
+## Importante
 
-Adicionar ao array `ORGANIZATION_FIELDS`:
-
-```typescript
-{ 
-  id: 'pipedrive_id', 
-  label: 'ID Pipedrive', 
-  aliases: [
-    'id', 'id da empresa', 'organization id', 'pipedrive id', 
-    'id pipedrive', 'id (empresa)', 'org id', 'id organização'
-  ] 
-},
-```
-
-### Mudanças em `ImportDialog.tsx`
-
-Na função `performImport`, adicionar verificação por `pipedrive_id` antes de CNPJ/nome:
-
-```typescript
-// Check by pipedrive_id first
-if (mappedData.pipedrive_id) {
-  const { data } = await supabase
-    .from('organizations')
-    .select('id')
-    .eq('pipedrive_id', mappedData.pipedrive_id)
-    .maybeSingle();
-  existingOrg = data;
-}
-```
-
-E ao criar/atualizar organização, incluir o campo `pipedrive_id`.
-
-### Mudanças em `OrganizationForm.tsx`
-
-Exibir o campo `pipedrive_id` como leitura (se preenchido) no formulário de edição.
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Mudança |
-|---------|---------|
-| Migração SQL | Adicionar coluna `pipedrive_id` |
-| `src/lib/import.ts` | Adicionar campo no mapeamento |
-| `src/components/import/ImportDialog.tsx` | Usar `pipedrive_id` na detecção de duplicatas |
-| `src/components/organizations/OrganizationForm.tsx` | Exibir campo de leitura |
-
+- Esta acao e **irreversivel** - todos os dados serao apagados permanentemente
+- Tags (person_tags, organization_tags, deal_tags) serao **mantidas** (apenas as atribuicoes serao removidas)
+- Pipelines e stages serao **mantidos**
+- Perfis de usuarios e roles serao **mantidos**
+- Canais de WhatsApp serao **mantidos**
