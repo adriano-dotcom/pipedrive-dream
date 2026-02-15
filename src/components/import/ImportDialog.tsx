@@ -69,7 +69,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
     queryFn: async () => {
       const { data } = await supabase
         .from('people')
-        .select('id, email, cpf');
+        .select('id, email, cpf, pipedrive_id');
       return data || [];
     },
     enabled: open && step >= 3,
@@ -221,6 +221,33 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
     );
   }, []);
 
+  // Helper: find or create a tag
+  const findOrCreateTag = async (
+    tagName: string,
+    table: 'person_tags' | 'organization_tags',
+    userId: string
+  ): Promise<string> => {
+    const trimmed = tagName.trim();
+    if (!trimmed) throw new Error('Tag name empty');
+
+    const { data: existing } = await supabase
+      .from(table)
+      .select('id')
+      .ilike('name', trimmed)
+      .maybeSingle();
+
+    if (existing) return existing.id;
+
+    const { data: created, error } = await supabase
+      .from(table)
+      .insert({ name: trimmed, created_by: userId })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    return created.id;
+  };
+
   // Perform import
   const performImport = async () => {
     if (!user) return;
@@ -231,13 +258,30 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
     setImportResults([]);
 
     const results: ImportResult[] = [];
-    const orgCache = new Map<string, string>(); // CNPJ/name -> org ID
+    const orgCache = new Map<string, string>(); // key -> org ID
+    const tagCache = new Map<string, string>(); // "table:name" -> tag ID
+
+    // Helper to get or create tag with cache
+    const getCachedTag = async (tagName: string, table: 'person_tags' | 'organization_tags') => {
+      const cacheKey = `${table}:${tagName.trim().toLowerCase()}`;
+      if (tagCache.has(cacheKey)) return tagCache.get(cacheKey)!;
+      const tagId = await findOrCreateTag(tagName, table, user.id);
+      tagCache.set(cacheKey, tagId);
+      return tagId;
+    };
 
     for (let i = 0; i < selectedRows.length; i++) {
       const row = selectedRows[i];
       const { mappedData } = row;
 
       try {
+        // Parse org_address if present and city/state not already set
+        if (mappedData.org_address && !mappedData.address_city) {
+          const parts = mappedData.org_address.split(',').map(p => p.trim());
+          if (parts[0]) mappedData.address_city = parts[0];
+          if (parts[1]) mappedData.address_state = parts[1];
+        }
+
         let organizationId: string | null = null;
 
         // Handle organization if present
@@ -345,6 +389,30 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
               orgCache.set(cacheKey, organizationId);
             }
           }
+
+          // Handle org tags
+          if (organizationId && mappedData.org_tags) {
+            const tagNames = mappedData.org_tags.split(',').map(t => t.trim()).filter(Boolean);
+            for (const tagName of tagNames) {
+              try {
+                const tagId = await getCachedTag(tagName, 'organization_tags');
+                // Check if assignment already exists
+                const { data: existingAssignment } = await supabase
+                  .from('organization_tag_assignments')
+                  .select('id')
+                  .eq('organization_id', organizationId)
+                  .eq('tag_id', tagId)
+                  .maybeSingle();
+                if (!existingAssignment) {
+                  await supabase
+                    .from('organization_tag_assignments')
+                    .insert({ organization_id: organizationId, tag_id: tagId });
+                }
+              } catch (e) {
+                console.warn('Error assigning org tag:', tagName, e);
+              }
+            }
+          }
         }
 
         // Handle person - combine first_name + last_name if name is not present
@@ -362,11 +430,21 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
 
         const emailLower = mappedData.email?.toLowerCase();
         const cpfClean = mappedData.cpf?.replace(/\D/g, '');
+        const personPipedriveId = mappedData.person_pipedrive_id;
 
-        // Check if person exists
+        // Check if person exists - priority: pipedrive_id > email > cpf
         let existingPerson = null;
+
+        if (personPipedriveId) {
+          const { data } = await supabase
+            .from('people')
+            .select('id')
+            .eq('pipedrive_id', personPipedriveId)
+            .maybeSingle();
+          existingPerson = data;
+        }
         
-        if (emailLower) {
+        if (!existingPerson && emailLower) {
           const { data } = await supabase
             .from('people')
             .select('id')
@@ -384,7 +462,10 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           existingPerson = data;
         }
 
+        let personId: string;
+
         if (existingPerson) {
+          personId = existingPerson.id;
           // Update existing person
           const updateData: any = {
             name: personName,
@@ -398,6 +479,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           if (mappedData.notes) updateData.notes = mappedData.notes;
           if (mappedData.label) updateData.label = mappedData.label;
           if (mappedData.lead_source) updateData.lead_source = mappedData.lead_source;
+          if (personPipedriveId) updateData.pipedrive_id = personPipedriveId;
 
           const { error: updateError } = await supabase
             .from('people')
@@ -414,7 +496,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           });
         } else {
           // Create new person
-          const { error: insertError } = await supabase
+          const { data: insertedPerson, error: insertError } = await supabase
             .from('people')
             .insert({
               name: personName,
@@ -426,12 +508,16 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
               notes: mappedData.notes || null,
               label: mappedData.label || null,
               lead_source: mappedData.lead_source || null,
+              pipedrive_id: personPipedriveId || null,
               organization_id: organizationId,
               created_by: user.id,
               owner_id: user.id,
-            });
+            })
+            .select('id')
+            .single();
 
           if (insertError) throw insertError;
+          personId = insertedPerson.id;
 
           results.push({
             success: true,
@@ -439,6 +525,29 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
             type: 'person',
             action: 'created',
           });
+        }
+
+        // Handle person tags
+        if (personId && mappedData.person_tags) {
+          const tagNames = mappedData.person_tags.split(',').map(t => t.trim()).filter(Boolean);
+          for (const tagName of tagNames) {
+            try {
+              const tagId = await getCachedTag(tagName, 'person_tags');
+              const { data: existingAssignment } = await supabase
+                .from('person_tag_assignments')
+                .select('id')
+                .eq('person_id', personId)
+                .eq('tag_id', tagId)
+                .maybeSingle();
+              if (!existingAssignment) {
+                await supabase
+                  .from('person_tag_assignments')
+                  .insert({ person_id: personId, tag_id: tagId });
+              }
+            } catch (e) {
+              console.warn('Error assigning person tag:', tagName, e);
+            }
+          }
         }
       } catch (error) {
         results.push({
@@ -459,6 +568,10 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
     queryClient.invalidateQueries({ queryKey: ['people'] });
     queryClient.invalidateQueries({ queryKey: ['organizations'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['person-tags'] });
+    queryClient.invalidateQueries({ queryKey: ['organization-tags'] });
+    queryClient.invalidateQueries({ queryKey: ['person-tag-assignments'] });
+    queryClient.invalidateQueries({ queryKey: ['organization-tag-assignments'] });
 
     const successCount = results.filter(r => r.success).length;
     if (successCount > 0) {

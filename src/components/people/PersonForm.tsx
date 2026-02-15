@@ -427,6 +427,12 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
             <Input id="name" {...register('name')} placeholder="João da Silva" />
             {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
           </div>
+          {person?.pipedrive_id && (
+            <div className="space-y-2">
+              <Label htmlFor="pipedrive_id">ID Pipedrive</Label>
+              <Input id="pipedrive_id" value={person.pipedrive_id} disabled className="bg-muted" />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="cpf">CPF</Label>
             <CpfInput

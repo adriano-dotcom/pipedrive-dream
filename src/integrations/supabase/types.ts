@@ -958,6 +958,7 @@ export type Database = {
           owner_id: string | null
           partner_id: string | null
           phone: string | null
+          pipedrive_id: string | null
           updated_at: string
           utm_campaign: string | null
           utm_medium: string | null
@@ -979,6 +980,7 @@ export type Database = {
           owner_id?: string | null
           partner_id?: string | null
           phone?: string | null
+          pipedrive_id?: string | null
           updated_at?: string
           utm_campaign?: string | null
           utm_medium?: string | null
@@ -1000,6 +1002,7 @@ export type Database = {
           owner_id?: string | null
           partner_id?: string | null
           phone?: string | null
+          pipedrive_id?: string | null
           updated_at?: string
           utm_campaign?: string | null
           utm_medium?: string | null
