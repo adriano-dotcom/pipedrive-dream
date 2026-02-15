@@ -426,6 +426,17 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
             )}
             {errors.cnpj && <p className="text-sm text-destructive">{errors.cnpj.message}</p>}
           </div>
+          {organization?.pipedrive_id && (
+            <div className="space-y-2">
+              <Label htmlFor="pipedrive_id">ID Pipedrive</Label>
+              <Input
+                id="pipedrive_id"
+                value={organization.pipedrive_id}
+                disabled
+                className="bg-muted"
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="cnae">CNAE</Label>
             <Input id="cnae" {...register('cnae')} placeholder="4929-9/01" />

@@ -821,6 +821,7 @@ export type Database = {
           notes: string | null
           owner_id: string | null
           phone: string | null
+          pipedrive_id: string | null
           policy_renewal_month: number | null
           preferred_insurers: string[] | null
           primary_contact_id: string | null
@@ -869,6 +870,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          pipedrive_id?: string | null
           policy_renewal_month?: number | null
           preferred_insurers?: string[] | null
           primary_contact_id?: string | null
@@ -917,6 +919,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          pipedrive_id?: string | null
           policy_renewal_month?: number | null
           preferred_insurers?: string[] | null
           primary_contact_id?: string | null
