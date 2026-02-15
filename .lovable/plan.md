@@ -1,52 +1,48 @@
 
+# Melhorar Contraste e Rolagem no Compositor de Email
 
-# Corrigir Busca Global para CNPJ/CPF Formatados
+## Problemas na Screenshot
+1. O texto do email no editor rico tem baixo contraste (texto claro sobre fundo escuro)
+2. A area de assinatura tambem tem contraste fraco (`bg-muted/30` com texto `text-muted-foreground`)
+3. Nao ha barra de rolagem visivel na area do email para facilitar navegacao em textos longos
 
-## Problema
-O usuario digitou `19.593.585/0001-29` (CNPJ formatado) na busca global, mas o banco armazena como `19593585000129` (somente digitos). O `ilike` nao encontra porque os caracteres `.` `/` `-` nao existem no valor armazenado.
+## Alteracoes
 
-O mesmo problema ocorre com CPF (ex: `123.456.789-00` vs `12345678900`) e telefones formatados.
+### Arquivo: `src/components/email/EmailComposerDialog.tsx`
 
-## Solucao
+**1. Assinatura - melhorar contraste e adicionar scroll:**
+- Trocar `bg-muted/30` por `bg-card border border-border` para melhor contraste
+- Trocar `text-muted-foreground` por `text-foreground` no container
+- Envolver o conteudo da assinatura em `ScrollArea` com `max-h-[120px]` para assinaturas longas
+- Trocar `text-xs` do conteudo por `text-sm` para melhor legibilidade
 
-### Modificar `src/components/layout/GlobalSearch.tsx`
+**2. Editor de mensagem - melhorar contraste:**
+- Adicionar classe ao container do `RichTextEditor` para garantir texto com contraste adequado (`text-foreground`)
 
-Criar uma versao "limpa" (somente digitos) da query para usar nos campos numericos (CNPJ, CPF, telefone), mantendo a query original para campos textuais (nome, email, titulo).
+### Arquivo: `src/components/ui/rich-text-editor.tsx` (se necessario)
+- Verificar se o editor ja aplica `text-foreground` ou se precisa de ajuste no CSS do `.ProseMirror`
 
-**Logica:**
+### Detalhes Tecnicos
 
+Linha 304-308 atual:
 ```text
-const query = `%${searchQuery}%`;
-const digitsOnly = searchQuery.replace(/\D/g, '');
-const cleanQuery = digitsOnly.length >= 3 ? `%${digitsOnly}%` : null;
+<div className="text-sm text-muted-foreground border-t border-border/50 pt-3">
+  <p className="mb-1.5 text-xs font-medium">Assinatura (adicionada automaticamente):</p>
+  <div className="text-xs bg-muted/30 p-2.5 rounded-lg" dangerouslySetInnerHTML=.../>
+</div>
 ```
 
-**Queries ajustadas:**
-
-1. **Organizacoes** - Usar `cleanQuery` para CNPJ e telefone quando disponivel:
-   - Se `cleanQuery` existir: `.or(name.ilike.${query},cnpj.ilike.${cleanQuery},email.ilike.${query},phone.ilike.${cleanQuery})`
-   - Se nao: manter query original
-
-2. **Pessoas** - Usar `cleanQuery` para CPF e telefone:
-   - Se `cleanQuery` existir: `.or(name.ilike.${query},email.ilike.${query},phone.ilike.${cleanQuery},cpf.ilike.${cleanQuery})`
-
-3. **Demais entidades** - sem alteracao (nao possuem campos numericos formatados)
-
-**Implementacao simplificada:** Construir o filtro `or` dinamicamente baseado na presenca de `cleanQuery`:
-
+Sera alterado para:
 ```text
-// Para organizacoes
-const orgFilter = cleanQuery
-  ? `name.ilike.${query},cnpj.ilike.${cleanQuery},email.ilike.${query},phone.ilike.${cleanQuery}`
-  : `name.ilike.${query},cnpj.ilike.${query},email.ilike.${query},phone.ilike.${query}`;
+<div className="text-sm text-foreground border-t border-border pt-3">
+  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Assinatura (adicionada automaticamente):</p>
+  <ScrollArea className="max-h-[130px]">
+    <div className="text-sm bg-card border border-border p-3 rounded-lg" dangerouslySetInnerHTML=.../>
+  </ScrollArea>
+</div>
 ```
 
-### Arquivo modificado
-- `src/components/layout/GlobalSearch.tsx` (apenas a funcao `queryFn` dentro do `useQuery`)
-
-### Impacto
-- Busca por CNPJ formatado (`19.593.585/0001-29`) vai encontrar `19593585000129`
-- Busca por CPF formatado (`123.456.789-00`) vai encontrar `12345678900`
-- Busca por telefone com espacos/tracos tambem funcionara
-- Busca por nome e email continua usando a query original (sem alteracao)
-
+### Resumo
+- Melhor contraste no texto da assinatura e do email
+- Barra de rolagem na assinatura para textos longos
+- O ScrollArea principal do dialog ja existe e cobre o conteudo todo incluindo o editor
