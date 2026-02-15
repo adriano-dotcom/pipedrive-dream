@@ -381,6 +381,7 @@ export default function PersonDetails() {
                 personId={id || ''}
                 personName={person?.name || ''}
                 recipientEmail={person?.email || ''}
+                organizationId={person?.organization_id || undefined}
               />
             </TabsContent>
 

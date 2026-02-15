@@ -17,6 +17,7 @@ interface EmailButtonProps {
   recipientName?: string;
   variant?: 'icon' | 'default';
   size?: 'default' | 'sm' | 'icon';
+  organizationId?: string;
 }
 
 export function EmailButton({
@@ -27,6 +28,7 @@ export function EmailButton({
   recipientName,
   variant = 'icon',
   size = 'icon',
+  organizationId,
 }: EmailButtonProps) {
   const [composerOpen, setComposerOpen] = useState(false);
 
@@ -65,6 +67,7 @@ export function EmailButton({
         entityName={entityName}
         recipientEmail={recipientEmail}
         recipientName={recipientName}
+        organizationId={organizationId}
       />
     </>
   );
