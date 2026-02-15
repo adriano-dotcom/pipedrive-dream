@@ -1,102 +1,99 @@
 
 
-# Limpeza Completa dos Dados para Teste de Importação
+# Atualizar Importacao para CSV do Pipedrive
 
 ## Resumo
 
-Apagar todos os registros de todas as tabelas de dados do sistema para começar do zero e testar a importação do Pipedrive.
+Ajustar o sistema de importacao para reconhecer automaticamente todos os cabecalhos do formato de exportacao do Pipedrive e adicionar funcionalidades que faltam.
 
-## Dados a Serem Removidos
+## Mudancas Necessarias
 
-| Tabela | Registros |
-|--------|-----------|
-| whatsapp_messages | 11 |
-| whatsapp_conversations | 4 |
-| whatsapp_conversation_analysis | ? |
-| sent_emails | 1 |
-| deal_tag_assignments | 1 |
-| deal_history | 29 |
-| deal_notes | 2 |
-| deal_files | 0 |
-| activities | 8 |
-| deals | 2 |
-| person_tag_assignments | 1 |
-| people_notes | 1 |
-| people_files | 0 |
-| people_history | 25 |
-| organization_tag_assignments | 1 |
-| organization_notes | 2 |
-| organization_files | 2 |
-| organization_history | 34 |
-| organization_partners | 36 |
-| merge_backups | 0 |
-| notifications | ? |
-| people | 983 |
-| organizations | 841 |
+### 1. Novos aliases nos campos existentes (src/lib/import.ts)
 
-## Ordem de Execução
+Adicionar aliases para que o auto-detect funcione com os cabecalhos do Pipedrive:
 
-A limpeza precisa respeitar as dependências entre tabelas (apagar filhos antes dos pais):
+**Pessoa:**
+- `name`: adicionar `"pessoa - nome"`
+- `email`: adicionar `"pessoa - e-mail - trabalho"`, `"pessoa - e-mail - outros"`, `"pessoa - e-mail"`
+- `phone`: adicionar `"pessoa - telefone - trabalho"`, `"pessoa - telefone - outros"`, `"pessoa - telefone - residencial"`, `"pessoa - telefone"`
+- `whatsapp`: adicionar `"pessoa - telefone - celular"`
+- `label`: adicionar `"pessoa - etiquetas"`, `"pessoa - label"`
 
-```text
-1. WhatsApp: messages -> conversation_analysis -> conversations
-2. Emails: sent_emails
-3. Deals: deal_tag_assignments -> deal_history -> deal_notes -> deal_files -> deals
-4. Activities: activities
-5. People: person_tag_assignments -> people_notes -> people_files -> people_history -> people
-6. Organizations: organization_tag_assignments -> organization_notes -> organization_files -> organization_history -> organization_partners -> organizations
-7. Outros: merge_backups, notifications
-```
+**Empresa:**
+- `pipedrive_id`: adicionar `"organização - id"`, `"organizacao - id"`
+- `org_name`: adicionar `"organização - nome"`, `"organizacao - nome"`
+- `automotores`: adicionar `"organização - automotores"`, `"organizacao - automotores"`
+- `address`: adicionar `"organização - endereço"`, `"organizacao - endereco"` (novo campo)
 
-## Detalhes Técnicos
+### 2. Novo campo: person_pipedrive_id (pessoa)
 
-Será executado via ferramenta de inserção/deleção do banco de dados com os seguintes comandos SQL na ordem correta:
+Adicionar campo `person_pipedrive_id` no PERSON_FIELDS para mapear `Pessoa - ID`:
+- aliases: `"pessoa - id"`, `"person id"`, `"id da pessoa"`
 
+### 3. Novo campo: org_address (endereco completo)
+
+Adicionar campo `org_address` no ORGANIZATION_FIELDS para capturar o endereco no formato "Cidade,Estado,Pais" e fazer o parsing automatico para `address_city` e `address_state`.
+
+### 4. Logica de parsing de endereco (ImportDialog.tsx)
+
+No `performImport`, ao encontrar o campo `org_address`, fazer split por virgula e preencher:
+- Primeiro item -> `address_city`
+- Segundo item -> `address_state`
+- Ignorar terceiro (pais)
+
+### 5. Suporte a tags na importacao (Pessoa e Organizacao)
+
+Adicionar campo `person_tags` e `org_tags` no mapeamento. No `performImport`:
+- Fazer split das tags por virgula
+- Para cada tag, verificar se ja existe na tabela `person_tags` / `organization_tags`
+- Criar se nao existir
+- Criar o `person_tag_assignments` / `organization_tag_assignments`
+
+### 6. Migracao: campo pipedrive_id na tabela people
+
+Adicionar coluna `pipedrive_id` (text, nullable) na tabela `people` para armazenar o ID da pessoa no Pipedrive, utilizado para deduplicacao.
+
+## Detalhes Tecnicos
+
+### Arquivos a editar:
+- `src/lib/import.ts` - Novos aliases e novos campos
+- `src/components/import/ImportDialog.tsx` - Logica de parsing de endereco, tags e person pipedrive_id
+- `src/components/import/ImportStepMapping.tsx` - Nenhuma mudanca (usa campos de import.ts)
+- `src/components/people/PersonForm.tsx` - Exibir pipedrive_id (leitura)
+- Nova migracao SQL para `people.pipedrive_id`
+
+### Migracao SQL:
 ```sql
--- WhatsApp
-DELETE FROM whatsapp_messages;
-DELETE FROM whatsapp_conversation_analysis;
-DELETE FROM whatsapp_conversations;
-
--- Emails
-DELETE FROM sent_emails;
-
--- Deals
-DELETE FROM deal_tag_assignments;
-DELETE FROM deal_history;
-DELETE FROM deal_notes;
-DELETE FROM deal_files;
-DELETE FROM activities;
-DELETE FROM deals;
-
--- People
-DELETE FROM person_tag_assignments;
-DELETE FROM people_notes;
-DELETE FROM people_files;
-DELETE FROM people_history;
-
--- Organizations
-DELETE FROM organization_tag_assignments;
-DELETE FROM organization_notes;
-DELETE FROM organization_files;
-DELETE FROM organization_history;
-DELETE FROM organization_partners;
-
--- Merge backups
-DELETE FROM merge_backups;
-
--- Notifications
-DELETE FROM notifications;
-
--- Main tables (last)
-DELETE FROM people;
-DELETE FROM organizations;
+ALTER TABLE public.people ADD COLUMN pipedrive_id text;
 ```
 
-## Importante
+### Fluxo de deduplicacao de pessoa atualizado:
+```text
+1. Verificar por pipedrive_id (pessoa)
+2. Verificar por email
+3. Verificar por CPF
+4. Se nao encontrou -> criar nova pessoa
+```
 
-- Esta acao e **irreversivel** - todos os dados serao apagados permanentemente
-- Tags (person_tags, organization_tags, deal_tags) serao **mantidas** (apenas as atribuicoes serao removidas)
-- Pipelines e stages serao **mantidos**
-- Perfis de usuarios e roles serao **mantidos**
-- Canais de WhatsApp serao **mantidos**
+### Parsing de endereco:
+```text
+"Foz Do Iguacu,Parana,Brasil"
+  -> address_city = "Foz Do Iguacu"
+  -> address_state = "Parana"
+```
+
+### Parsing de tags:
+```text
+"EMAIL PENDENTE, Prospeccao Lovable IA"
+  -> ["EMAIL PENDENTE", "Prospeccao Lovable IA"]
+  -> Para cada: find_or_create na tabela de tags
+  -> Criar assignment
+```
+
+## Ordem de implementacao
+
+1. Migracao SQL (people.pipedrive_id)
+2. Atualizar aliases e campos em import.ts
+3. Atualizar logica de importacao no ImportDialog.tsx (endereco, tags, person pipedrive_id)
+4. Exibir pipedrive_id no formulario de pessoa
+
