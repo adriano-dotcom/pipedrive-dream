@@ -110,7 +110,15 @@ export function useMergeContacts() {
 
       // ========== PROCEED WITH MERGE ==========
 
-      // 5. Update the kept record with merged data
+      // 5a. Clear unique fields from deleted person to avoid constraint conflicts
+      const { error: clearUniqueError } = await supabase
+        .from('people')
+        .update({ email: null, cpf: null, pipedrive_id: null })
+        .eq('id', deletePersonId);
+
+      if (clearUniqueError) throw clearUniqueError;
+
+      // 5b. Update the kept record with merged data
       const { error: updateError } = await supabase
         .from('people')
         .update(mergedData)
