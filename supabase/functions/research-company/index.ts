@@ -36,6 +36,16 @@ serve(async (req) => {
       });
     }
 
+    // Buscar perfil do usuario autenticado
+    const userId = claimsData.claims.sub;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, phone")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const senderName = profile?.full_name || "Corretor";
+
     const { organizationId, recipientName, emailType, customInstructions, personId } = await req.json();
 
     if (!organizationId) {
@@ -151,9 +161,13 @@ ${deals && deals.length > 0 ? `\nNEGÓCIOS RECENTES:\n${deals.map((d) => `- ${d.
 ${personData ? `\nDADOS DO CONTATO DESTINATÁRIO:\n- Nome: ${personData.name}\n- Cargo: ${personData.job_title || "N/A"}\n- Email: ${personData.email || "N/A"}\n- Telefone: ${personData.phone || "N/A"}` : ""}
 `.trim();
 
-    const geminiPrompt = `Você é um corretor de seguros brasileiro experiente e profissional. Gere um email ${emailTypeLabels[emailType] || "personalizado"} para ${recipientName || "o responsável"} da empresa ${org.name}.
+    const geminiPrompt = `Você é ${senderName}, um corretor de seguros brasileiro experiente e profissional. Gere um email ${emailTypeLabels[emailType] || "personalizado"} para ${recipientName || "o responsável"} da empresa ${org.name}.
 
 ${crmContext}
+
+DADOS DO CORRETOR:
+- Nome: ${senderName}
+- Telefone: ${profile?.phone || "N/A"}
 
 PESQUISA WEB RECENTE SOBRE A EMPRESA:
 ${researchSummary}
@@ -162,6 +176,9 @@ ${customInstructions ? `INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${customInstructio
 
 REGRAS:
 - Escreva em português brasileiro formal mas amigável
+- Seu nome como corretor é: ${senderName}. Use este nome ao se apresentar e assinar.
+- NÃO invente nomes de corretor ou empresa de corretagem
+- NÃO inclua assinatura no final do email (ela será adicionada automaticamente pelo sistema)
 - Use informações da pesquisa web para personalizar o email de forma natural (cite fatos específicos encontrados)
 - Não invente informações que não estão nos dados fornecidos
 - O email deve ser conciso e direto (máximo 3-4 parágrafos)
