@@ -5,7 +5,14 @@ import { toast } from 'sonner';
 interface CreateCampaignParams {
   subject: string;
   body: string;
-  recipients: { person_id: string; email: string; name: string }[];
+  recipients: {
+    person_id: string;
+    email: string;
+    name: string;
+    organization_name?: string | null;
+    organization_city?: string | null;
+    job_title?: string | null;
+  }[];
   rateLimit?: number;
   scheduledAt?: string | null;
 }
@@ -53,6 +60,9 @@ export function useBulkEmail() {
         person_id: r.person_id,
         email: r.email,
         name: r.name,
+        organization_name: r.organization_name || null,
+        organization_city: r.organization_city || null,
+        job_title: r.job_title || null,
         status: 'pending',
       }));
 
