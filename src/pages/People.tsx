@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Users, Loader2, Sparkles, GitMerge } from 'lucide-react';
+import { Plus, Search, Users, Loader2, Sparkles, GitMerge, Mail } from 'lucide-react';
 import { ImportButton } from '@/components/import/ImportButton';
 import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
@@ -22,6 +22,8 @@ import { usePersonTags } from '@/hooks/usePersonTags';
 import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
 import { PeopleFilters, PeopleFiltersState, defaultPeopleFilters } from '@/components/people/PeopleFilters';
 import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
+import { BulkEmailComposerDialog } from '@/components/email/BulkEmailComposerDialog';
+import { BulkEmailCampaignsList } from '@/components/email/BulkEmailCampaignsList';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -57,6 +59,8 @@ export default function People() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  const [campaignsOpen, setCampaignsOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('people-tag-filter');
     return saved ? JSON.parse(saved) : [];
@@ -323,6 +327,10 @@ export default function People() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setCampaignsOpen(true)} className="gap-2">
+            <Mail className="h-4 w-4" />
+            Campanhas
+          </Button>
           <ImportButton defaultType="people" />
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -413,6 +421,7 @@ export default function People() {
           onSelectionChange={setSelectedIds}
           onBulkDelete={() => setBulkDeleteOpen(true)}
           onMerge={() => setMergeDialogOpen(true)}
+          onBulkEmail={() => setBulkEmailOpen(true)}
           // Server-side pagination props
           totalCount={totalCount}
           pageCount={pageCount}
@@ -456,6 +465,25 @@ export default function People() {
         itemCount={selectedIds.length}
         onConfirm={() => bulkDeleteMutation.mutate(selectedIds)}
         isDeleting={bulkDeleteMutation.isPending}
+      />
+
+      {/* Bulk Email Dialog */}
+      <BulkEmailComposerDialog
+        open={bulkEmailOpen}
+        onOpenChange={setBulkEmailOpen}
+        recipients={people.filter(p => selectedIds.includes(p.id)).map(p => ({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          email_status: (p as any).email_status,
+        }))}
+        onSuccess={() => setSelectedIds([])}
+      />
+
+      {/* Campaigns List */}
+      <BulkEmailCampaignsList
+        open={campaignsOpen}
+        onOpenChange={setCampaignsOpen}
       />
     </div>
   );

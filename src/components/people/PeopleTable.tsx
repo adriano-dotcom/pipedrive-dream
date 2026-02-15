@@ -39,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2, User } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2, User, Send } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
@@ -88,6 +88,7 @@ interface PeopleTableProps {
   onSelectionChange?: (ids: string[]) => void;
   onBulkDelete?: () => void;
   onMerge?: () => void;
+  onBulkEmail?: () => void;
   // Server-side pagination props
   totalCount?: number;
   pageCount?: number;
@@ -160,6 +161,7 @@ export function PeopleTable({
   onSelectionChange, 
   onBulkDelete, 
   onMerge,
+  onBulkEmail,
   // Server-side pagination props
   totalCount = 0,
   pageCount = 1,
@@ -660,6 +662,15 @@ export function PeopleTable({
               <span className="text-sm text-muted-foreground">
                 {selectedIds.length} selecionada(s)
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkEmail}
+                className="h-8"
+              >
+                <Send className="h-4 w-4 mr-1.5" />
+                E-mail em Massa
+              </Button>
               {selectedIds.length === 2 && (
                 <Button
                   variant="outline"

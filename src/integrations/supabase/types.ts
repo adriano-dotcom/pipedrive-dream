@@ -105,6 +105,114 @@ export type Database = {
           },
         ]
       }
+      bulk_email_campaigns: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string
+          daily_limit: number | null
+          failed_count: number
+          id: string
+          opened_count: number
+          rate_limit: number
+          scheduled_at: string | null
+          sent_count: number
+          status: string
+          subject: string
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by: string
+          daily_limit?: number | null
+          failed_count?: number
+          id?: string
+          opened_count?: number
+          rate_limit?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: string
+          subject: string
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string
+          daily_limit?: number | null
+          failed_count?: number
+          id?: string
+          opened_count?: number
+          rate_limit?: number
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: string
+          subject?: string
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bulk_email_recipients: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          email: string
+          error_message: string | null
+          id: string
+          name: string | null
+          opened_at: string | null
+          person_id: string | null
+          sent_at: string | null
+          status: string
+          tracking_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          email: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          opened_at?: string | null
+          person_id?: string | null
+          sent_at?: string | null
+          status?: string
+          tracking_id?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          name?: string | null
+          opened_at?: string | null
+          person_id?: string | null
+          sent_at?: string | null
+          status?: string
+          tracking_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_email_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_email_recipients_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deal_files: {
         Row: {
           created_at: string | null
@@ -948,6 +1056,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           email: string | null
+          email_status: string
           id: string
           job_title: string | null
           label: string | null
@@ -970,6 +1079,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email?: string | null
+          email_status?: string
           id?: string
           job_title?: string | null
           label?: string | null
@@ -992,6 +1102,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email?: string | null
+          email_status?: string
           id?: string
           job_title?: string | null
           label?: string | null
