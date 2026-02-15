@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Send, FileText, Loader2, Globe, Search, ChevronDown, ExternalLink } from 'lucide-react';
+import { Sparkles, Send, FileText, Loader2, Globe, Search, ChevronDown, ExternalLink, Mail } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize';
 import {
   Dialog,
@@ -24,6 +24,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useSentEmails } from '@/hooks/useSentEmails';
@@ -145,160 +146,170 @@ export function EmailComposerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+        {/* Header */}
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-primary" />
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <Mail className="h-4 w-4 text-primary" />
+            </div>
             Novo E-mail
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* From field */}
-          <div className="space-y-2">
-            <Label>De</Label>
-            <Input value={user?.email || ''} disabled className="bg-muted" />
-          </div>
-
-          {/* To field */}
-          <div className="space-y-2">
-            <Label>Para</Label>
-            <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="email@exemplo.com" type="email" />
-          </div>
-
-          {/* Quick actions row */}
-          <div className="flex flex-wrap gap-2">
-            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-              <SelectTrigger className="w-[200px]">
-                <FileText className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Usar modelo" />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.length === 0 ? (
-                  <SelectItem value="none" disabled>Nenhum modelo salvo</SelectItem>
-                ) : (
-                  templates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-
-            <Select value={emailType} onValueChange={(v) => setEmailType(v as typeof emailType)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="proposal">Proposta</SelectItem>
-                <SelectItem value="followup">Follow-up</SelectItem>
-                <SelectItem value="introduction">Apresentação</SelectItem>
-                <SelectItem value="custom">Personalizado</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button variant="outline" onClick={handleGenerateEmail} disabled={isGenerating || isResearching} className="gap-2">
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Escreva meu email
-            </Button>
-          </div>
-
-          {/* Research section - only for organizations */}
-          {entityType === 'organization' && (
-            <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-primary" />
-                <Label className="font-medium text-primary">Pesquisa inteligente com IA</Label>
-                <Badge variant="outline" className="text-xs border-primary/30 text-primary">Beta</Badge>
+        {/* Scrollable content */}
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-6 py-4 space-y-4">
+            {/* From / To compact grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">De</Label>
+                <Input value={user?.email || ''} disabled className="bg-muted/50 h-9 text-sm" />
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Para</Label>
+                <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="email@exemplo.com" type="email" className="h-9 text-sm" />
+              </div>
+            </div>
 
-              <Textarea
-                value={customInstructions}
-                onChange={(e) => setCustomInstructions(e.target.value)}
-                placeholder="Instruções opcionais: ex. 'Focar em seguro de frota', 'Mencionar a nova filial inaugurada'..."
-                className="min-h-[60px] text-sm"
-              />
+            {/* Quick actions bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger className="w-[180px] h-9 text-sm">
+                  <FileText className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                  <SelectValue placeholder="Usar modelo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.length === 0 ? (
+                    <SelectItem value="none" disabled>Nenhum modelo salvo</SelectItem>
+                  ) : (
+                    templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
 
-              <Button
-                onClick={handleResearchAndGenerate}
-                disabled={isResearching || isGenerating}
-                className="w-full gap-2"
-                variant="default"
-              >
-                {isResearching ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {phaseLabel}
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4" />
-                    Pesquisar empresa e gerar email
-                  </>
-                )}
+              <Select value={emailType} onValueChange={(v) => setEmailType(v as typeof emailType)}>
+                <SelectTrigger className="w-[140px] h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="proposal">Proposta</SelectItem>
+                  <SelectItem value="followup">Follow-up</SelectItem>
+                  <SelectItem value="introduction">Apresentação</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button variant="outline" size="sm" onClick={handleGenerateEmail} disabled={isGenerating || isResearching} className="gap-1.5 h-9">
+                {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                Escreva meu email
               </Button>
-
-              {/* Research summary collapsible */}
-              {phase === 'done' && researchSummary && (
-                <Collapsible open={researchOpen} onOpenChange={setResearchOpen}>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-primary hover:underline w-full">
-                    <ChevronDown className={`h-4 w-4 transition-transform ${researchOpen ? 'rotate-180' : ''}`} />
-                    Ver resumo da pesquisa ({citations.length} fonte{citations.length !== 1 ? 's' : ''})
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 space-y-2">
-                    <div className="text-sm bg-background rounded-lg p-3 border whitespace-pre-wrap">
-                      {researchSummary}
-                    </div>
-                    {citations.length > 0 && (
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground">Fontes:</p>
-                        {citations.map((url, i) => (
-                          <a
-                            key={i}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-primary hover:underline truncate"
-                          >
-                            <ExternalLink className="h-3 w-3 shrink-0" />
-                            {url}
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
             </div>
-          )}
 
-          {/* Subject field */}
-          <div className="space-y-2">
-            <Label>Assunto</Label>
-            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Assunto do email" />
-          </div>
+            {/* AI Research section - only for organizations */}
+            {entityType === 'organization' && (
+              <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-primary/15">
+                    <Globe className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium text-primary">Pesquisa inteligente com IA</span>
+                  <Badge variant="outline" className="text-[10px] border-primary/30 text-primary px-1.5 py-0">Beta</Badge>
+                </div>
 
-          {/* Body editor */}
-          <div className="space-y-2">
-            <Label>Mensagem</Label>
-            <RichTextEditor content={body} onChange={setBody} placeholder="Escreva sua mensagem aqui..." minHeight="200px" />
-          </div>
+                <Textarea
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  placeholder="Instruções opcionais: ex. 'Focar em seguro de frota', 'Mencionar a nova filial inaugurada'..."
+                  className="min-h-[50px] text-sm resize-none"
+                />
 
-          {/* Signature preview */}
-          {signature?.signature_html && (
-            <div className="text-sm text-muted-foreground border-t pt-4">
-              <p className="mb-2 font-medium">Assinatura (será adicionada automaticamente):</p>
-              <div className="text-xs bg-muted/50 p-3 rounded-lg" dangerouslySetInnerHTML={{ __html: sanitizeHtml(signature.signature_html) }} />
+                <Button
+                  onClick={handleResearchAndGenerate}
+                  disabled={isResearching || isGenerating}
+                  className="w-full gap-2 h-9"
+                  size="sm"
+                >
+                  {isResearching ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span className="text-sm">{phaseLabel}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-3.5 w-3.5" />
+                      Pesquisar empresa e gerar email
+                    </>
+                  )}
+                </Button>
+
+                {/* Research summary with scroll */}
+                {phase === 'done' && researchSummary && (
+                  <Collapsible open={researchOpen} onOpenChange={setResearchOpen}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-primary hover:underline w-full">
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${researchOpen ? 'rotate-180' : ''}`} />
+                      Ver resumo da pesquisa ({citations.length} fonte{citations.length !== 1 ? 's' : ''})
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2 space-y-2">
+                      <ScrollArea className="max-h-[150px]">
+                        <div className="text-sm bg-background/80 rounded-lg p-3 border whitespace-pre-wrap">
+                          {researchSummary}
+                        </div>
+                      </ScrollArea>
+                      {citations.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {citations.map((url, i) => (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Badge variant="outline" className="text-[10px] gap-1 hover:bg-accent cursor-pointer font-normal max-w-[200px] truncate">
+                                <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                {new URL(url).hostname.replace('www.', '')}
+                              </Badge>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </div>
+            )}
+
+            {/* Subject */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Assunto</Label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Assunto do email" className="h-9 text-sm" />
             </div>
-          )}
 
-          {/* Send button */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button onClick={handleSend} disabled={!to || !subject || !body || isSending} className="gap-2">
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Enviar
-            </Button>
+            {/* Body editor */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Mensagem</Label>
+              <RichTextEditor content={body} onChange={setBody} placeholder="Escreva sua mensagem aqui..." minHeight="250px" />
+            </div>
+
+            {/* Signature preview */}
+            {signature?.signature_html && (
+              <div className="text-sm text-muted-foreground border-t border-border/50 pt-3">
+                <p className="mb-1.5 text-xs font-medium">Assinatura (adicionada automaticamente):</p>
+                <div className="text-xs bg-muted/30 p-2.5 rounded-lg" dangerouslySetInnerHTML={{ __html: sanitizeHtml(signature.signature_html) }} />
+              </div>
+            )}
           </div>
+        </ScrollArea>
+
+        {/* Fixed footer */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-border/50 bg-muted/20">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button onClick={handleSend} disabled={!to || !subject || !body || isSending} className="gap-2" size="sm">
+            {isSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Enviar E-mail
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
