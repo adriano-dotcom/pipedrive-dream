@@ -43,6 +43,10 @@ export const PERSON_FIELDS: ImportColumn[] = [
 
 // Organization fields for mapping
 export const ORGANIZATION_FIELDS: ImportColumn[] = [
+  { id: 'pipedrive_id', label: 'ID Pipedrive', aliases: [
+    'id', 'id da empresa', 'organization id', 'pipedrive id',
+    'id pipedrive', 'id (empresa)', 'org id', 'id organização', 'id organizacao'
+  ]},
   { id: 'org_name', label: 'Nome da Empresa', aliases: [
     'empresa', 'razão social', 'razao social', 'organização', 'organizacao', 'nome da empresa',
     'organization', 'organization name', 'company', 'company name', 'nome (empresa)', 'nome empresa'

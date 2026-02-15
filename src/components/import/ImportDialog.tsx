@@ -80,7 +80,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
     queryFn: async () => {
       const { data } = await supabase
         .from('organizations')
-        .select('id, name, cnpj');
+        .select('id, name, cnpj, pipedrive_id');
       return data || [];
     },
     enabled: open && step >= 3,
@@ -241,10 +241,10 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
         let organizationId: string | null = null;
 
         // Handle organization if present
-        if (mappedData.org_name || mappedData.cnpj) {
+        if (mappedData.org_name || mappedData.cnpj || mappedData.pipedrive_id) {
           const cnpjClean = mappedData.cnpj?.replace(/\D/g, '') || '';
           const orgName = mappedData.org_name || '';
-          const cacheKey = cnpjClean || orgName.toLowerCase();
+          const cacheKey = mappedData.pipedrive_id || cnpjClean || orgName.toLowerCase();
 
           // Check cache first
           if (orgCache.has(cacheKey)) {
@@ -252,8 +252,19 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           } else {
             // Check if org exists
             let existingOrg = null;
+
+            // 1. Check by pipedrive_id first
+            if (mappedData.pipedrive_id) {
+              const { data } = await supabase
+                .from('organizations')
+                .select('id')
+                .eq('pipedrive_id', mappedData.pipedrive_id)
+                .maybeSingle();
+              existingOrg = data;
+            }
             
-            if (cnpjClean) {
+            // 2. Check by CNPJ
+            if (!existingOrg && cnpjClean) {
               const { data } = await supabase
                 .from('organizations')
                 .select('id')
@@ -262,6 +273,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
               existingOrg = data;
             }
             
+            // 3. Check by name
             if (!existingOrg && orgName) {
               const { data } = await supabase
                 .from('organizations')
@@ -277,6 +289,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
               // Update org data
               const updateData: any = {};
               if (cnpjClean) updateData.cnpj = cnpjClean;
+              if (mappedData.pipedrive_id) updateData.pipedrive_id = mappedData.pipedrive_id;
               if (mappedData.org_phone) updateData.phone = mappedData.org_phone;
               if (mappedData.org_email) updateData.email = mappedData.org_email;
               if (mappedData.automotores) updateData.automotores = parseNumber(mappedData.automotores);
@@ -304,6 +317,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
                 .insert({
                   name: orgName,
                   cnpj: cnpjClean || null,
+                  pipedrive_id: mappedData.pipedrive_id || null,
                   phone: mappedData.org_phone || null,
                   email: mappedData.org_email || null,
                   automotores: parseNumber(mappedData.automotores),

@@ -1,0 +1,1 @@
+ALTER TABLE public.organizations ADD COLUMN pipedrive_id text UNIQUE;
