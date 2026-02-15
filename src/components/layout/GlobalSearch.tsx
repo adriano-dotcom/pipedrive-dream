@@ -133,6 +133,16 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
     queryKey: ['global-search', searchQuery],
     queryFn: async () => {
       const query = `%${searchQuery}%`;
+      const digitsOnly = searchQuery.replace(/\D/g, '');
+      const cleanQuery = digitsOnly.length >= 3 ? `%${digitsOnly}%` : null;
+
+      const orgFilter = cleanQuery
+        ? `name.ilike.${query},cnpj.ilike.${cleanQuery},email.ilike.${query},phone.ilike.${cleanQuery}`
+        : `name.ilike.${query},cnpj.ilike.${query},email.ilike.${query},phone.ilike.${query}`;
+
+      const peopleFilter = cleanQuery
+        ? `name.ilike.${query},email.ilike.${query},phone.ilike.${cleanQuery},cpf.ilike.${cleanQuery}`
+        : `name.ilike.${query},email.ilike.${query},phone.ilike.${query},cpf.ilike.${query}`;
 
       const [
         orgsResult,
@@ -147,7 +157,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
         supabase
           .from('organizations')
           .select('id, name, cnpj, email, phone, address_street, address_city')
-          .or(`name.ilike.${query},cnpj.ilike.${query},email.ilike.${query},phone.ilike.${query}`)
+          .or(orgFilter)
           .limit(5),
         // People with organization
         supabase
@@ -156,7 +166,7 @@ export function GlobalSearch({ collapsed, variant = 'sidebar' }: GlobalSearchPro
             id, name, email, phone, cpf,
             organization:organizations!people_organization_id_fkey(id, name)
           `)
-          .or(`name.ilike.${query},email.ilike.${query},phone.ilike.${query},cpf.ilike.${query}`)
+          .or(peopleFilter)
           .limit(5),
         // Deals with organization and person
         supabase
