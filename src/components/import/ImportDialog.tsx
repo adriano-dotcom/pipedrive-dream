@@ -24,6 +24,7 @@ import {
   type ParsedRow,
   type ImportRow,
   parseNumber,
+  splitAndDeduplicatePhones,
 } from '@/lib/import';
 
 interface ImportDialogProps {
@@ -426,6 +427,20 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
         
         if (!personName) {
           throw new Error('Nome é obrigatório');
+        }
+
+        // Split and deduplicate phones before saving
+        const uniquePhones = splitAndDeduplicatePhones(mappedData.phone || '');
+        if (uniquePhones.length > 0) {
+          mappedData.phone = uniquePhones[0];
+          if (uniquePhones.length > 1 && !mappedData.whatsapp) {
+            mappedData.whatsapp = uniquePhones[1];
+          }
+        }
+        // Also deduplicate whatsapp field if it has multiple values
+        const uniqueWhatsapp = splitAndDeduplicatePhones(mappedData.whatsapp || '');
+        if (uniqueWhatsapp.length > 0) {
+          mappedData.whatsapp = uniqueWhatsapp[0];
         }
 
         const emailLower = mappedData.email?.toLowerCase();

@@ -404,6 +404,22 @@ export function downloadExampleCSV(): void {
   URL.revokeObjectURL(url);
 }
 
+// Split and deduplicate multiple phones in a single field
+export function splitAndDeduplicatePhones(raw: string): string[] {
+  if (!raw) return [];
+  const phones = raw.split(',').map(p => p.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const phone of phones) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits && !seen.has(digits)) {
+      seen.add(digits);
+      unique.push(phone);
+    }
+  }
+  return unique;
+}
+
 // Clean phone number for storage
 export function cleanPhone(phone: string): string {
   return phone.replace(/\D/g, '');
