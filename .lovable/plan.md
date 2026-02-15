@@ -1,53 +1,62 @@
 
-# Adicionar Pesquisa Inteligente de Email para Pessoas
 
-## Contexto
-Atualmente, a secao "Pesquisa inteligente com IA" so aparece quando o email e enviado a partir de uma organizacao (`entityType === 'organization'`). O objetivo e habilitar essa mesma funcionalidade para pessoas, puxando os dados da empresa vinculada ao contato.
+# Corrigir Prompt do Research-Company: Nome do Corretor e Assinatura
+
+## Problemas Identificados
+1. O prompt nao inclui o nome real do corretor — a IA inventa "Gemini" como nome do remetente
+2. A edge function `research-company` nao busca o perfil do usuario nem a assinatura, diferente da `generate-email` que ja faz isso
 
 ## Alteracoes
 
-### 1. Modificar `EmailComposerDialog.tsx`
-- Aceitar uma nova prop opcional `organizationId` para quando o email for enviado de uma pessoa com empresa vinculada
-- Alterar a condicao `entityType === 'organization'` para tambem mostrar a secao de pesquisa quando o contato tiver uma organizacao vinculada
-- Quando `entityType === 'person'`, usar o `organizationId` passado via prop para chamar a pesquisa
+### 1. Modificar `supabase/functions/research-company/index.ts`
 
-### 2. Modificar `EmailButton.tsx`
-- Aceitar uma nova prop opcional `organizationId` e repassar para o `EmailComposerDialog`
+**Buscar dados do usuario autenticado:**
+- Extrair o `userId` do token JWT (ja faz `getClaims`)
+- Buscar `full_name` e `phone` da tabela `profiles` (igual ao `generate-email`)
+- Buscar `signature_html` da tabela `user_signatures` (onde `is_active = true`)
 
-### 3. Modificar `PersonSidebar.tsx`
-- Passar o `organization_id` da pessoa como prop `organizationId` no `EmailButton`
+**Atualizar o prompt:**
+- Adicionar o nome real do corretor: "Seu nome é [nome do perfil]"
+- Adicionar regra: "Assine o email com o nome do corretor fornecido, NAO invente nomes"
+- NÃO incluir assinatura HTML no corpo (ela sera adicionada pelo frontend ao enviar)
 
-### 4. Modificar `PersonEmails.tsx` e `SentEmailsList.tsx`
-- Garantir que o botao de compor email na aba de emails da pessoa tambem passe o `organizationId`
+**Incluir no contexto CRM:**
+- Adicionar secao "DADOS DO CORRETOR" com nome e telefone
 
-### 5. Atualizar a Edge Function `research-company/index.ts`
-- Adicionar busca de dados da pessoa (nome, cargo, email, telefone) quando um `personId` for fornecido
-- Incluir esses dados no contexto CRM enviado ao Gemini para personalizar melhor o email
+### 2. Atualizar regras do prompt
+
+Adicionar ao bloco REGRAS:
+- "Seu nome como corretor é: [nome]. Use este nome para se apresentar."
+- "NÃO invente nomes de corretor ou empresa de corretagem"
+- "NÃO inclua assinatura no final do email — ela sera adicionada automaticamente"
 
 ## Detalhes Tecnicos
 
-### Fluxo
-1. Usuario abre email a partir de uma pessoa que tem empresa vinculada
-2. O dialog recebe `organizationId` da empresa vinculada
-3. A secao de pesquisa IA aparece (antes so aparecia para organizacoes)
-4. Ao clicar "Pesquisar empresa e gerar email", a edge function busca dados da empresa + dados do contato
-5. O email gerado e personalizado com nome, cargo do contato E dados da empresa
+### Codigo a adicionar (apos getClaims, antes da busca da organizacao):
 
-### Props novas
-- `EmailComposerDialog`: `organizationId?: string`
-- `EmailButton`: `organizationId?: string`
+```text
+// Buscar perfil do usuario
+const userId = claimsData.claims.sub;
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("full_name, phone")
+  .eq("user_id", userId)
+  .maybeSingle();
 
-### Condicao de exibicao da pesquisa
-De: `entityType === 'organization'`
-Para: `entityType === 'organization' || !!organizationId`
+const senderName = profile?.full_name || "Corretor";
+```
 
-### Edge Function
-- Novo parametro opcional: `personId`
-- Se fornecido, busca dados da pessoa (nome, cargo, email) e inclui no contexto CRM
-- O prompt do Gemini passa a incluir: "Destinatario: [nome], Cargo: [cargo], Email: [email]"
+### Prompt atualizado (trecho):
+
+```text
+Você é ${senderName}, um corretor de seguros brasileiro...
+
+REGRAS:
+- Seu nome é ${senderName}. Use este nome ao se apresentar.
+- NÃO invente nomes de corretor.
+- NÃO inclua assinatura no final do email (sera adicionada automaticamente)
+```
 
 ### Arquivos modificados
-- `src/components/email/EmailComposerDialog.tsx`
-- `src/components/email/EmailButton.tsx`
-- `src/components/people/detail/PersonSidebar.tsx`
-- `supabase/functions/research-company/index.ts`
+- `supabase/functions/research-company/index.ts` (buscar perfil + atualizar prompt)
+
