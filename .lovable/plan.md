@@ -1,29 +1,38 @@
 
-# Adicionar Editor de Assinatura de Email nas Configuracoes
+# Melhorar Layout do EmailComposerDialog
 
-## Contexto
-A tabela `user_signatures` e o hook `useUserSignature` ja existem. O `EmailComposerDialog` ja anexa a assinatura automaticamente ao enviar. O que falta e a **interface para o usuario criar e editar sua assinatura** na pagina de Configuracoes.
+## Problemas Atuais
+- O dialog inteiro usa um unico scroll (`overflow-y-auto` no DialogContent), misturando campos de formulario com o corpo do email
+- O resumo da pesquisa nao tem scroll proprio e fica muito longo
+- O layout e linear e denso, sem separacao visual clara entre secoes
 
 ## Alteracoes
 
-### 1. Modificar `src/pages/Settings.tsx`
-- Importar `useUserSignature` e o `RichTextEditor`
-- Adicionar um novo Card "Assinatura de Email" abaixo do card de Permissoes
-- O card tera:
-  - Um `RichTextEditor` para editar a assinatura em HTML (com formatacao rica: negrito, links, etc.)
-  - Um botao "Salvar Assinatura" que chama `saveSignature()`
-  - Preview da assinatura atual quando salva
-- Inicializar o editor com o valor da assinatura existente (se houver)
+### 1. Reestruturar o layout do `EmailComposerDialog.tsx`
+- **Cabecalho compacto**: De/Para lado a lado em uma unica linha (grid 2 colunas) para economizar espaco vertical
+- **Acoes rapidas**: Manter modelo + tipo + botao IA em uma barra horizontal compacta
+- **Secao de pesquisa IA**: Melhorar visualmente com icone maior, gradiente sutil, e limitar a altura do resumo com `ScrollArea` (max ~150px com scroll)
+- **Editor de mensagem**: Dar mais destaque, aumentar altura minima e usar `flex-1` para ocupar espaco disponivel
+- **Assinatura**: Manter preview compacto
+- **Rodape**: Botoes fixos no final
 
-### Fluxo
-1. Usuario acessa Configuracoes
-2. Ve o card "Assinatura de Email" com o editor rich text
-3. Digita/cola sua assinatura (nome, cargo, telefone, site, etc.)
-4. Clica "Salvar Assinatura"
-5. A assinatura e salva no banco e automaticamente usada em todos os emails enviados
+### 2. Adicionar `ScrollArea` ao resumo da pesquisa
+- O `researchSummary` e as `citations` ficarao dentro de um `ScrollArea` com `max-h-[200px]` para nao empurrar o resto do formulario para baixo
+
+### 3. Melhorias visuais
+- Secao de pesquisa com borda e fundo mais destacados
+- Labels menores e mais discretos
+- Campos De/Para em grid compacto
+- Botao de enviar com mais destaque visual
 
 ### Detalhes Tecnicos
-- Reutiliza o componente `RichTextEditor` ja existente (TipTap)
-- Reutiliza o hook `useUserSignature` que ja tem `saveSignature` e `isSaving`
-- Nenhuma alteracao de banco de dados necessaria (tabela ja existe)
-- Nenhum arquivo novo, apenas modificacao do `Settings.tsx`
+
+**Arquivo modificado:** `src/components/email/EmailComposerDialog.tsx`
+
+Principais mudancas:
+- Importar `ScrollArea` de `@/components/ui/scroll-area`
+- Campos De/Para em `grid grid-cols-2 gap-4` (ou empilhados no mobile)
+- Resumo da pesquisa envolto em `ScrollArea` com `className="max-h-[200px]"`
+- Citations em lista horizontal com chips/badges ao inves de links verticais longos
+- Editor de mensagem com `minHeight="250px"` ao inves de 200px
+- DialogContent com padding mais organizado
