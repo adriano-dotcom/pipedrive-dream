@@ -1,41 +1,52 @@
 
 
-# Inserir Assinatura do Usuario e Melhorar Visibilidade no Compositor
+# Corrigir Busca Global para CNPJ/CPF Formatados
 
 ## Problema
-A tabela `user_signatures` esta vazia -- o usuario nunca salvou uma assinatura. Por isso, o preview de assinatura no `EmailComposerDialog` nao aparece e o email e enviado sem assinatura.
+O usuario digitou `19.593.585/0001-29` (CNPJ formatado) na busca global, mas o banco armazena como `19593585000129` (somente digitos). O `ilike` nao encontra porque os caracteres `.` `/` `-` nao existem no valor armazenado.
 
-## Alteracoes
+O mesmo problema ocorre com CPF (ex: `123.456.789-00` vs `12345678900`) e telefones formatados.
 
-### 1. Inserir a assinatura no banco de dados
-Usar a ferramenta de insert para salvar a assinatura HTML do usuario na tabela `user_signatures`. A assinatura contera:
+## Solucao
 
-- Nome: Adriano Jacometo
-- Cargo: Corretor de Seguros
-- Empresa: Jacometo Corretora de Seguros
-- WhatsApp: +55 43 9 9914-5000
-- Telefone: (43) 3321-5007
-- Endereco: Rua Souza Naves, 612 - Sala 51 - Centro - Londrina/PR
-- Site: jacometoseguros.com.br
+### Modificar `src/components/layout/GlobalSearch.tsx`
 
-O HTML sera formatado profissionalmente com links clicaveis para WhatsApp e site.
+Criar uma versao "limpa" (somente digitos) da query para usar nos campos numericos (CNPJ, CPF, telefone), mantendo a query original para campos textuais (nome, email, titulo).
 
-### 2. Nenhuma alteracao de codigo necessaria
-O sistema ja esta preparado:
-- O `EmailComposerDialog` ja exibe o preview da assinatura quando ela existe
-- O `handleSend` ja anexa `signature.signature_html` ao corpo do email antes de enviar
-- O hook `useUserSignature` ja busca a assinatura ativa do usuario
+**Logica:**
 
-Basta inserir o dado no banco para tudo funcionar automaticamente.
+```text
+const query = `%${searchQuery}%`;
+const digitsOnly = searchQuery.replace(/\D/g, '');
+const cleanQuery = digitsOnly.length >= 3 ? `%${digitsOnly}%` : null;
+```
 
-## Detalhes Tecnicos
+**Queries ajustadas:**
 
-### SQL de insert
-Inserir na tabela `user_signatures` com:
-- `user_id`: ID do usuario autenticado atual
-- `signature_html`: HTML formatado da assinatura
-- `is_active`: true
+1. **Organizacoes** - Usar `cleanQuery` para CNPJ e telefone quando disponivel:
+   - Se `cleanQuery` existir: `.or(name.ilike.${query},cnpj.ilike.${cleanQuery},email.ilike.${query},phone.ilike.${cleanQuery})`
+   - Se nao: manter query original
 
-### Arquivo nenhum modificado
-Apenas operacao de dados no banco.
+2. **Pessoas** - Usar `cleanQuery` para CPF e telefone:
+   - Se `cleanQuery` existir: `.or(name.ilike.${query},email.ilike.${query},phone.ilike.${cleanQuery},cpf.ilike.${cleanQuery})`
+
+3. **Demais entidades** - sem alteracao (nao possuem campos numericos formatados)
+
+**Implementacao simplificada:** Construir o filtro `or` dinamicamente baseado na presenca de `cleanQuery`:
+
+```text
+// Para organizacoes
+const orgFilter = cleanQuery
+  ? `name.ilike.${query},cnpj.ilike.${cleanQuery},email.ilike.${query},phone.ilike.${cleanQuery}`
+  : `name.ilike.${query},cnpj.ilike.${query},email.ilike.${query},phone.ilike.${query}`;
+```
+
+### Arquivo modificado
+- `src/components/layout/GlobalSearch.tsx` (apenas a funcao `queryFn` dentro do `useQuery`)
+
+### Impacto
+- Busca por CNPJ formatado (`19.593.585/0001-29`) vai encontrar `19593585000129`
+- Busca por CPF formatado (`123.456.789-00`) vai encontrar `12345678900`
+- Busca por telefone com espacos/tracos tambem funcionara
+- Busca por nome e email continua usando a query original (sem alteracao)
 
