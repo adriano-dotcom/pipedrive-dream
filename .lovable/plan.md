@@ -1,38 +1,53 @@
 
-# Melhorar Layout do EmailComposerDialog
+# Adicionar Pesquisa Inteligente de Email para Pessoas
 
-## Problemas Atuais
-- O dialog inteiro usa um unico scroll (`overflow-y-auto` no DialogContent), misturando campos de formulario com o corpo do email
-- O resumo da pesquisa nao tem scroll proprio e fica muito longo
-- O layout e linear e denso, sem separacao visual clara entre secoes
+## Contexto
+Atualmente, a secao "Pesquisa inteligente com IA" so aparece quando o email e enviado a partir de uma organizacao (`entityType === 'organization'`). O objetivo e habilitar essa mesma funcionalidade para pessoas, puxando os dados da empresa vinculada ao contato.
 
 ## Alteracoes
 
-### 1. Reestruturar o layout do `EmailComposerDialog.tsx`
-- **Cabecalho compacto**: De/Para lado a lado em uma unica linha (grid 2 colunas) para economizar espaco vertical
-- **Acoes rapidas**: Manter modelo + tipo + botao IA em uma barra horizontal compacta
-- **Secao de pesquisa IA**: Melhorar visualmente com icone maior, gradiente sutil, e limitar a altura do resumo com `ScrollArea` (max ~150px com scroll)
-- **Editor de mensagem**: Dar mais destaque, aumentar altura minima e usar `flex-1` para ocupar espaco disponivel
-- **Assinatura**: Manter preview compacto
-- **Rodape**: Botoes fixos no final
+### 1. Modificar `EmailComposerDialog.tsx`
+- Aceitar uma nova prop opcional `organizationId` para quando o email for enviado de uma pessoa com empresa vinculada
+- Alterar a condicao `entityType === 'organization'` para tambem mostrar a secao de pesquisa quando o contato tiver uma organizacao vinculada
+- Quando `entityType === 'person'`, usar o `organizationId` passado via prop para chamar a pesquisa
 
-### 2. Adicionar `ScrollArea` ao resumo da pesquisa
-- O `researchSummary` e as `citations` ficarao dentro de um `ScrollArea` com `max-h-[200px]` para nao empurrar o resto do formulario para baixo
+### 2. Modificar `EmailButton.tsx`
+- Aceitar uma nova prop opcional `organizationId` e repassar para o `EmailComposerDialog`
 
-### 3. Melhorias visuais
-- Secao de pesquisa com borda e fundo mais destacados
-- Labels menores e mais discretos
-- Campos De/Para em grid compacto
-- Botao de enviar com mais destaque visual
+### 3. Modificar `PersonSidebar.tsx`
+- Passar o `organization_id` da pessoa como prop `organizationId` no `EmailButton`
 
-### Detalhes Tecnicos
+### 4. Modificar `PersonEmails.tsx` e `SentEmailsList.tsx`
+- Garantir que o botao de compor email na aba de emails da pessoa tambem passe o `organizationId`
 
-**Arquivo modificado:** `src/components/email/EmailComposerDialog.tsx`
+### 5. Atualizar a Edge Function `research-company/index.ts`
+- Adicionar busca de dados da pessoa (nome, cargo, email, telefone) quando um `personId` for fornecido
+- Incluir esses dados no contexto CRM enviado ao Gemini para personalizar melhor o email
 
-Principais mudancas:
-- Importar `ScrollArea` de `@/components/ui/scroll-area`
-- Campos De/Para em `grid grid-cols-2 gap-4` (ou empilhados no mobile)
-- Resumo da pesquisa envolto em `ScrollArea` com `className="max-h-[200px]"`
-- Citations em lista horizontal com chips/badges ao inves de links verticais longos
-- Editor de mensagem com `minHeight="250px"` ao inves de 200px
-- DialogContent com padding mais organizado
+## Detalhes Tecnicos
+
+### Fluxo
+1. Usuario abre email a partir de uma pessoa que tem empresa vinculada
+2. O dialog recebe `organizationId` da empresa vinculada
+3. A secao de pesquisa IA aparece (antes so aparecia para organizacoes)
+4. Ao clicar "Pesquisar empresa e gerar email", a edge function busca dados da empresa + dados do contato
+5. O email gerado e personalizado com nome, cargo do contato E dados da empresa
+
+### Props novas
+- `EmailComposerDialog`: `organizationId?: string`
+- `EmailButton`: `organizationId?: string`
+
+### Condicao de exibicao da pesquisa
+De: `entityType === 'organization'`
+Para: `entityType === 'organization' || !!organizationId`
+
+### Edge Function
+- Novo parametro opcional: `personId`
+- Se fornecido, busca dados da pessoa (nome, cargo, email) e inclui no contexto CRM
+- O prompt do Gemini passa a incluir: "Destinatario: [nome], Cargo: [cargo], Email: [email]"
+
+### Arquivos modificados
+- `src/components/email/EmailComposerDialog.tsx`
+- `src/components/email/EmailButton.tsx`
+- `src/components/people/detail/PersonSidebar.tsx`
+- `supabase/functions/research-company/index.ts`
