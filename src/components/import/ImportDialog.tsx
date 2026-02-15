@@ -25,6 +25,7 @@ import {
   type ImportRow,
   parseNumber,
   splitAndDeduplicatePhones,
+  toTitleCase,
 } from '@/lib/import';
 
 interface ImportDialogProps {
@@ -288,7 +289,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
         // Handle organization if present
         if (mappedData.org_name || mappedData.cnpj || mappedData.pipedrive_id) {
           const cnpjClean = mappedData.cnpj?.replace(/\D/g, '') || '';
-          const orgName = mappedData.org_name || '';
+          const orgName = toTitleCase(mappedData.org_name || '');
           const cacheKey = mappedData.pipedrive_id || cnpjClean || orgName.toLowerCase();
 
           // Check cache first
@@ -417,9 +418,10 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
         }
 
         // Handle person - combine first_name + last_name if name is not present
-        let personName = mappedData.name;
+        // Apply toTitleCase to standardize names
+        let personName = toTitleCase(mappedData.name || '');
         if (!personName && (mappedData.first_name || mappedData.last_name)) {
-          personName = [mappedData.first_name, mappedData.last_name]
+          personName = [toTitleCase(mappedData.first_name || ''), toTitleCase(mappedData.last_name || '')]
             .filter(Boolean)
             .join(' ')
             .trim();

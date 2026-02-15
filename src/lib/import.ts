@@ -420,6 +420,22 @@ export function splitAndDeduplicatePhones(raw: string): string[] {
   return unique;
 }
 
+// Convert text to Title Case (first letter uppercase), keeping Brazilian particles lowercase
+const LOWERCASE_PARTICLES = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
+
+export function toTitleCase(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .split(' ')
+    .filter(word => word.length > 0)
+    .map((word, index) => {
+      if (index > 0 && LOWERCASE_PARTICLES.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 // Clean phone number for storage
 export function cleanPhone(phone: string): string {
   return phone.replace(/\D/g, '');
