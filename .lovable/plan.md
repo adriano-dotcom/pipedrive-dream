@@ -1,68 +1,73 @@
 
 
-# Registrar E-mails de Campanha na Timeline do Contato
+# Adicionar Filtro por Cidade nos Contatos
 
-## Problema Atual
-Quando um e-mail e enviado via campanha em massa, o unico registro fica na tabela `bulk_email_recipients`. O contato nao tem nenhuma evidencia na sua timeline ou aba de e-mails de que recebeu aquele e-mail.
-
-## Solucao
-Apos cada envio bem-sucedido na Edge Function `process-bulk-email`, inserir:
-
-1. **Um registro em `sent_emails`** - para aparecer na aba "E-mails" do contato
-2. **Um registro em `people_history`** - para aparecer na timeline do contato
+## O que sera feito
+Adicionar um novo filtro "Cidade" no painel de filtros avancados da pagina de Pessoas. A cidade vem da organizacao vinculada ao contato (campo `organizations.address_city`).
 
 ## Alteracoes
 
-### Arquivo: `supabase/functions/process-bulk-email/index.ts`
+### 1. `src/components/people/PeopleFilters.tsx`
+- Adicionar `cities: string[]` ao `PeopleFiltersState` e ao `defaultPeopleFilters`
+- Buscar cidades unicas do banco via query nas organizacoes (`SELECT DISTINCT address_city`)
+- Adicionar o seletor de cidade na grid de filtros (com checkbox multi-select, igual aos outros filtros)
+- Adicionar badge removivel de cidade quando filtro colapsado
+- Incrementar contador de filtros ativos
 
-Dentro do bloco de sucesso (apos `resend.emails.send` retornar sem erro, linha 161-166), adicionar duas insercoes:
-
-**1. Inserir em `sent_emails`:**
-```typescript
-await supabase.from("sent_emails").insert({
-  entity_type: "person",
-  entity_id: recipient.person_id,
-  from_email: fromEmail,
-  from_name: fromName,
-  to_email: recipient.email,
-  to_name: recipient.name,
-  subject: personalizedSubject,
-  body: personalizedBody,
-  status: "sent",
-  sent_at: new Date().toISOString(),
-  created_by: userId,
-});
-```
-
-**2. Inserir em `people_history`:**
-```typescript
-await supabase.from("people_history").insert({
-  person_id: recipient.person_id,
-  event_type: "email_sent",
-  description: `E-mail enviado via campanha: "${personalizedSubject}"`,
-  created_by: userId,
-});
-```
-
-Ambas as insercoes so ocorrem se `recipient.person_id` existir (contatos vinculados). E-mails para destinatarios sem `person_id` continuam funcionando normalmente, apenas sem o registro na timeline.
-
-### Arquivo: `src/components/people/detail/PersonTimeline.tsx`
-
-Adicionar suporte ao novo tipo de evento `email_sent` nos mapeamentos de icone e cor:
-- Icone: `Mail`
-- Cor: `bg-pink-500/20 text-pink-400`
+### 2. `src/pages/People.tsx`
+- Aplicar filtro server-side: quando cidades selecionadas, buscar os `organization_id`s dessas cidades e filtrar com `.in('organization_id', orgIds)`
+- Adicionar `cities` na verificacao de `hasActiveFilters`
 
 ## Secao Tecnica
 
-### Arquivos modificados:
-```text
-supabase/functions/process-bulk-email/index.ts  -> Inserir registros apos envio
-src/components/people/detail/PersonTimeline.tsx  -> Suporte visual ao evento email_sent
+### Tipo atualizado:
+```typescript
+export interface PeopleFiltersState {
+  labels: string[];
+  leadSources: string[];
+  jobTitles: string[];
+  cities: string[];          // NOVO
+  organizationId: string | null;
+  ownerId: string | null;
+  dateRange: { from: Date | null; to: Date | null };
+  hasEmail: boolean | null;
+  hasPhone: boolean | null;
+}
 ```
 
-### Nenhuma migracao SQL necessaria
-As tabelas `sent_emails` e `people_history` ja existem com as colunas necessarias. As politicas RLS permitem insercao pelo service role (usado na Edge Function).
+### Query de cidades (dentro do PeopleFilters):
+```typescript
+const { data: uniqueCities = [] } = useQuery({
+  queryKey: ['unique-cities'],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('organizations')
+      .select('address_city')
+      .not('address_city', 'is', null)
+      .order('address_city');
+    return [...new Set(data?.map(o => o.address_city).filter(Boolean))];
+  },
+});
+```
 
-### Impacto em performance
-Cada e-mail enviado gerara 2 insercoes extras no banco. Com o rate limit padrao de 10 e-mails por lote, isso adiciona ~20 insercoes por execucao, impacto negligivel.
+### Filtro server-side em People.tsx:
+```typescript
+if (advancedFilters.cities.length > 0) {
+  // Buscar org IDs das cidades selecionadas
+  const { data: cityOrgs } = await supabase
+    .from('organizations')
+    .select('id')
+    .in('address_city', advancedFilters.cities);
+  if (cityOrgs && cityOrgs.length > 0) {
+    query = query.in('organization_id', cityOrgs.map(o => o.id));
+  } else {
+    return { data: [], count: 0 };
+  }
+}
+```
 
+### Arquivos modificados:
+- `src/components/people/PeopleFilters.tsx`
+- `src/pages/People.tsx`
+
+Nenhuma migracao SQL necessaria.
