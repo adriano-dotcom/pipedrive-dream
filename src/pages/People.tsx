@@ -60,6 +60,8 @@ export default function People() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+  const [bulkEmailRecipients, setBulkEmailRecipients] = useState<any[]>([]);
+  const [isLoadingFilteredRecipients, setIsLoadingFilteredRecipients] = useState(false);
   const [campaignsOpen, setCampaignsOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('people-tag-filter');
@@ -318,6 +320,105 @@ export default function People() {
     );
   }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
+  // Fetch all filtered recipients for bulk email (no pagination)
+  const fetchAllFilteredRecipients = async () => {
+    setIsLoadingFilteredRecipients(true);
+    try {
+      let query = supabase
+        .from('people')
+        .select('id, name, email, email_status, job_title, organization_id, organizations:organizations!people_organization_id_fkey(name, address_city)')
+        .order('name');
+
+      if (debouncedSearch) {
+        query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
+      }
+      if (advancedFilters.labels.length > 0) {
+        query = query.in('label', advancedFilters.labels);
+      }
+      if (advancedFilters.leadSources.length > 0) {
+        query = query.in('lead_source', advancedFilters.leadSources);
+      }
+      if (advancedFilters.jobTitles.length > 0) {
+        query = query.in('job_title', advancedFilters.jobTitles);
+      }
+      if (advancedFilters.organizationId) {
+        query = query.eq('organization_id', advancedFilters.organizationId);
+      }
+      if (advancedFilters.cities.length > 0) {
+        const { data: cityOrgs } = await supabase
+          .from('organizations')
+          .select('id')
+          .in('address_city', advancedFilters.cities);
+        if (cityOrgs && cityOrgs.length > 0) {
+          query = query.in('organization_id', cityOrgs.map(o => o.id));
+        } else {
+          setBulkEmailRecipients([]);
+          setBulkEmailOpen(true);
+          return;
+        }
+      }
+      if (advancedFilters.ownerId) {
+        query = query.eq('owner_id', advancedFilters.ownerId);
+      }
+      if (advancedFilters.dateRange.from) {
+        query = query.gte('created_at', advancedFilters.dateRange.from.toISOString());
+      }
+      if (advancedFilters.dateRange.to) {
+        const endOfDay = new Date(advancedFilters.dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
+      }
+      if (advancedFilters.hasEmail === true) {
+        query = query.not('email', 'is', null);
+      } else if (advancedFilters.hasEmail === false) {
+        query = query.is('email', null);
+      }
+      if (advancedFilters.hasPhone === true) {
+        query = query.not('phone', 'is', null);
+      } else if (advancedFilters.hasPhone === false) {
+        query = query.is('phone', null);
+      }
+      if (selectedTagIds.length > 0 && taggedPersonIds.length > 0) {
+        query = query.in('id', taggedPersonIds);
+      } else if (selectedTagIds.length > 0 && taggedPersonIds.length === 0) {
+        setBulkEmailRecipients([]);
+        setBulkEmailOpen(true);
+        return;
+      }
+
+      const { data } = await query;
+      const recipients = (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        email_status: p.email_status,
+        organization_name: p.organizations?.name || null,
+        organization_city: p.organizations?.address_city || null,
+        job_title: p.job_title || null,
+      }));
+      setBulkEmailRecipients(recipients);
+      setBulkEmailOpen(true);
+    } catch (error) {
+      toast.error('Erro ao buscar contatos filtrados');
+    } finally {
+      setIsLoadingFilteredRecipients(false);
+    }
+  };
+
+  const handleBulkEmailSelected = () => {
+    const recipients = people.filter(p => selectedIds.includes(p.id)).map(p => ({
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      email_status: (p as any).email_status,
+      organization_name: p.organizations?.name || null,
+      organization_city: p.organizations?.address_city || null,
+      job_title: p.job_title || null,
+    }));
+    setBulkEmailRecipients(recipients);
+    setBulkEmailOpen(true);
+  };
+
   return (
     <div className="p-6 lg:p-8 space-y-6 animate-fade-in">
       {/* Header */}
@@ -435,7 +536,10 @@ export default function People() {
           onSelectionChange={setSelectedIds}
           onBulkDelete={() => setBulkDeleteOpen(true)}
           onMerge={() => setMergeDialogOpen(true)}
-          onBulkEmail={() => setBulkEmailOpen(true)}
+          onBulkEmail={handleBulkEmailSelected}
+          onBulkEmailAll={fetchAllFilteredRecipients}
+          hasActiveFilters={hasActiveFilters}
+          isLoadingFilteredRecipients={isLoadingFilteredRecipients}
           // Server-side pagination props
           totalCount={totalCount}
           pageCount={pageCount}
@@ -485,15 +589,7 @@ export default function People() {
       <BulkEmailComposerDialog
         open={bulkEmailOpen}
         onOpenChange={setBulkEmailOpen}
-        recipients={people.filter(p => selectedIds.includes(p.id)).map(p => ({
-          id: p.id,
-          name: p.name,
-          email: p.email,
-          email_status: (p as any).email_status,
-          organization_name: p.organizations?.name || null,
-          organization_city: p.organizations?.address_city || null,
-          job_title: p.job_title || null,
-        }))}
+        recipients={bulkEmailRecipients}
         onSuccess={() => setSelectedIds([])}
       />
 
