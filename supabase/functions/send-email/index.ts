@@ -115,7 +115,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
 
       return new Response(
-        JSON.stringify({ error: "Failed to send email", details: emailError.message }),
+        JSON.stringify({ error: "Falha ao enviar email" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -147,7 +147,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error("Error in send-email function:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erro interno do servidor" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

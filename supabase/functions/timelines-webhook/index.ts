@@ -342,6 +342,15 @@ serve(async (req) => {
   }
 
   try {
+    // Check payload size
+    const contentLength = req.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > 1_000_000) {
+      return new Response(JSON.stringify({ error: 'Payload too large' }), {
+        status: 413,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Validate webhook secret
     if (!validateWebhookSecret(req)) {
       console.error('Webhook authentication failed');

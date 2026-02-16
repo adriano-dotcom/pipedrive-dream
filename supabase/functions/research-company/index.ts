@@ -89,7 +89,8 @@ serve(async (req) => {
     // Step 2: Perplexity research
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     if (!PERPLEXITY_API_KEY) {
-      return new Response(JSON.stringify({ error: "PERPLEXITY_API_KEY not configured" }), {
+      console.error("PERPLEXITY_API_KEY not configured");
+      return new Response(JSON.stringify({ error: "Serviço de pesquisa indisponível" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -118,7 +119,7 @@ serve(async (req) => {
     if (!perplexityRes.ok) {
       const errText = await perplexityRes.text();
       console.error("Perplexity error:", perplexityRes.status, errText);
-      return new Response(JSON.stringify({ error: "Research failed", details: errText }), {
+      return new Response(JSON.stringify({ error: "Falha na pesquisa da empresa" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -131,7 +132,8 @@ serve(async (req) => {
     // Step 3: Generate email with Gemini via Lovable AI
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+      console.error("LOVABLE_API_KEY not configured");
+      return new Response(JSON.stringify({ error: "Serviço de geração indisponível" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -280,7 +282,7 @@ REGRAS:
   } catch (error) {
     console.error("research-company error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erro interno do servidor" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
