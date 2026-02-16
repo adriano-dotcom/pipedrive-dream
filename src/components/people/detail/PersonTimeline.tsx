@@ -14,6 +14,7 @@ import {
   MessageSquarePlus,
   ChevronDown,
   ChevronRight,
+  Mail,
 } from 'lucide-react';
 import { format, isToday, isYesterday, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -60,6 +61,8 @@ const getEventIcon = (eventType: string) => {
       return <MessageSquarePlus className="h-4 w-4" />;
     case 'whatsapp_conversation_resolved':
       return <CheckCircle2 className="h-4 w-4" />;
+    case 'email_sent':
+      return <Mail className="h-4 w-4" />;
     default:
       return <FileText className="h-4 w-4" />;
   }
@@ -90,6 +93,8 @@ const getEventColor = (eventType: string) => {
       return 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400';
     case 'whatsapp_conversation_resolved':
       return 'bg-teal-500/20 text-teal-600 dark:text-teal-400';
+    case 'email_sent':
+      return 'bg-pink-500/20 text-pink-600 dark:text-pink-400';
     default:
       return 'bg-muted text-muted-foreground';
   }
