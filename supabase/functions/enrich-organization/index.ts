@@ -5,6 +5,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const LOWERCASE_PARTICLES = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
+
+function toTitleCase(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .split(' ')
+    .filter(word => word.length > 0)
+    .map((word, index) => {
+      if (index > 0 && LOWERCASE_PARTICLES.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 interface CasaDadosResponse {
   razao_social?: string;
   nome_fantasia?: string;
@@ -297,13 +312,13 @@ Deno.serve(async (req) => {
 
         return {
           organization_id: organizationId,
-          name: socio.nome || 'Sócio',
+          name: toTitleCase(socio.nome || 'Sócio'),
           document: socio.cpf_cnpj || null,
           qualification: socio.qualificacao || null,
           qualification_code: socio.codigo_qualificacao || null,
           entry_date: entryDate,
           country: socio.pais || null,
-          legal_rep_name: socio.representante_legal?.nome || null,
+          legal_rep_name: socio.representante_legal?.nome ? toTitleCase(socio.representante_legal.nome) : null,
           legal_rep_document: socio.representante_legal?.cpf || null,
           legal_rep_qualification: socio.representante_legal?.qualificacao || null,
         };
