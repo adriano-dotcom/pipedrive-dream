@@ -89,6 +89,9 @@ interface PeopleTableProps {
   onBulkDelete?: () => void;
   onMerge?: () => void;
   onBulkEmail?: () => void;
+  onBulkEmailAll?: () => void;
+  hasActiveFilters?: boolean;
+  isLoadingFilteredRecipients?: boolean;
   // Server-side pagination props
   totalCount?: number;
   pageCount?: number;
@@ -162,6 +165,9 @@ export function PeopleTable({
   onBulkDelete, 
   onMerge,
   onBulkEmail,
+  onBulkEmailAll,
+  hasActiveFilters = false,
+  isLoadingFilteredRecipients = false,
   // Server-side pagination props
   totalCount = 0,
   pageCount = 1,
@@ -303,7 +309,7 @@ export function PeopleTable({
   ], []);
 
   // Flag para mostrar checkboxes de seleção
-  const showSelection = isAdmin && onSelectionChange;
+  const showSelection = onSelectionChange;
 
   const columns = useMemo<ColumnDef<PersonWithOrg>[]>(() => [
     {
@@ -584,7 +590,7 @@ export function PeopleTable({
       columnVisibility,
       rowSelection,
     },
-    enableRowSelection: isAdmin,
+    enableRowSelection: true,
     getRowId: (row) => row.id,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -656,8 +662,26 @@ export function PeopleTable({
             filenamePrefix="pessoas" 
           />
           
+          {/* Enviar para todos filtrados */}
+          {hasActiveFilters && totalCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onBulkEmailAll}
+              disabled={isLoadingFilteredRecipients}
+              className="h-8"
+            >
+              {isLoadingFilteredRecipients ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-1.5" />
+              )}
+              Enviar para {totalCount} filtrados
+            </Button>
+          )}
+
           {/* Ações em lote - aparece quando há seleção */}
-          {isAdmin && selectedIds.length > 0 && (
+          {selectedIds.length > 0 && (
             <div className="flex items-center gap-2 pl-4 border-l">
               <span className="text-sm text-muted-foreground">
                 {selectedIds.length} selecionada(s)
@@ -682,15 +706,17 @@ export function PeopleTable({
                   Mesclar
                 </Button>
               )}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={onBulkDelete}
-                className="h-8"
-              >
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                Excluir
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={onBulkDelete}
+                  className="h-8"
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Excluir
+                </Button>
+              )}
             </div>
           )}
         </div>
