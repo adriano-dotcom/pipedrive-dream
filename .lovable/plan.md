@@ -1,95 +1,115 @@
 
 
-# Melhorar Fluxo de Criacao de Campanhas de E-mail
+# Criar Campanhas como Rascunho e Enviar Depois
 
 ## Problema Atual
-O fluxo atual exige que o usuario selecione manualmente cada contato via checkbox na tabela antes de poder enviar um e-mail em massa. Isso e impratico quando se quer enviar para todos os contatos filtrados (ex: todos de uma cidade, todos com uma etiqueta especifica). Alem disso, o botao "E-mail em Massa" so aparece para administradores.
+Hoje, ao selecionar contatos e clicar em "E-mail em Massa", o usuario e obrigado a compor e enviar o email imediatamente. Nao existe a opcao de salvar os destinatarios em uma campanha e voltar depois para escrever e enviar o email.
 
-## Solucao Proposta
-Criar um fluxo mais pratico com duas opcoes de envio:
+## Novo Fluxo Proposto
 
-1. **Enviar para selecionados** (fluxo atual, mantido)
-2. **Enviar para todos os filtrados** (NOVO) - envia para todos os contatos que atendem aos filtros ativos, sem precisar selecionar um a um
+```text
+Fluxo 1 - Criar campanha primeiro, enviar depois:
+1. Selecionar contatos (via checkbox ou filtros)
+2. Clicar em "Adicionar a Campanha" -> salva como rascunho
+3. Ir em "Campanhas" -> ver campanha com status "Rascunho"
+4. Clicar em "Enviar" -> abre compositor com os destinatarios da campanha
+5. Escrever email e disparar
+
+Fluxo 2 - Enviar imediatamente (mantido):
+1. Selecionar contatos
+2. Clicar em "E-mail em Massa" -> compor e enviar na hora
+```
 
 ## Alteracoes
 
-### 1. `src/pages/People.tsx`
-- Adicionar um novo estado `bulkEmailMode` para distinguir entre "selected" e "filtered"
-- Criar uma funcao `fetchAllFilteredPeople` que busca TODOS os contatos filtrados (sem paginacao) para montar a lista de destinatarios
-- Ao abrir o composer no modo "filtered", carregar todos os contatos que atendem aos filtros atuais
-- Mover o botao "Campanhas" para a barra de acoes em lote tambem
+### 1. `src/hooks/useBulkEmail.ts`
+- Adicionar uma nova mutation `saveDraftCampaign` que cria a campanha com status `draft` e insere os recipients, mas NAO dispara o `process-bulk-email`
+- Adicionar uma nova mutation `sendCampaign` que recebe `campaign_id`, `subject`, `body` e `rateLimit`, atualiza a campanha com esses dados, muda status para `queued` e dispara o processamento
 
-### 2. `src/components/people/PeopleTable.tsx`
-- Tornar o botao "E-mail em Massa" visivel para TODOS os usuarios (nao apenas admins), ja que enviar email nao e uma acao destrutiva
-- Adicionar um novo botao "Enviar para todos os filtrados" na toolbar, visivel quando ha filtros ativos (independente de selecao)
-- Adicionar callback `onBulkEmailAll` para o modo "todos filtrados"
+### 2. `src/pages/People.tsx`
+- Adicionar botao "Adicionar a Campanha" na toolbar (ao lado do "E-mail em Massa")
+- Ao clicar, abrir um dialog simples pedindo apenas o nome/titulo da campanha
+- Salvar como rascunho e mostrar toast de confirmacao
 
-### 3. `src/components/email/BulkEmailComposerDialog.tsx`
-- Aceitar um novo prop opcional `isLoadingRecipients` para mostrar loading enquanto busca os destinatarios filtrados
-- Mostrar um resumo mais claro: "X de Y contatos tem e-mail valido"
+### 3. `src/components/people/PeopleTable.tsx`
+- Adicionar novo botao "Salvar em Campanha" na toolbar de selecao em lote
+- Adicionar callback `onSaveToCampaign`
 
-## Fluxo do Usuario (dia a dia)
+### 4. `src/components/email/BulkEmailCampaignsList.tsx`
+- Para campanhas com status `draft`, mostrar botao "Enviar E-mail" (ao inves de so "Detalhes")
+- O botao abre o compositor pre-carregado com os destinatarios da campanha
+- Adicionar botao de excluir para campanhas em rascunho
 
-```text
-1. Usuario aplica filtros (cidade, etiqueta, cargo, etc.)
-2. Clica em "Enviar para X filtrados" na toolbar
-3. Sistema busca todos os contatos filtrados (nao so a pagina atual)
-4. Abre o compositor com a lista completa de destinatarios
-5. Usuario escolhe template, personaliza e envia
-```
+### 5. `src/components/email/CampaignComposerDialog.tsx` (NOVO)
+- Novo componente: compositor de email para campanhas existentes
+- Recebe o `campaignId`, carrega os recipients da campanha
+- Ao enviar, atualiza subject/body na campanha e dispara o processamento
+- Reutiliza a mesma UI do `BulkEmailComposerDialog` (templates, variaveis, IA, assinatura)
 
-OU o fluxo manual existente:
-
-```text
-1. Usuario seleciona contatos via checkbox
-2. Clica em "E-mail em Massa"
-3. Abre o compositor com os selecionados
-```
+### 6. `src/components/email/SaveToCampaignDialog.tsx` (NOVO)
+- Dialog simples com campo de texto para o nome/titulo da campanha
+- Botao "Salvar" que cria a campanha como rascunho
 
 ## Secao Tecnica
 
-### Nova funcao em People.tsx para buscar todos os filtrados:
+### Nova mutation em `useBulkEmail.ts` - saveDraftCampaign:
 ```typescript
-const fetchAllFilteredRecipients = async () => {
-  // Reutiliza a mesma logica de filtros do fetchPeople
-  // mas sem paginacao (range) e selecionando apenas campos necessarios
-  let query = supabase
-    .from('people')
-    .select('id, name, email, email_status, job_title, organization_id, organizations:organizations!people_organization_id_fkey(name, address_city)')
-    .order('name');
-  
-  // Aplica os mesmos filtros server-side...
-  // (search, labels, cities, tags, etc.)
-  
-  const { data } = await query;
-  return data;
-};
-```
-
-### Novo prop em PeopleTable:
-```typescript
-interface PeopleTableProps {
-  // ...existentes
-  onBulkEmailAll?: () => void;  // NOVO
-  hasActiveFilters?: boolean;    // NOVO
-  totalCount?: number;           // ja existe
+interface SaveDraftParams {
+  name: string;  // titulo da campanha
+  recipients: { person_id: string; email: string; name: string; ... }[];
 }
+
+// Cria campanha com status 'draft', SEM disparar process-bulk-email
+const saveDraftMutation = useMutation({
+  mutationFn: async (params: SaveDraftParams) => {
+    // Insert campaign com status: 'draft', subject: params.name, body: ''
+    // Insert recipients com status: 'pending'
+    // NAO chama process-bulk-email
+  },
+});
 ```
 
-### Novo botao na toolbar (visivel com filtros ativos):
+### Nova mutation em `useBulkEmail.ts` - sendCampaign:
 ```typescript
-{hasActiveFilters && totalCount > 0 && (
-  <Button variant="outline" size="sm" onClick={onBulkEmailAll} className="h-8">
-    <Send className="h-4 w-4 mr-1.5" />
-    Enviar para {totalCount} filtrados
-  </Button>
+interface SendCampaignParams {
+  campaignId: string;
+  subject: string;
+  body: string;
+  rateLimit: number;
+}
+
+// Atualiza campaign com subject/body, muda status -> queued, dispara processamento
+const sendCampaignMutation = useMutation({
+  mutationFn: async (params: SendCampaignParams) => {
+    // Update campaign com subject, body, rate_limit, status: 'queued'
+    // Chama process-bulk-email
+  },
+});
+```
+
+### Fluxo na CampaignsList para campanhas draft:
+```typescript
+{campaign.status === 'draft' && (
+  <>
+    <Button onClick={() => setComposingCampaignId(campaign.id)}>
+      <Send /> Enviar E-mail
+    </Button>
+    <Button variant="destructive" onClick={() => deleteCampaign(campaign.id)}>
+      <Trash2 /> Excluir
+    </Button>
+  </>
 )}
 ```
 
 ### Arquivos modificados:
-- `src/pages/People.tsx` - logica de busca de todos filtrados + novo modo
-- `src/components/people/PeopleTable.tsx` - botao "enviar para filtrados" + visibilidade do botao de email
-- `src/components/email/BulkEmailComposerDialog.tsx` - suporte a loading de destinatarios
+- `src/hooks/useBulkEmail.ts` - novas mutations (saveDraft, sendCampaign, deleteCampaign)
+- `src/pages/People.tsx` - novo botao + dialog de salvar em campanha
+- `src/components/people/PeopleTable.tsx` - novo botao na toolbar
+- `src/components/email/BulkEmailCampaignsList.tsx` - acoes para campanhas draft
 
-Nenhuma migracao SQL necessaria.
+### Arquivos novos:
+- `src/components/email/SaveToCampaignDialog.tsx` - dialog de nome da campanha
+- `src/components/email/CampaignComposerDialog.tsx` - compositor para campanhas existentes
 
+### Nenhuma migracao SQL necessaria
+A tabela `bulk_email_campaigns` ja tem o status `draft` e todos os campos necessarios (subject, body, rate_limit). A tabela `bulk_email_recipients` ja suporta os dados dos destinatarios.
