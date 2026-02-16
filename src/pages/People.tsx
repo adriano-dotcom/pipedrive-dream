@@ -158,6 +158,19 @@ export default function People() {
       query = query.eq('organization_id', advancedFilters.organizationId);
     }
 
+    // City filter (server-side) - fetch org IDs for selected cities
+    if (advancedFilters.cities.length > 0) {
+      const { data: cityOrgs } = await supabase
+        .from('organizations')
+        .select('id')
+        .in('address_city', advancedFilters.cities);
+      if (cityOrgs && cityOrgs.length > 0) {
+        query = query.in('organization_id', cityOrgs.map(o => o.id));
+      } else {
+        return { data: [], count: 0 };
+      }
+    }
+
     // Owner filter (server-side)
     if (advancedFilters.ownerId) {
       query = query.eq('owner_id', advancedFilters.ownerId);
@@ -295,6 +308,7 @@ export default function People() {
       advancedFilters.labels.length > 0 ||
       advancedFilters.leadSources.length > 0 ||
       advancedFilters.jobTitles.length > 0 ||
+      advancedFilters.cities.length > 0 ||
       advancedFilters.organizationId !== null ||
       advancedFilters.ownerId !== null ||
       advancedFilters.dateRange.from !== null ||
