@@ -1,58 +1,68 @@
 
-# Formatar Nomes dos Socios em Title Case
 
-## Problema
-Os nomes dos socios vindos da API da Receita Federal (Casa dos Dados) chegam em LETRAS MAIUSCULAS (ex: "CAROLINE CRISTIANE LORENCO RITA") e sao salvos assim no banco. O padrao do sistema e Title Case (ex: "Caroline Cristiane Lorenco Rita"), respeitando particulas da lingua portuguesa em minuscula ("da", "de", "do", etc.).
+# Registrar E-mails de Campanha na Timeline do Contato
+
+## Problema Atual
+Quando um e-mail e enviado via campanha em massa, o unico registro fica na tabela `bulk_email_recipients`. O contato nao tem nenhuma evidencia na sua timeline ou aba de e-mails de que recebeu aquele e-mail.
 
 ## Solucao
-Adicionar uma funcao `toTitleCase` diretamente na Edge Function `enrich-organization` para formatar os nomes dos socios antes de salva-los no banco. A mesma logica ja existente no frontend (`src/lib/import.ts`) sera replicada na Edge Function.
+Apos cada envio bem-sucedido na Edge Function `process-bulk-email`, inserir:
+
+1. **Um registro em `sent_emails`** - para aparecer na aba "E-mails" do contato
+2. **Um registro em `people_history`** - para aparecer na timeline do contato
 
 ## Alteracoes
 
-### 1. `supabase/functions/enrich-organization/index.ts`
+### Arquivo: `supabase/functions/process-bulk-email/index.ts`
 
-- Adicionar a funcao auxiliar `toTitleCase` no inicio do arquivo (identica a versao do frontend, com suporte a particulas brasileiras: "da", "de", "do", "dos", "das", "e")
-- Aplicar `toTitleCase` no nome do socio (linha 300): `name: toTitleCase(socio.nome || 'Socio')`
-- Aplicar `toTitleCase` tambem no nome do representante legal (linha 306): `legal_rep_name: toTitleCase(socio.representante_legal?.nome || '')`
+Dentro do bloco de sucesso (apos `resend.emails.send` retornar sem erro, linha 161-166), adicionar duas insercoes:
 
-### Secao Tecnica
-
-**Funcao a ser adicionada na Edge Function:**
+**1. Inserir em `sent_emails`:**
 ```typescript
-const LOWERCASE_PARTICLES = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
-
-function toTitleCase(text: string): string {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .split(' ')
-    .filter(word => word.length > 0)
-    .map((word, index) => {
-      if (index > 0 && LOWERCASE_PARTICLES.has(word)) return word;
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(' ');
-}
+await supabase.from("sent_emails").insert({
+  entity_type: "person",
+  entity_id: recipient.person_id,
+  from_email: fromEmail,
+  from_name: fromName,
+  to_email: recipient.email,
+  to_name: recipient.name,
+  subject: personalizedSubject,
+  body: personalizedBody,
+  status: "sent",
+  sent_at: new Date().toISOString(),
+  created_by: userId,
+});
 ```
 
-**Linha 300 - antes:**
+**2. Inserir em `people_history`:**
 ```typescript
-name: socio.nome || 'Socio',
+await supabase.from("people_history").insert({
+  person_id: recipient.person_id,
+  event_type: "email_sent",
+  description: `E-mail enviado via campanha: "${personalizedSubject}"`,
+  created_by: userId,
+});
 ```
 
-**Linha 300 - depois:**
-```typescript
-name: toTitleCase(socio.nome || 'Socio'),
+Ambas as insercoes so ocorrem se `recipient.person_id` existir (contatos vinculados). E-mails para destinatarios sem `person_id` continuam funcionando normalmente, apenas sem o registro na timeline.
+
+### Arquivo: `src/components/people/detail/PersonTimeline.tsx`
+
+Adicionar suporte ao novo tipo de evento `email_sent` nos mapeamentos de icone e cor:
+- Icone: `Mail`
+- Cor: `bg-pink-500/20 text-pink-400`
+
+## Secao Tecnica
+
+### Arquivos modificados:
+```text
+supabase/functions/process-bulk-email/index.ts  -> Inserir registros apos envio
+src/components/people/detail/PersonTimeline.tsx  -> Suporte visual ao evento email_sent
 ```
 
-**Linha 306 - antes:**
-```typescript
-legal_rep_name: socio.representante_legal?.nome || null,
-```
+### Nenhuma migracao SQL necessaria
+As tabelas `sent_emails` e `people_history` ja existem com as colunas necessarias. As politicas RLS permitem insercao pelo service role (usado na Edge Function).
 
-**Linha 306 - depois:**
-```typescript
-legal_rep_name: socio.representante_legal?.nome ? toTitleCase(socio.representante_legal.nome) : null,
-```
+### Impacto em performance
+Cada e-mail enviado gerara 2 insercoes extras no banco. Com o rate limit padrao de 10 e-mails por lote, isso adiciona ~20 insercoes por execucao, impacto negligivel.
 
-Apenas 1 arquivo sera modificado. Apos a alteracao, a Edge Function sera re-deployada automaticamente. Para ver o efeito, basta clicar novamente em "Atualizar dados" na organizacao.
