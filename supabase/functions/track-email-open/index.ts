@@ -10,11 +10,15 @@ const TRANSPARENT_GIF = new Uint8Array([
   0x01, 0x00, 0x3b,
 ]);
 
+// UUID v4 format validation
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 serve(async (req: Request) => {
   const url = new URL(req.url);
   const trackingId = url.searchParams.get("tid");
 
-  if (trackingId) {
+  // Validate tracking ID is a valid UUID before querying
+  if (trackingId && UUID_REGEX.test(trackingId)) {
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,

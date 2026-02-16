@@ -20,6 +20,22 @@ export interface WhatsAppMessage {
   } | null;
 }
 
+// Generate signed URL for private bucket media
+async function resolveMediaUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  // If it's already a full URL (legacy data), return as-is
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  // Generate a signed URL valid for 1 hour
+  const { data, error } = await supabase.storage
+    .from('whatsapp-media')
+    .createSignedUrl(path, 3600);
+  if (error) {
+    console.error('Failed to create signed URL for:', path, error);
+    return null;
+  }
+  return data.signedUrl;
+}
+
 export function useWhatsAppMessages(conversationId: string) {
   const queryClient = useQueryClient();
 
@@ -36,7 +52,21 @@ export function useWhatsAppMessages(conversationId: string) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return data as unknown as WhatsAppMessage[];
+      
+      const messages = data as unknown as WhatsAppMessage[];
+      
+      // Resolve signed URLs for all messages with media
+      const resolved = await Promise.all(
+        messages.map(async (msg) => {
+          if (msg.media_url && msg.message_type !== 'text') {
+            const signedUrl = await resolveMediaUrl(msg.media_url);
+            return { ...msg, media_url: signedUrl };
+          }
+          return msg;
+        })
+      );
+      
+      return resolved;
     },
     enabled: !!conversationId,
   });
