@@ -39,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2, User, Send } from 'lucide-react';
+import { Phone, Mail, Building2, Pencil, Trash2, GripVertical, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUp, ArrowDown, ArrowUpDown, Settings2, Eye, RotateCcw, Trash2 as Trash2Icon, MessageCircle, GitMerge, Loader2, User, Send, Bookmark } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCnpj } from '@/lib/utils';
 import { ExportButtons } from '@/components/shared/ExportButtons';
@@ -90,6 +90,8 @@ interface PeopleTableProps {
   onMerge?: () => void;
   onBulkEmail?: () => void;
   onBulkEmailAll?: () => void;
+  onSaveToCampaign?: () => void;
+  onSaveToCampaignAll?: () => void;
   hasActiveFilters?: boolean;
   isLoadingFilteredRecipients?: boolean;
   // Server-side pagination props
@@ -166,6 +168,8 @@ export function PeopleTable({
   onMerge,
   onBulkEmail,
   onBulkEmailAll,
+  onSaveToCampaign,
+  onSaveToCampaignAll,
   hasActiveFilters = false,
   isLoadingFilteredRecipients = false,
   // Server-side pagination props
@@ -662,22 +666,34 @@ export function PeopleTable({
             filenamePrefix="pessoas" 
           />
           
-          {/* Enviar para todos filtrados */}
+          {/* Ações para todos filtrados */}
           {hasActiveFilters && totalCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onBulkEmailAll}
-              disabled={isLoadingFilteredRecipients}
-              className="h-8"
-            >
-              {isLoadingFilteredRecipients ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4 mr-1.5" />
-              )}
-              Enviar para {totalCount} filtrados
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkEmailAll}
+                disabled={isLoadingFilteredRecipients}
+                className="h-8"
+              >
+                {isLoadingFilteredRecipients ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-1.5" />
+                )}
+                Enviar para {totalCount} filtrados
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSaveToCampaignAll}
+                disabled={isLoadingFilteredRecipients}
+                className="h-8"
+              >
+                <Bookmark className="h-4 w-4 mr-1.5" />
+                Salvar em Campanha
+              </Button>
+            </div>
           )}
 
           {/* Ações em lote - aparece quando há seleção */}
@@ -694,6 +710,15 @@ export function PeopleTable({
               >
                 <Send className="h-4 w-4 mr-1.5" />
                 E-mail em Massa
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSaveToCampaign}
+                className="h-8"
+              >
+                <Bookmark className="h-4 w-4 mr-1.5" />
+                Salvar em Campanha
               </Button>
               {selectedIds.length === 2 && (
                 <Button

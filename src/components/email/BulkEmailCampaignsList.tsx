@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Mail, Eye, Loader2, CheckCircle, XCircle, Clock, MailOpen, RefreshCw } from 'lucide-react';
+import { Mail, Eye, Loader2, CheckCircle, XCircle, Clock, MailOpen, RefreshCw, Send, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,8 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useBulkEmail } from '@/hooks/useBulkEmail';
 import { CampaignDetailDialog } from './CampaignDetailDialog';
+import { CampaignComposerDialog } from './CampaignComposerDialog';
+import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
 
 interface BulkEmailCampaignsListProps {
   open: boolean;
@@ -29,8 +31,16 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 };
 
 export function BulkEmailCampaignsList({ open, onOpenChange }: BulkEmailCampaignsListProps) {
-  const { campaigns, campaignsLoading, continueProcessing, isContinuing } = useBulkEmail();
+  const { campaigns, campaignsLoading, continueProcessing, isContinuing, deleteCampaign, isDeletingCampaign } = useBulkEmail();
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [composingCampaign, setComposingCampaign] = useState<{ id: string; name: string } | null>(null);
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingCampaignId) return;
+    await deleteCampaign(deletingCampaignId);
+    setDeletingCampaignId(null);
+  };
 
   return (
     <>
@@ -57,6 +67,7 @@ export function BulkEmailCampaignsList({ open, onOpenChange }: BulkEmailCampaign
                 {campaigns.map((campaign: any) => {
                   const sc = statusConfig[campaign.status] || statusConfig.draft;
                   const Icon = sc.icon;
+                  const isDraft = campaign.status === 'draft';
                   const progress = campaign.total_recipients > 0
                     ? ((campaign.sent_count + campaign.failed_count) / campaign.total_recipients) * 100
                     : 0;
@@ -79,39 +90,79 @@ export function BulkEmailCampaignsList({ open, onOpenChange }: BulkEmailCampaign
                         </Badge>
                       </div>
 
-                      <Progress value={progress} className="h-2" />
+                      {!isDraft && <Progress value={progress} className="h-2" />}
 
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3 text-emerald-500" />
-                          {campaign.sent_count} enviados
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MailOpen className="h-3 w-3 text-blue-500" />
-                          {campaign.opened_count} abertos ({openRate}%)
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <XCircle className="h-3 w-3 text-destructive" />
-                          {campaign.failed_count} falhas
-                        </span>
-                        <span>Total: {campaign.total_recipients}</span>
-                      </div>
+                      {!isDraft && (
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3 text-emerald-500" />
+                            {campaign.sent_count} enviados
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MailOpen className="h-3 w-3 text-blue-500" />
+                            {campaign.opened_count} abertos ({openRate}%)
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <XCircle className="h-3 w-3 text-destructive" />
+                            {campaign.failed_count} falhas
+                          </span>
+                          <span>Total: {campaign.total_recipients}</span>
+                        </div>
+                      )}
+
+                      {isDraft && (
+                        <p className="text-xs text-muted-foreground">
+                          {campaign.total_recipients} destinatário(s) • Aguardando envio
+                        </p>
+                      )}
 
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setSelectedCampaignId(campaign.id)}>
-                          <Eye className="h-3.5 w-3.5 mr-1" />
-                          Detalhes
-                        </Button>
-                        {campaign.status === 'processing' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => continueProcessing(campaign.id)}
-                            disabled={isContinuing}
-                          >
-                            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isContinuing ? 'animate-spin' : ''}`} />
-                            Continuar envio
-                          </Button>
+                        {isDraft ? (
+                          <>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => setComposingCampaign({ id: campaign.id, name: campaign.subject })}
+                            >
+                              <Send className="h-3.5 w-3.5 mr-1" />
+                              Enviar E-mail
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedCampaignId(campaign.id)}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              Destinatários
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setDeletingCampaignId(campaign.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Excluir
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => setSelectedCampaignId(campaign.id)}>
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              Detalhes
+                            </Button>
+                            {campaign.status === 'processing' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => continueProcessing(campaign.id)}
+                                disabled={isContinuing}
+                              >
+                                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isContinuing ? 'animate-spin' : ''}`} />
+                                Continuar envio
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -130,6 +181,25 @@ export function BulkEmailCampaignsList({ open, onOpenChange }: BulkEmailCampaign
           campaignId={selectedCampaignId}
         />
       )}
+
+      {composingCampaign && (
+        <CampaignComposerDialog
+          open={!!composingCampaign}
+          onOpenChange={(open) => !open && setComposingCampaign(null)}
+          campaignId={composingCampaign.id}
+          campaignName={composingCampaign.name}
+          onSuccess={() => setComposingCampaign(null)}
+        />
+      )}
+
+      <DeleteConfirmDialog
+        open={!!deletingCampaignId}
+        onOpenChange={(open) => !open && setDeletingCampaignId(null)}
+        title="Excluir Campanha"
+        itemName="esta campanha"
+        onConfirm={handleDeleteConfirm}
+        isDeleting={isDeletingCampaign}
+      />
     </>
   );
 }
