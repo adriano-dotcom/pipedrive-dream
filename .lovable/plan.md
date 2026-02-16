@@ -1,98 +1,120 @@
 
 
-# Corrigir Importacao - Registros Faltantes (6437 vs 4291)
+# Corrigir Importacao - Usar Dados Pre-Carregados na Importacao
 
-## Diagnostico
+## Causa Raiz
 
-O arquivo CSV continha 6437 registros, mas apenas 4291 organizacoes foram criadas. A causa raiz e que o processo de importacao realiza cada linha de forma sequencial com 3-6 chamadas individuais ao banco por linha, totalizando ~25.000 chamadas. Isso causa:
+O sistema ja busca todos os registros existentes (com paginacao corrigida) para mostrar na tela de preview. Porem, na funcao `performImport`, ele **ignora esses dados** e faz novas consultas individuais ao banco para cada linha:
 
-- Timeout do navegador ou travamento da aba
-- Exaustao de memoria
-- O processo para sem aviso e sem possibilidade de retomar
+- Linha 323-330: busca org por `pipedrive_id` (1 query/row)
+- Linha 333-340: busca org por `cnpj` (1 query/row)  
+- Linha 343-350: busca org por `name` (1 query/row)
+- Linha 475-482: busca person por `pipedrive_id` (1 query/row)
+- Linha 484-491: busca person por `email` (1 query/row)
+- Linha 493-499: busca person por `cpf` (1 query/row)
 
-## Solucao em Duas Partes
+Total: ate 6 queries apenas para checagem de duplicatas **por linha**. Com 6437 linhas = ~38.000 queries so de checagem. Isso causa timeout/crash do navegador.
 
-### Parte 1: Reimportar os registros faltantes
+## Solucao
 
-Antes de alterar o codigo, o usuario deve reimportar o mesmo arquivo CSV. O sistema de deteccao de duplicatas (pipedrive_id, CNPJ, nome) ira pular os 4291 ja existentes e importar apenas os ~2146 faltantes. Porem, para isso funcionar, precisamos primeiro corrigir o codigo.
+Construir indices (Maps) a partir dos dados ja pre-carregados (`existingOrgs`, `existingPeople`) e fazer a checagem em memoria, eliminando ~90% das chamadas ao banco.
 
-### Parte 2: Implementar processamento em lote (batch)
+### Alteracoes no arquivo `src/components/import/ImportDialog.tsx`
 
-#### Arquivo: `src/components/import/ImportDialog.tsx`
+**1. Criar indices em memoria antes do loop (antes da linha 295)**
 
-**Alteracao 1 - Pre-fetch sem limite de 1000 linhas (linhas 69-88)**
-
-Adicionar paginacao ao carregar registros existentes para garantir que TODOS os registros sejam buscados, nao apenas os primeiros 1000:
+Adicionar construcao de Maps a partir dos dados pre-carregados:
 
 ```text
-// Buscar TODOS os registros existentes usando paginacao
-queryFn: async () => {
-  let allData = [];
-  let from = 0;
-  const pageSize = 1000;
-  while (true) {
-    const { data } = await supabase
-      .from('organizations')
-      .select('id, name, cnpj, pipedrive_id')
-      .range(from, from + pageSize - 1);
-    if (!data || data.length === 0) break;
-    allData.push(...data);
-    if (data.length < pageSize) break;
-    from += pageSize;
-  }
-  return allData;
-};
+// Indices para busca rapida em memoria
+const orgByPipedriveId = new Map<string, string>();
+const orgByCnpj = new Map<string, string>();
+const orgByName = new Map<string, string>();
+
+existingOrgs?.forEach(org => {
+  if (org.pipedrive_id) orgByPipedriveId.set(org.pipedrive_id, org.id);
+  if (org.cnpj) orgByCnpj.set(org.cnpj.replace(/\D/g, ''), org.id);
+  if (org.name) orgByName.set(org.name.toLowerCase(), org.id);
+});
+
+const personByPipedriveId = new Map<string, string>();
+const personByEmail = new Map<string, string>();
+const personByCpf = new Map<string, string>();
+
+existingPeople?.forEach(p => {
+  if (p.pipedrive_id) personByPipedriveId.set(p.pipedrive_id, p.id);
+  if (p.email) personByEmail.set(p.email.toLowerCase(), p.id);
+  if (p.cpf) personByCpf.set(p.cpf.replace(/\D/g, ''), p.id);
+});
 ```
 
-Aplicar o mesmo padrao para a query de `people`.
+**2. Substituir queries individuais de org por busca em memoria (linhas 320-350)**
 
-**Alteracao 2 - Processamento em lotes com intervalo (funcao `performImport`)**
-
-Modificar o loop principal (linha 275) para processar em lotes de 50 registros com pausa entre lotes:
+Trocar as 3 queries sequenciais por:
 
 ```text
-const BATCH_SIZE = 50;
-for (let i = 0; i < selectedRows.length; i++) {
-  // ... logica existente de processamento por linha ...
-
-  // A cada BATCH_SIZE registros, pausar para evitar sobrecarga
-  if ((i + 1) % BATCH_SIZE === 0) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
+// Buscar org em memoria primeiro
+let existingOrgId = null;
+if (mappedData.pipedrive_id) {
+  existingOrgId = orgByPipedriveId.get(mappedData.pipedrive_id) || null;
+}
+if (!existingOrgId && cnpjClean) {
+  existingOrgId = orgByCnpj.get(cnpjClean) || null;
+}
+if (!existingOrgId && orgName) {
+  existingOrgId = orgByName.get(orgName.toLowerCase()) || null;
 }
 ```
 
-Isso permite que o navegador processe eventos da interface (atualizacao da barra de progresso, prevencao de travamento).
+Manter a query ao banco apenas como fallback caso a org tenha sido criada durante esta mesma importacao e nao esteja no pre-fetch.
 
-**Alteracao 3 - Tratamento de erro resiliente por linha**
+**3. Substituir queries individuais de person por busca em memoria (linhas 473-500)**
 
-O bloco catch (linha 569) ja existe, mas adicionar log mais detalhado e continuar processando mesmo apos erros:
+Mesmo padrao:
 
 ```text
-catch (error) {
-  console.error(`[Import] Erro na linha ${row.index + 2}:`, error);
-  results.push({
-    success: false,
-    name: row.mappedData.name || row.mappedData.org_name || `Linha ${row.index + 2}`,
-    type: 'person',
-    error: error instanceof Error ? error.message : 'Erro desconhecido',
-  });
+let existingPerson = null;
+if (personPipedriveId) {
+  const id = personByPipedriveId.get(personPipedriveId);
+  if (id) existingPerson = { id };
+}
+if (!existingPerson && emailLower) {
+  const id = personByEmail.get(emailLower);
+  if (id) existingPerson = { id };
+}
+if (!existingPerson && cpfClean) {
+  const id = personByCpf.get(cpfClean);
+  if (id) existingPerson = { id };
 }
 ```
 
-### Resumo das alteracoes
+**4. Atualizar indices apos criar novos registros**
 
-| Arquivo | Alteracao |
+Quando um novo registro e criado (org ou person), adicionar ao Map para que linhas subsequentes da mesma importacao tambem encontrem:
+
+```text
+// Apos criar nova org
+if (newOrg.id) {
+  if (cnpjClean) orgByCnpj.set(cnpjClean, newOrg.id);
+  if (orgName) orgByName.set(orgName.toLowerCase(), newOrg.id);
+  if (mappedData.pipedrive_id) orgByPipedriveId.set(mappedData.pipedrive_id, newOrg.id);
+}
+```
+
+### Impacto
+
+| Antes | Depois |
 |---|---|
-| `src/components/import/ImportDialog.tsx` | Paginacao no pre-fetch de duplicatas (evitar limite de 1000) |
-| `src/components/import/ImportDialog.tsx` | Pausa entre lotes de 50 registros (evitar travamento) |
-| `src/components/import/ImportDialog.tsx` | Logging melhorado nos erros |
+| ~6 queries/linha para checagem = ~38.000 queries | 0 queries para checagem (busca em memoria) |
+| ~2 queries/linha para insert/update = ~12.000 queries | ~2 queries/linha = ~12.000 queries (sem mudanca) |
+| Total: ~50.000 queries | Total: ~12.000 queries |
+| Timeout apos ~4.300 linhas | Processamento completo de 6.437 linhas |
 
 ### Fluxo apos a correcao
 
-1. Aplicar as alteracoes no codigo
+1. Aplicar as alteracoes
 2. Reimportar o mesmo arquivo CSV
-3. O sistema detectara os 4291 registros existentes como duplicatas (atualizara dados se necessario)
-4. Os ~2146 registros faltantes serao criados normalmente
-5. A barra de progresso funcionara sem travamento
+3. O sistema detectara os 4291 existentes em memoria (sem queries extras)
+4. Os ~2146 faltantes serao criados normalmente
+5. Tempo estimado reduzido de ~60min para ~15min
 
