@@ -164,6 +164,30 @@ serve(async (req: Request) => {
             .update({ status: "sent", sent_at: new Date().toISOString() })
             .eq("id", recipient.id);
           sentCount++;
+
+          // Register in sent_emails and people_history if person is linked
+          if (recipient.person_id) {
+            await supabase.from("sent_emails").insert({
+              entity_type: "person",
+              entity_id: recipient.person_id,
+              from_email: fromEmail,
+              from_name: fromName,
+              to_email: recipient.email,
+              to_name: recipient.name,
+              subject: personalizedSubject,
+              body: personalizedBody,
+              status: "sent",
+              sent_at: new Date().toISOString(),
+              created_by: userId,
+            });
+
+            await supabase.from("people_history").insert({
+              person_id: recipient.person_id,
+              event_type: "email_sent",
+              description: `E-mail enviado via campanha: "${personalizedSubject}"`,
+              created_by: userId,
+            });
+          }
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : "Unknown error";
