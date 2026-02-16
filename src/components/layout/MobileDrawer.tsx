@@ -7,7 +7,10 @@ import {
   Settings, 
   LogOut,
   Sparkles,
-  Menu
+  Menu,
+  BarChart3,
+  MessageSquare,
+  UserCog
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,6 +36,7 @@ const menuItems = [
   { title: 'Pessoas', url: '/people', icon: UsersRound },
   { title: 'Negócios', url: '/deals', icon: Handshake },
   { title: 'Atividades', url: '/activities', icon: ListTodo },
+  { title: 'Relatórios', url: '/reports', icon: BarChart3 },
 ];
 
 export function MobileDrawer() {
@@ -112,6 +116,37 @@ export function MobileDrawer() {
               </DrawerClose>
             ))}
           </nav>
+
+          {/* Admin Links */}
+          {isAdmin && (
+            <>
+              <Separator className="my-2" />
+              <nav className="flex flex-col gap-1">
+                <DrawerClose asChild>
+                  <NavLink
+                    to="/timelinesai"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 text-muted-foreground transition-all"
+                    activeClassName="bg-primary/10 text-primary"
+                    onClick={() => setOpen(false)}
+                  >
+                    <MessageSquare className="h-5 w-5 text-emerald-500" />
+                    <span className="font-medium">Timelines.ai</span>
+                  </NavLink>
+                </DrawerClose>
+                <DrawerClose asChild>
+                  <NavLink
+                    to="/admin/vendedores"
+                    className="flex items-center gap-3 rounded-xl px-4 py-3 text-muted-foreground transition-all"
+                    activeClassName="bg-primary/10 text-primary"
+                    onClick={() => setOpen(false)}
+                  >
+                    <UserCog className="h-5 w-5 text-amber-500" />
+                    <span className="font-medium">Vendedores</span>
+                  </NavLink>
+                </DrawerClose>
+              </nav>
+            </>
+          )}
 
           <Separator className="my-2" />
 

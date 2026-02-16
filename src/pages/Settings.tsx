@@ -12,6 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { toast } from 'sonner';
+import { z } from 'zod';
+
+const profileSchema = z.object({
+  fullName: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome muito longo'),
+  phone: z.string().optional(),
+});
 
 export default function Settings() {
   const { profile, role, user, isAdmin } = useAuth();
@@ -44,8 +50,20 @@ export default function Settings() {
     },
   });
 
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileErrors({});
+    const validation = profileSchema.safeParse({ fullName, phone });
+    if (!validation.success) {
+      const fieldErrors: Record<string, string> = {};
+      validation.error.errors.forEach((err) => {
+        if (err.path[0]) fieldErrors[err.path[0].toString()] = err.message;
+      });
+      setProfileErrors(fieldErrors);
+      return;
+    }
     updateProfileMutation.mutate();
   };
 
@@ -95,6 +113,7 @@ export default function Settings() {
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Seu nome completo"
               />
+              {profileErrors.fullName && <p className="text-sm text-destructive">{profileErrors.fullName}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone</Label>

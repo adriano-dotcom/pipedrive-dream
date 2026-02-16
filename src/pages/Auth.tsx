@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Sparkles, Loader2, Mail, Lock, User, Chrome } from 'lucide-react';
+import { Sparkles, Loader2, Mail, Lock, User, ArrowLeft } from 'lucide-react';
 import { lovable } from '@/integrations/lovable/index';
 import { Separator } from '@/components/ui/separator';
 
@@ -31,6 +32,9 @@ export default function Auth() {
   const [signupData, setSignupData] = useState({ fullName: '', email: '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -109,8 +113,28 @@ export default function Auth() {
         toast.error(error.message);
       }
     } else {
-      toast.success('Conta criada com sucesso!');
-      navigate('/');
+      toast.success('Conta criada! Verifique seu email para confirmar o cadastro.');
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const emailValidation = z.string().trim().email('Email inválido').safeParse(resetEmail);
+    if (!emailValidation.success) {
+      toast.error('Digite um email válido');
+      return;
+    }
+    setIsResetting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: window.location.origin,
+    });
+    setIsResetting(false);
+    if (error) {
+      toast.error('Erro ao enviar email de recuperação');
+    } else {
+      toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');
+      setShowForgotPassword(false);
+      setResetEmail('');
     }
   };
 
@@ -205,6 +229,14 @@ export default function Auth() {
                   {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Entrar
                 </Button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="w-full text-center text-sm text-muted-foreground hover:text-primary transition-colors mt-2"
+                >
+                  Esqueceu sua senha?
+                </button>
                 
                 <div className="relative my-4">
                   <Separator />
@@ -304,6 +336,44 @@ export default function Auth() {
               </form>
             </TabsContent>
           </Tabs>
+
+          {/* Forgot Password View */}
+          {showForgotPassword && (
+            <div className="absolute inset-0 bg-card rounded-xl p-6 flex flex-col animate-fade-in z-10">
+              <button
+                onClick={() => setShowForgotPassword(false)}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar ao login
+              </button>
+              <h3 className="text-lg font-semibold mb-2">Recuperar Senha</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Digite seu email e enviaremos um link para redefinir sua senha.
+              </p>
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="seu@email.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      disabled={isResetting}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={isResetting}>
+                  {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enviar Link de Recuperação
+                </Button>
+              </form>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
