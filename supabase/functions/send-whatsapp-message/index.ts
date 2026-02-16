@@ -79,7 +79,11 @@ serve(async (req) => {
     // Enviar mensagem para Timelines.ai
     const timelinesToken = Deno.env.get('TIMELINES_API_TOKEN');
     if (!timelinesToken) {
-      throw new Error('TIMELINES_API_TOKEN is not configured');
+      console.error('TIMELINES_API_TOKEN is not configured');
+      return new Response(JSON.stringify({ error: 'Serviço de mensagens indisponível' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const chatId = conversation.timelines_conversation_id;
@@ -99,8 +103,7 @@ serve(async (req) => {
       const errorText = await timelinesResponse.text();
       console.error('Timelines.ai API error:', timelinesResponse.status, errorText);
       return new Response(JSON.stringify({ 
-        error: 'Failed to send message via Timelines.ai',
-        details: errorText,
+        error: 'Falha ao enviar mensagem',
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -189,7 +192,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Send message error:', error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: 'Erro interno do servidor' 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -100,7 +100,11 @@ serve(async (req) => {
     // Chamar Lovable AI com tool calling
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+      console.error('LOVABLE_API_KEY is not configured');
+      return new Response(JSON.stringify({ error: 'Serviço de análise indisponível' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const systemPrompt = `Você é um analista de qualidade de atendimento ao cliente. Analise a conversa de WhatsApp entre um atendente e um cliente e avalie a qualidade do atendimento.
@@ -278,7 +282,7 @@ Use a função analyze_conversation para retornar sua análise estruturada.`;
   } catch (error) {
     console.error('Analyze error:', error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: 'Erro interno do servidor' 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -69,8 +69,9 @@ Deno.serve(async (req) => {
     const casaDadosApiKey = Deno.env.get('CASA_DOS_DADOS_API_KEY');
 
     if (!casaDadosApiKey) {
+      console.error('CASA_DOS_DADOS_API_KEY not configured');
       return new Response(
-        JSON.stringify({ error: 'API Key da Casa dos Dados não configurada' }),
+        JSON.stringify({ error: 'Serviço de enriquecimento indisponível' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -149,16 +150,18 @@ Deno.serve(async (req) => {
     });
 
     if (apiResponse.status === 401) {
+      console.error('Casa dos Dados API Key invalid');
       return new Response(
-        JSON.stringify({ error: 'API Key inválida. Por favor, verifique a configuração.' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Erro de autenticação no serviço de enriquecimento' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (apiResponse.status === 403) {
+      console.error('Casa dos Dados API credits exhausted');
       return new Response(
-        JSON.stringify({ error: 'Créditos insuficientes na API Casa dos Dados.' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Serviço de enriquecimento temporariamente indisponível' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -173,8 +176,8 @@ Deno.serve(async (req) => {
       const errorText = await apiResponse.text();
       console.error(`[enrich-organization] Erro na API: ${apiResponse.status} - ${errorText}`);
       return new Response(
-        JSON.stringify({ error: `Erro na consulta: ${apiResponse.statusText}` }),
-        { status: apiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Erro ao consultar dados da empresa' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -265,7 +268,7 @@ Deno.serve(async (req) => {
     if (updateError) {
       console.error('[enrich-organization] Erro ao atualizar organização:', updateError);
       return new Response(
-        JSON.stringify({ error: 'Erro ao atualizar organização: ' + updateError.message }),
+        JSON.stringify({ error: 'Erro ao atualizar organização' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
