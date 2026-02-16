@@ -30,6 +30,7 @@ export interface PeopleFiltersState {
   labels: string[];
   leadSources: string[];
   jobTitles: string[];
+  cities: string[];
   organizationId: string | null;
   ownerId: string | null;
   dateRange: { from: Date | null; to: Date | null };
@@ -41,6 +42,7 @@ export const defaultPeopleFilters: PeopleFiltersState = {
   labels: [],
   leadSources: [],
   jobTitles: [],
+  cities: [],
   organizationId: null,
   ownerId: null,
   dateRange: { from: null, to: null },
@@ -89,11 +91,25 @@ export function PeopleFilters({ filters, onFiltersChange, people }: PeopleFilter
   // Extract unique job titles from people data
   const uniqueJobTitles = [...new Set(people.map((p) => p.job_title).filter(Boolean))].sort();
 
+  // Fetch unique cities from organizations
+  const { data: uniqueCities = [] } = useQuery({
+    queryKey: ['unique-cities'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('organizations')
+        .select('address_city')
+        .not('address_city', 'is', null)
+        .order('address_city');
+      return [...new Set(data?.map(o => o.address_city).filter(Boolean))] as string[];
+    },
+  });
+
   // Count active filters
   const activeFiltersCount =
     filters.labels.length +
     filters.leadSources.length +
     filters.jobTitles.length +
+    filters.cities.length +
     (filters.organizationId ? 1 : 0) +
     (filters.ownerId ? 1 : 0) +
     (filters.dateRange.from || filters.dateRange.to ? 1 : 0) +
@@ -119,6 +135,13 @@ export function PeopleFilters({ filters, onFiltersChange, people }: PeopleFilter
       ? filters.jobTitles.filter((t) => t !== title)
       : [...filters.jobTitles, title];
     onFiltersChange({ ...filters, jobTitles: newTitles });
+  };
+
+  const handleCityToggle = (city: string) => {
+    const newCities = filters.cities.includes(city)
+      ? filters.cities.filter((c) => c !== city)
+      : [...filters.cities, city];
+    onFiltersChange({ ...filters, cities: newCities });
   };
 
   const handleDateRangeChange = (range: { from: Date | null; to: Date | null }) => {
@@ -214,6 +237,20 @@ export function PeopleFilters({ filters, onFiltersChange, people }: PeopleFilter
                   onClick={(e) => {
                     e.stopPropagation();
                     handleJobTitleToggle(title);
+                  }}
+                  className="hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            {filters.cities.map((city) => (
+              <Badge key={city} variant="secondary" className="gap-1">
+                {city}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCityToggle(city);
                   }}
                   className="hover:bg-muted-foreground/20 rounded-full p-0.5"
                 >
@@ -400,6 +437,41 @@ export function PeopleFilters({ filters, onFiltersChange, people }: PeopleFilter
                             onCheckedChange={() => handleJobTitleToggle(title)}
                           />
                           <span className="text-sm">{title}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* City Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Cidade</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filters.cities.length > 0
+                      ? `${filters.cities.length} selecionada(s)`
+                      : 'Selecionar...'}
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2 max-h-60 overflow-y-auto" align="start">
+                  <div className="space-y-1">
+                    {uniqueCities.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-2">Nenhuma cidade encontrada</p>
+                    ) : (
+                      uniqueCities.map((city) => (
+                        <label
+                          key={city}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={filters.cities.includes(city)}
+                            onCheckedChange={() => handleCityToggle(city)}
+                          />
+                          <span className="text-sm">{city}</span>
                         </label>
                       ))
                     )}
