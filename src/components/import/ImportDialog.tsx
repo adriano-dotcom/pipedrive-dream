@@ -292,6 +292,27 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
       return tagId;
     };
 
+    // Build in-memory indices from pre-fetched data for fast duplicate checking
+    const orgByPipedriveId = new Map<string, string>();
+    const orgByCnpj = new Map<string, string>();
+    const orgByName = new Map<string, string>();
+
+    existingOrgs?.forEach(org => {
+      if (org.pipedrive_id) orgByPipedriveId.set(org.pipedrive_id, org.id);
+      if (org.cnpj) orgByCnpj.set(org.cnpj.replace(/\D/g, ''), org.id);
+      if (org.name) orgByName.set(org.name.toLowerCase(), org.id);
+    });
+
+    const personByPipedriveId = new Map<string, string>();
+    const personByEmail = new Map<string, string>();
+    const personByCpf = new Map<string, string>();
+
+    existingPeople?.forEach(p => {
+      if (p.pipedrive_id) personByPipedriveId.set(p.pipedrive_id, p.id);
+      if (p.email) personByEmail.set(p.email.toLowerCase(), p.id);
+      if (p.cpf) personByCpf.set(p.cpf.replace(/\D/g, ''), p.id);
+    });
+
     for (let i = 0; i < selectedRows.length; i++) {
       const row = selectedRows[i];
       const { mappedData } = row;
@@ -316,41 +337,20 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
           if (orgCache.has(cacheKey)) {
             organizationId = orgCache.get(cacheKey)!;
           } else {
-            // Check if org exists
-            let existingOrg = null;
-
-            // 1. Check by pipedrive_id first
+            // Check in-memory indices (no DB queries)
+            let existingOrgId: string | null = null;
             if (mappedData.pipedrive_id) {
-              const { data } = await supabase
-                .from('organizations')
-                .select('id')
-                .eq('pipedrive_id', mappedData.pipedrive_id)
-                .maybeSingle();
-              existingOrg = data;
+              existingOrgId = orgByPipedriveId.get(mappedData.pipedrive_id) || null;
             }
-            
-            // 2. Check by CNPJ
-            if (!existingOrg && cnpjClean) {
-              const { data } = await supabase
-                .from('organizations')
-                .select('id')
-                .eq('cnpj', cnpjClean)
-                .maybeSingle();
-              existingOrg = data;
+            if (!existingOrgId && cnpjClean) {
+              existingOrgId = orgByCnpj.get(cnpjClean) || null;
             }
-            
-            // 3. Check by name
-            if (!existingOrg && orgName) {
-              const { data } = await supabase
-                .from('organizations')
-                .select('id')
-                .ilike('name', orgName)
-                .maybeSingle();
-              existingOrg = data;
+            if (!existingOrgId && orgName) {
+              existingOrgId = orgByName.get(orgName.toLowerCase()) || null;
             }
 
-            if (existingOrg) {
-              organizationId = existingOrg.id;
+            if (existingOrgId) {
+              organizationId = existingOrgId;
               
               // Update org data
               const updateData: any = {};
@@ -399,6 +399,12 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
               if (orgError) throw orgError;
               
               organizationId = newOrg.id;
+
+              // Update in-memory indices for subsequent rows
+              if (cnpjClean) orgByCnpj.set(cnpjClean, newOrg.id);
+              if (orgName) orgByName.set(orgName.toLowerCase(), newOrg.id);
+              if (mappedData.pipedrive_id) orgByPipedriveId.set(mappedData.pipedrive_id, newOrg.id);
+
               results.push({
                 success: true,
                 name: orgName,
@@ -438,7 +444,6 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
         }
 
         // Handle person - combine first_name + last_name if name is not present
-        // Apply toTitleCase to standardize names
         let personName = toTitleCase(mappedData.name || '');
         if (!personName && (mappedData.first_name || mappedData.last_name)) {
           personName = [toTitleCase(mappedData.first_name || ''), toTitleCase(mappedData.last_name || '')]
@@ -459,7 +464,6 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
             mappedData.whatsapp = uniquePhones[1];
           }
         }
-        // Also deduplicate whatsapp field if it has multiple values
         const uniqueWhatsapp = splitAndDeduplicatePhones(mappedData.whatsapp || '');
         if (uniqueWhatsapp.length > 0) {
           mappedData.whatsapp = uniqueWhatsapp[0];
@@ -469,34 +473,20 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
         const cpfClean = mappedData.cpf?.replace(/\D/g, '');
         const personPipedriveId = mappedData.person_pipedrive_id;
 
-        // Check if person exists - priority: pipedrive_id > email > cpf
-        let existingPerson = null;
+        // Check person in-memory indices (no DB queries)
+        let existingPerson: { id: string } | null = null;
 
         if (personPipedriveId) {
-          const { data } = await supabase
-            .from('people')
-            .select('id')
-            .eq('pipedrive_id', personPipedriveId)
-            .maybeSingle();
-          existingPerson = data;
+          const id = personByPipedriveId.get(personPipedriveId);
+          if (id) existingPerson = { id };
         }
-        
         if (!existingPerson && emailLower) {
-          const { data } = await supabase
-            .from('people')
-            .select('id')
-            .ilike('email', emailLower)
-            .maybeSingle();
-          existingPerson = data;
+          const id = personByEmail.get(emailLower);
+          if (id) existingPerson = { id };
         }
-        
         if (!existingPerson && cpfClean) {
-          const { data } = await supabase
-            .from('people')
-            .select('id')
-            .eq('cpf', cpfClean)
-            .maybeSingle();
-          existingPerson = data;
+          const id = personByCpf.get(cpfClean);
+          if (id) existingPerson = { id };
         }
 
         let personId: string;
@@ -555,6 +545,11 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
 
           if (insertError) throw insertError;
           personId = insertedPerson.id;
+
+          // Update in-memory indices for subsequent rows
+          if (personPipedriveId) personByPipedriveId.set(personPipedriveId, personId);
+          if (emailLower) personByEmail.set(emailLower, personId);
+          if (cpfClean) personByCpf.set(cpfClean, personId);
 
           results.push({
             success: true,
