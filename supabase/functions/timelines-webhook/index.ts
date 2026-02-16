@@ -68,13 +68,13 @@ const ALLOWED_MIME_TYPES = [
   'text/plain',
 ];
 
-// Validate webhook secret
+// Validate webhook secret - NOW MANDATORY
 function validateWebhookSecret(req: Request): boolean {
   const webhookSecret = Deno.env.get('TIMELINES_WEBHOOK_SECRET');
   
   if (!webhookSecret) {
-    console.warn('TIMELINES_WEBHOOK_SECRET not configured - webhook authentication disabled');
-    return true;
+    console.error('TIMELINES_WEBHOOK_SECRET not configured - rejecting request');
+    return false;
   }
   
   const providedSecret = req.headers.get('x-webhook-secret') || 
@@ -213,7 +213,7 @@ function getMediaTypeFromMimetype(mimetype: string | undefined): string {
   return 'document';
 }
 
-// Download and store media file
+// Download and store media file - now returns file path instead of public URL
 async function downloadAndStoreMedia(
   supabase: SupabaseClient,
   conversationId: string,
@@ -228,7 +228,6 @@ async function downloadAndStoreMedia(
     // Validate mimetype
     if (!ALLOWED_MIME_TYPES.some(allowed => mimetype.toLowerCase().startsWith(allowed.split('/')[0]))) {
       console.warn('Mime type not in allowed list:', mimetype);
-      // Still allow, just log warning
     }
     
     // Download file from temporary URL
@@ -277,13 +276,9 @@ async function downloadAndStoreMedia(
       return null;
     }
 
-    // Get public URL
-    const { data } = supabase.storage
-      .from('whatsapp-media')
-      .getPublicUrl(filePath);
-
-    console.log('Media stored successfully:', data.publicUrl);
-    return data.publicUrl;
+    // Return file path (not public URL) - bucket is now private
+    console.log('Media stored successfully at path:', filePath);
+    return filePath;
   } catch (error) {
     console.error('Error processing media:', error);
     return null;
@@ -571,14 +566,14 @@ serve(async (req) => {
         
         // Determine message type
         let messageType = 'text';
-        let permanentMediaUrl: string | null = null;
+        let storedMediaPath: string | null = null;
         
         if (tempUrl) {
           messageType = getMediaTypeFromMimetype(mimetype);
           console.log('Message has attachment:', messageType, filename);
           
-          // Download and store media
-          permanentMediaUrl = await downloadAndStoreMedia(
+          // Download and store media - returns file path (not public URL)
+          storedMediaPath = await downloadAndStoreMedia(
             supabase,
             conversationId,
             messageUid,
@@ -587,8 +582,8 @@ serve(async (req) => {
             mimetype
           );
           
-          if (!permanentMediaUrl) {
-            console.warn('Failed to store media, message will be saved without media URL');
+          if (!storedMediaPath) {
+            console.warn('Failed to store media, message will be saved without media path');
           }
         }
 
@@ -601,7 +596,7 @@ serve(async (req) => {
             content: messageText.slice(0, 10000),
             message_type: messageType,
             status: 'delivered',
-            media_url: permanentMediaUrl,
+            media_url: storedMediaPath,
             media_mime_type: mimetype || null,
             metadata: {
               timestamp: payload.message.timestamp,
@@ -618,7 +613,7 @@ serve(async (req) => {
           throw msgError;
         }
 
-        console.log('Inserted message:', newMessage.id, 'type:', messageType, 'has_media:', !!permanentMediaUrl);
+        console.log('Inserted message:', newMessage.id, 'type:', messageType, 'has_media:', !!storedMediaPath);
 
         // 5. Record in Person Timeline
         const eventType = payload.message.direction === 'received' 
@@ -638,7 +633,7 @@ serve(async (req) => {
             conversation_id: conversationId,
             message_type: messageType,
             direction: payload.message.direction,
-            has_media: !!permanentMediaUrl,
+            has_media: !!storedMediaPath,
           },
         });
 
