@@ -356,14 +356,27 @@ export function PeopleTable({
       id: 'phone',
       accessorKey: 'phone',
       header: ({ column }) => <SortableHeader column={column} title="Telefone" />,
-      cell: ({ row }) => (
-        row.original.phone ? (
+      cell: ({ row }) => {
+        const phone = row.original.phone;
+        if (!phone) return <span className="text-muted-foreground/50">-</span>;
+        const cleanNumber = phone.replace(/\D/g, '');
+        return (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Phone className="h-3 w-3" />
-            {row.original.phone}
+            {phone}
+            <a
+              href={`https://wa.me/${cleanNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-emerald-500 hover:text-emerald-400"
+              title="Abrir no WhatsApp"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+            </a>
           </span>
-        ) : <span className="text-muted-foreground/50">-</span>
-      ),
+        );
+      },
     },
     {
       id: 'whatsapp',
