@@ -1,42 +1,66 @@
 
-# Adicionar Botao WhatsApp na Coluna Telefone
+
+# Adicionar Filtro "Atualizada RF" na Listagem de Organizacoes
 
 ## O que sera feito
-Adicionar um icone/botao clicavel do WhatsApp ao lado do numero de telefone na coluna "Telefone" da tabela de Pessoas, igual ao que ja existe na coluna "WhatsApp".
+Adicionar um novo filtro no painel de filtros avancados de Organizacoes que permite filtrar empresas por status de atualizacao na Receita Federal (campo `last_enriched_at`). O usuario podera escolher entre: Todas, Atualizadas RF, ou Nao Atualizadas RF.
 
-## Alteracao
+## Alteracoes
 
-### `src/components/people/PeopleTable.tsx`
-- Na celula da coluna `phone` (linhas 359-366), adicionar um link para `https://wa.me/{numero}` com o icone do WhatsApp (MessageCircle) ao lado do numero
-- O numero sera limpo (apenas digitos) para montar a URL do WhatsApp
-- O icone do WhatsApp tera estilo verde (emerald) para diferenciar do icone de telefone
+### 1. `src/components/organizations/OrganizationsFilters.tsx`
+- Adicionar `enrichmentStatus` ao tipo `OrganizationsFiltersState` com valores `null | 'enriched' | 'not_enriched'`
+- Adicionar valor padrao `enrichmentStatus: null` em `defaultOrganizationsFilters`
+- Incluir no contador de filtros ativos
+- Adicionar handler `handleEnrichmentStatusChange`
+- Adicionar novo filtro na UI (similar ao "Tem CNPJ"), com icone `FileText` e opcoes: Todas / Atualizada RF / Nao Atualizada RF
+- Adicionar badge removivel quando filtro ativo
+
+### 2. `src/pages/Organizations.tsx`
+- Aplicar o filtro server-side na query de busca:
+  - `enriched`: `query.not('last_enriched_at', 'is', null)`
+  - `not_enriched`: `query.is('last_enriched_at', null)`
+- Incluir no calculo de `hasActiveFilters`
 
 ## Secao Tecnica
 
-### Celula atualizada da coluna phone:
+### Novo campo no tipo de filtros:
 ```typescript
-cell: ({ row }) => {
-  const phone = row.original.phone;
-  if (!phone) return <span className="text-muted-foreground/50">-</span>;
-  const cleanNumber = phone.replace(/\D/g, '');
-  return (
-    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <Phone className="h-3 w-3" />
-      {phone}
-      <a
-        href={`https://wa.me/${cleanNumber}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="text-emerald-500 hover:text-emerald-400"
-        title="Abrir no WhatsApp"
-      >
-        <MessageCircle className="h-3.5 w-3.5" />
-      </a>
-    </span>
-  );
-},
+export interface OrganizationsFiltersState {
+  // ...campos existentes
+  enrichmentStatus: 'enriched' | 'not_enriched' | null;  // NOVO
+}
 ```
 
-### Arquivo modificado:
-- `src/components/people/PeopleTable.tsx` (apenas a celula da coluna phone, ~5 linhas alteradas)
+### Filtro server-side em Organizations.tsx:
+```typescript
+if (advancedFilters.enrichmentStatus === 'enriched') {
+  query = query.not('last_enriched_at', 'is', null);
+} else if (advancedFilters.enrichmentStatus === 'not_enriched') {
+  query = query.is('last_enriched_at', null);
+}
+```
+
+### Novo filtro na UI (mesmo padrao do "Tem CNPJ"):
+```typescript
+<div className="space-y-2">
+  <label className="text-sm font-medium">Atualizada RF</label>
+  <Popover>
+    <PopoverTrigger asChild>
+      <Button variant="outline" className="w-full justify-between">
+        {filters.enrichmentStatus === null
+          ? 'Todas'
+          : filters.enrichmentStatus === 'enriched'
+          ? 'Atualizada'
+          : 'Nao Atualizada'}
+        <FileText className="h-4 w-4 opacity-50" />
+      </Button>
+    </PopoverTrigger>
+    <!-- Opcoes: Todas / Atualizada / Nao Atualizada -->
+  </Popover>
+</div>
+```
+
+### Arquivos modificados:
+- `src/components/organizations/OrganizationsFilters.tsx` - novo campo + UI do filtro
+- `src/pages/Organizations.tsx` - aplicar filtro server-side + hasActiveFilters
+
