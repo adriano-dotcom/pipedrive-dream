@@ -72,6 +72,7 @@ export interface OrganizationsFiltersState {
   dateRange: { from: Date | null; to: Date | null };
   hasCnpj: boolean | null;
   hasClaimsHistory: boolean | null;
+  enrichmentStatus: 'enriched' | 'not_enriched' | null;
 }
 
 export const defaultOrganizationsFilters: OrganizationsFiltersState = {
@@ -87,6 +88,7 @@ export const defaultOrganizationsFilters: OrganizationsFiltersState = {
   dateRange: { from: null, to: null },
   hasCnpj: null,
   hasClaimsHistory: null,
+  enrichmentStatus: null,
 };
 
 interface OrganizationsFiltersProps {
@@ -133,7 +135,8 @@ export function OrganizationsFilters({ filters, onFiltersChange, organizations }
     (filters.ownerId ? 1 : 0) +
     (filters.dateRange.from || filters.dateRange.to ? 1 : 0) +
     (filters.hasCnpj !== null ? 1 : 0) +
-    (filters.hasClaimsHistory !== null ? 1 : 0);
+    (filters.hasClaimsHistory !== null ? 1 : 0) +
+    (filters.enrichmentStatus !== null ? 1 : 0);
 
   const handleLabelToggle = (label: string) => {
     const newLabels = filters.labels.includes(label)
@@ -205,6 +208,10 @@ export function OrganizationsFilters({ filters, onFiltersChange, organizations }
 
   const handleHasClaimsHistoryChange = (value: boolean | null) => {
     onFiltersChange({ ...filters, hasClaimsHistory: value });
+  };
+
+  const handleEnrichmentStatusChange = (value: 'enriched' | 'not_enriched' | null) => {
+    onFiltersChange({ ...filters, enrichmentStatus: value });
   };
 
   const clearAllFilters = () => {
@@ -771,6 +778,54 @@ export function OrganizationsFilters({ filters, onFiltersChange, organizations }
                       onClick={() => handleHasClaimsHistoryChange(false)}
                     >
                       Sem Sinistros
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Enrichment Status (Atualizada RF) Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Atualizada RF</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {filters.enrichmentStatus === null
+                      ? 'Todas'
+                      : filters.enrichmentStatus === 'enriched'
+                      ? 'Atualizada'
+                      : 'Não Atualizada'}
+                    <FileText className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="start">
+                  <div className="space-y-1">
+                    <button
+                      className={cn(
+                        'w-full text-left p-2 rounded text-sm hover:bg-muted',
+                        filters.enrichmentStatus === null && 'bg-muted'
+                      )}
+                      onClick={() => handleEnrichmentStatusChange(null)}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      className={cn(
+                        'w-full text-left p-2 rounded text-sm hover:bg-muted',
+                        filters.enrichmentStatus === 'enriched' && 'bg-muted'
+                      )}
+                      onClick={() => handleEnrichmentStatusChange('enriched')}
+                    >
+                      Atualizada RF
+                    </button>
+                    <button
+                      className={cn(
+                        'w-full text-left p-2 rounded text-sm hover:bg-muted',
+                        filters.enrichmentStatus === 'not_enriched' && 'bg-muted'
+                      )}
+                      onClick={() => handleEnrichmentStatusChange('not_enriched')}
+                    >
+                      Não Atualizada RF
                     </button>
                   </div>
                 </PopoverContent>
