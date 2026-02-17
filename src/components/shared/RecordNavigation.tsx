@@ -104,9 +104,16 @@ export function RecordNavigation({ entityType, currentId }: RecordNavigationProp
           </TooltipContent>
         </Tooltip>
 
-        <span className="text-sm text-muted-foreground tabular-nums min-w-[60px] text-center">
-          {currentIndex + 1} / {totalRecords}
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-sm text-muted-foreground tabular-nums min-w-[60px] text-center cursor-help">
+              {currentIndex + 1} / {totalRecords}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <span>Navegação entre registros</span>
+          </TooltipContent>
+        </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>

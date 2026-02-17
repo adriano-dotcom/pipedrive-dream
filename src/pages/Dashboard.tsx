@@ -395,7 +395,7 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-center max-w-md mb-6">
               Adicione sua primeira organização ou pessoa para começar a gerenciar seus contatos e negócios.
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Link
                 to="/organizations"
                 className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-all hover:-translate-y-0.5 shadow-lg shadow-primary/20"
@@ -409,6 +409,13 @@ export default function Dashboard() {
               >
                 <Users className="mr-2 h-4 w-4" />
                 Nova Pessoa
+              </Link>
+              <Link
+                to="/deals"
+                className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-all hover:-translate-y-0.5"
+              >
+                <Briefcase className="mr-2 h-4 w-4" />
+                Novo Negócio
               </Link>
             </div>
           </CardContent>

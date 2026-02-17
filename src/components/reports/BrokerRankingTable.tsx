@@ -14,6 +14,12 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BrokerPerformance } from '@/hooks/useBrokerPerformance';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface BrokerRankingTableProps {
   data: BrokerPerformance[] | undefined;
@@ -190,7 +196,18 @@ export function BrokerRankingTable({ data, isLoading }: BrokerRankingTableProps)
                 <span className="text-sm font-medium w-12">
                   {broker.wonDeals + broker.lostDeals > 0 
                     ? `${broker.conversionRate.toFixed(0)}%`
-                    : 'N/A'}
+                    : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">N/A</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Sem negócios ganhos ou perdidos no período para calcular a taxa</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                 </span>
               </div>
             </TableCell>

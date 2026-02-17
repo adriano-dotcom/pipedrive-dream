@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Briefcase, Plus } from 'lucide-react';
 import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -316,6 +317,26 @@ export function KanbanBoard({ selectedPipeline, stages = [], stagesLoading }: Ka
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Empty state onboarding */}
+      {deals.length === 0 && !dealsLoading && (
+        <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-border/50 rounded-xl bg-muted/10">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-4">
+            <Briefcase className="h-7 w-7 text-primary" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">Nenhum negócio neste pipeline</h3>
+          <p className="text-sm text-muted-foreground text-center max-w-md mb-4">
+            Comece criando seu primeiro negócio para acompanhar o progresso das suas vendas.
+          </p>
+          <button
+            onClick={() => handleAddDeal()}
+            className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-all"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Criar primeiro negócio
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
       <KanbanFilters filters={filters} onFiltersChange={setFilters} />
 
