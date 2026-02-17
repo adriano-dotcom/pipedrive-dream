@@ -1,34 +1,34 @@
 
 
-# Adicionar Indices GIN Trigram na Tabela Organizations
+# Adicionar Indices GIN Trigram para Email e Telefone em Organizations
 
 ## Objetivo
-Criar indices GIN com `pg_trgm` nas colunas `name` e `cnpj` da tabela `organizations` para acelerar buscas parciais (`ILIKE`) na busca global, que hoje opera sobre 19k+ registros sem indice.
+Criar indices GIN trigram nas colunas `email` e `phone` da tabela `organizations` para que a busca global tambem encontre organizacoes por email e telefone com performance otimizada.
+
+## Contexto
+- A tabela `people` ja possui indices GIN trigram para `name`, `email` e `phone`
+- A tabela `organizations` agora tem indices para `name` e `cnpj`, mas falta `email` e `phone`
+- A busca global (`GlobalSearch.tsx`) ja busca por esses campos via `ILIKE`, mas sem indice a performance e ruim com 19k+ registros
 
 ## O que sera feito
-Uma unica migration SQL que cria dois indices GIN trigram usando `CONCURRENTLY` para nao bloquear a tabela durante a criacao:
+Uma migration SQL criando dois novos indices:
 
 ```sql
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_organizations_name_trgm 
-  ON public.organizations USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_organizations_email_trgm 
+  ON public.organizations USING gin (email gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_organizations_cnpj_trgm 
-  ON public.organizations USING gin (cnpj gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_organizations_phone_trgm 
+  ON public.organizations USING gin (phone gin_trgm_ops);
 ```
 
 ## Secao Tecnica
 
-### Por que GIN trigram?
-- A extensao `pg_trgm` ja esta habilitada no projeto (confirmado pelas funcoes `similarity`, `show_trgm`, etc.)
-- Indices GIN com `gin_trgm_ops` aceleram consultas `ILIKE '%termo%'` que sao usadas na busca global (`GlobalSearch.tsx`)
-- A tabela `people` ja possui indices similares (`idx_people_name_trgm`, `idx_people_email_trgm`, `idx_people_phone_trgm`), entao estamos alinhando o padrao
-
 ### Impacto
-- **Leitura**: Buscas por nome e CNPJ em organizacoes serao significativamente mais rapidas
-- **Escrita**: Pequeno overhead ao inserir/atualizar registros (custo normal de manter indices GIN)
-- **Nenhuma alteracao de codigo**: A busca global ja usa `ILIKE` que se beneficia automaticamente dos indices
+- **Leitura**: Buscas por email e telefone em organizacoes serao significativamente mais rapidas
+- **Escrita**: Overhead minimo (padrao de indices GIN)
+- **Codigo**: Nenhuma alteracao necessaria -- a busca global ja usa `ILIKE` nesses campos e se beneficiara automaticamente dos indices
 
 ### Arquivos
-- Uma nova migration SQL (criada via ferramenta de migration)
+- Uma nova migration SQL (via ferramenta de migration)
 - Nenhum arquivo de codigo alterado
 
