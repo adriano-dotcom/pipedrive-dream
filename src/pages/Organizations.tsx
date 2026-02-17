@@ -246,6 +246,13 @@ export default function Organizations() {
       query = query.or('has_claims_history.is.null,has_claims_history.eq.false');
     }
 
+    // Enrichment status filter (server-side)
+    if (advancedFilters.enrichmentStatus === 'enriched') {
+      query = query.not('last_enriched_at', 'is', null);
+    } else if (advancedFilters.enrichmentStatus === 'not_enriched') {
+      query = query.is('last_enriched_at', null);
+    }
+
     // Tag filter - filter by IDs if tags selected
     if (selectedTagIds.length > 0 && taggedOrgIds.length > 0) {
       query = query.in('id', taggedOrgIds);
@@ -414,7 +421,8 @@ export default function Organizations() {
       advancedFilters.dateRange.from !== null ||
       advancedFilters.dateRange.to !== null ||
       advancedFilters.hasCnpj !== null ||
-      advancedFilters.hasClaimsHistory !== null
+      advancedFilters.hasClaimsHistory !== null ||
+      advancedFilters.enrichmentStatus !== null
     );
   }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
