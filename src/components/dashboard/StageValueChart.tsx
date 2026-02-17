@@ -68,8 +68,12 @@ export function StageValueChart({ data, loading }: StageValueChartProps) {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-            Nenhum dado disponível
+          <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground gap-3">
+            <DollarSign className="h-8 w-8 opacity-30" />
+            <p className="text-sm">Nenhum valor registrado ainda</p>
+            <a href="/deals" className="text-sm text-primary hover:underline">
+              Criar primeiro negócio →
+            </a>
           </div>
         </CardContent>
       </Card>

@@ -63,7 +63,7 @@ export function OrganizationRFCard({ organization }: OrganizationRFCardProps) {
             <span className="text-muted-foreground flex items-center gap-1">
               <Building className="h-3 w-3" /> Nome Fantasia
             </span>
-            <span className="font-medium text-right max-w-[60%] truncate">
+            <span className="font-medium text-right max-w-[60%] truncate" title={organization.trade_name}>
               {organization.trade_name}
             </span>
           </div>
