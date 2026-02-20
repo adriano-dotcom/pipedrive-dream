@@ -326,16 +326,9 @@ export function KanbanBoard({ selectedPipeline, stages = [], stagesLoading }: Ka
             <Briefcase className="h-7 w-7 text-primary" />
           </div>
           <h3 className="text-lg font-semibold mb-1">Nenhum negócio neste pipeline</h3>
-          <p className="text-sm text-muted-foreground text-center max-w-md mb-4">
+          <p className="text-sm text-muted-foreground text-center max-w-md">
             Comece criando seu primeiro negócio para acompanhar o progresso das suas vendas.
           </p>
-          <button
-            onClick={() => handleAddDeal()}
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-all"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Criar primeiro negócio
-          </button>
         </div>
       )}
 
