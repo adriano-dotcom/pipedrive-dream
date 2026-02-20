@@ -14,61 +14,61 @@ interface DateRange {
 /**
  * Aplica filtro de busca textual (OR com ilike)
  */
-export function applySearchFilter<T>(query: T & { or: Function }, search: string, fields: string[]): T {
+export function applySearchFilter<T>(query: T, search: string, fields: string[]): T {
   if (!search) return query;
   const conditions = fields.map(f => `${f}.ilike.%${search}%`).join(',');
-  return query.or(conditions) as T;
+  return (query as any).or(conditions) as T;
 }
 
 /**
  * Aplica filtro IN se o array não estiver vazio
  */
-export function applyInFilter<T>(query: T & { in: Function }, column: string, values: string[]): T {
+export function applyInFilter<T>(query: T, column: string, values: string[]): T {
   if (values.length === 0) return query;
-  return query.in(column, values) as T;
+  return (query as any).in(column, values) as T;
 }
 
 /**
  * Aplica filtro de igualdade se o valor não for null
  */
-export function applyEqFilter<T>(query: T & { eq: Function }, column: string, value: string | null): T {
+export function applyEqFilter<T>(query: T, column: string, value: string | null): T {
   if (!value) return query;
-  return query.eq(column, value) as T;
+  return (query as any).eq(column, value) as T;
 }
 
 /**
  * Aplica filtro de range de datas (created_at)
  */
 export function applyDateRangeFilter<T>(
-  query: T & { gte: Function; lte: Function },
+  query: T,
   column: string,
   dateRange: DateRange
 ): T {
-  let q = query;
+  let q = query as any;
   if (dateRange.from) {
-    q = q.gte(column, dateRange.from.toISOString()) as T;
+    q = q.gte(column, dateRange.from.toISOString());
   }
   if (dateRange.to) {
     const endOfDay = new Date(dateRange.to);
     endOfDay.setHours(23, 59, 59, 999);
-    q = q.lte(column, endOfDay.toISOString()) as T;
+    q = q.lte(column, endOfDay.toISOString());
   }
-  return q;
+  return q as T;
 }
 
 /**
  * Aplica filtro boolean (has/not has) para campos nullable
  */
 export function applyNullableFilter<T>(
-  query: T & { not: Function; is: Function },
+  query: T,
   column: string,
   value: boolean | null
 ): T {
   if (value === null) return query;
   if (value === true) {
-    return query.not(column, 'is', null) as T;
+    return (query as any).not(column, 'is', null) as T;
   }
-  return query.is(column, null) as T;
+  return (query as any).is(column, null) as T;
 }
 
 /**
@@ -76,13 +76,13 @@ export function applyNullableFilter<T>(
  * Retorna null se as tags foram selecionadas mas nenhum registro tem a tag (resultado vazio).
  */
 export function applyTagFilter<T>(
-  query: T & { in: Function },
+  query: T,
   selectedTagIds: string[],
   taggedEntityIds: string[]
 ): T | null {
   if (selectedTagIds.length === 0) return query;
-  if (taggedEntityIds.length === 0) return null; // Nenhum match
-  return query.in('id', taggedEntityIds) as T;
+  if (taggedEntityIds.length === 0) return null;
+  return (query as any).in('id', taggedEntityIds) as T;
 }
 
 /**
@@ -121,7 +121,7 @@ export interface PeopleFilterParams {
 }
 
 export async function applyPeopleFilters<T>(
-  query: T & { or: Function; in: Function; eq: Function; gte: Function; lte: Function; not: Function; is: Function },
+  query: T,
   params: PeopleFilterParams
 ): Promise<{ query: T; empty: boolean }> {
   let q = applySearchFilter(query, params.search, ['name', 'email', 'phone']);

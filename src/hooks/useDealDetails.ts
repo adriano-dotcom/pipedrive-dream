@@ -53,13 +53,19 @@ export function useDealDetails(dealId: string) {
 
   const { data: history = [], isLoading: isLoadingHistory, isError: isHistoryError } = useQuery({
     queryKey: ['deal-history', dealId],
-    queryFn: () => fetchHistory('deal', dealId, 100),
+    queryFn: async () => {
+      const data = await fetchHistory('deal', dealId, 100);
+      return data as DealHistory[];
+    },
     enabled: !!dealId,
   });
 
   const { data: notes = [], isLoading: isLoadingNotes, isError: isNotesError } = useQuery({
     queryKey: ['deal-notes', dealId],
-    queryFn: () => fetchNotes('deal', dealId),
+    queryFn: async () => {
+      const data = await fetchNotes('deal', dealId);
+      return data as DealNote[];
+    },
     enabled: !!dealId,
   });
 

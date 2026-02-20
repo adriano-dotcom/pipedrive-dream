@@ -192,14 +192,20 @@ function formatPhoneForStorage(phone: string): string {
   return phone;
 }
 
-// Sanitize text content
+// Sanitize text content - strip all HTML tags and limit length
 function sanitizeText(text: string | undefined | null): string {
   if (!text) return '';
-  return text
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .trim()
-    .slice(0, 10000);
+  // First decode any HTML entities to catch encoded attacks
+  let clean = text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+  // Strip all HTML tags (aggressive approach - no HTML allowed in plain text messages)
+  clean = clean.replace(/<[^>]*>/g, '');
+  // Remove any null bytes
+  clean = clean.replace(/\0/g, '');
+  // Trim and limit length
+  return clean.trim().slice(0, 10000);
 }
 
 // Get media type from mimetype

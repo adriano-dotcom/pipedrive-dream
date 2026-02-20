@@ -49,8 +49,8 @@ interface PersonWithOrg extends Person {
 }
 
 interface EmailRecipient {
-  id?: string;
-  person_id?: string;
+  id: string;
+  person_id: string;
   name: string;
   email: string | null;
   email_status?: string | null;
@@ -274,6 +274,7 @@ export default function People() {
       const { data } = await (query as any);
       const recipients: EmailRecipient[] = (data || []).map((p: any) => ({
         id: p.id,
+        person_id: p.id,
         name: p.name,
         email: p.email,
         email_status: p.email_status,
@@ -293,6 +294,7 @@ export default function People() {
   const handleBulkEmailSelected = () => {
     const recipients: EmailRecipient[] = people.filter(p => selectedIds.includes(p.id)).map(p => ({
       id: p.id,
+      person_id: p.id,
       name: p.name,
       email: p.email,
       email_status: (p as any).email_status,
@@ -308,6 +310,7 @@ export default function People() {
     const recipients: EmailRecipient[] = people.filter(p => selectedIds.includes(p.id))
       .filter(p => p.email)
       .map(p => ({
+        id: p.id,
         person_id: p.id,
         email: p.email!,
         name: p.name,
@@ -337,6 +340,7 @@ export default function People() {
 
       const { data } = await (query as any);
       const recipients: EmailRecipient[] = (data || []).map((p: any) => ({
+        id: p.id,
         person_id: p.id,
         email: p.email!,
         name: p.name,
