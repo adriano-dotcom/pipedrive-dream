@@ -20,7 +20,10 @@ const loginSchema = z.object({
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome muito longo'),
-  email: z.string().trim().email('Email inválido'),
+  email: z.string().trim().email('Email inválido').refine(
+    (email) => /@jacometo\./i.test(email),
+    'Apenas emails @jacometo são permitidos'
+  ),
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
 });
 

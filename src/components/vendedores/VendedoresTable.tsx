@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Pencil, Shield, User } from 'lucide-react';
-import { Vendedor, useUpdateVendedorRole } from '@/hooks/useVendedores';
+import { MoreHorizontal, Pencil, Shield, User, UserX, UserCheck, Trash2 } from 'lucide-react';
+import { Vendedor, useUpdateVendedorRole, useToggleVendedorActive, useDeleteVendedor } from '@/hooks/useVendedores';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,23 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { VendedorFormSheet } from './VendedorFormSheet';
 
 interface VendedoresTableProps {
@@ -31,7 +48,11 @@ interface VendedoresTableProps {
 export function VendedoresTable({ vendedores }: VendedoresTableProps) {
   const { user } = useAuth();
   const updateRole = useUpdateVendedorRole();
+  const toggleActive = useToggleVendedorActive();
+  const deleteVendedor = useDeleteVendedor();
   const [editingVendedor, setEditingVendedor] = useState<Vendedor | null>(null);
+  const [inactivateTarget, setInactivateTarget] = useState<Vendedor | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Vendedor | null>(null);
 
   const getInitials = (name: string) => {
     return name
@@ -43,12 +64,11 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
   };
 
   const handleRoleChange = (userId: string, role: 'admin' | 'corretor') => {
-    // Prevent changing own role
-    if (userId === user?.id) {
-      return;
-    }
+    if (userId === user?.id) return;
     updateRole.mutate({ userId, role });
   };
+
+  const isSelf = (vendedor: Vendedor) => vendedor.user_id === user?.id;
 
   return (
     <>
@@ -56,8 +76,9 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[300px]">Vendedor</TableHead>
+              <TableHead className="w-[280px]">Vendedor</TableHead>
               <TableHead>Telefone</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Cadastrado em</TableHead>
               <TableHead className="w-[80px]">Ações</TableHead>
@@ -65,7 +86,7 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
           </TableHeader>
           <TableBody>
             {vendedores.map((vendedor) => (
-              <TableRow key={vendedor.id} className="group">
+              <TableRow key={vendedor.id} className={`group ${!vendedor.is_active ? 'opacity-50' : ''}`}>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-10 w-10">
@@ -76,7 +97,7 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
                     </Avatar>
                     <div className="flex flex-col">
                       <span className="font-medium">{vendedor.full_name}</span>
-                      {vendedor.user_id === user?.id && (
+                      {isSelf(vendedor) && (
                         <span className="text-xs text-muted-foreground">(você)</span>
                       )}
                     </div>
@@ -88,7 +109,18 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
                   </span>
                 </TableCell>
                 <TableCell>
-                  {vendedor.user_id === user?.id ? (
+                  {vendedor.is_active ? (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30">
+                      Ativo
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                      Inativo
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {isSelf(vendedor) ? (
                     <Badge 
                       variant="outline" 
                       className={vendedor.role === 'admin' 
@@ -134,14 +166,40 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => setEditingVendedor(vendedor)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
+                  {isSelf(vendedor) ? null : (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEditingVendedor(vendedor)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setInactivateTarget(vendedor)}>
+                          {vendedor.is_active ? (
+                            <><UserX className="mr-2 h-4 w-4" /> Inativar</>
+                          ) : (
+                            <><UserCheck className="mr-2 h-4 w-4" /> Reativar</>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteTarget(vendedor)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -154,6 +212,70 @@ export function VendedoresTable({ vendedores }: VendedoresTableProps) {
         open={!!editingVendedor}
         onOpenChange={(open) => !open && setEditingVendedor(null)}
       />
+
+      {/* Inativar/Reativar Dialog */}
+      <AlertDialog open={!!inactivateTarget} onOpenChange={(open) => !open && setInactivateTarget(null)}>
+        <AlertDialogContent className="max-w-[95vw] md:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {inactivateTarget?.is_active ? 'Inativar vendedor?' : 'Reativar vendedor?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {inactivateTarget?.is_active
+                ? `"${inactivateTarget?.full_name}" será marcado como inativo. O perfil e histórico serão preservados.`
+                : `"${inactivateTarget?.full_name}" será reativado e poderá acessar o sistema novamente.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel disabled={toggleActive.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (inactivateTarget) {
+                  toggleActive.mutate(
+                    { userId: inactivateTarget.user_id, isActive: !inactivateTarget.is_active },
+                    { onSuccess: () => setInactivateTarget(null) }
+                  );
+                }
+              }}
+              disabled={toggleActive.isPending}
+            >
+              {inactivateTarget?.is_active ? 'Inativar' : 'Reativar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Excluir Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="max-w-[95vw] md:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>"{deleteTarget?.full_name}"</strong> perderá o acesso ao sistema. O perfil será mantido como registro histórico (inativo). O usuário poderá se recadastrar depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel disabled={deleteVendedor.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) {
+                  deleteVendedor.mutate(
+                    { userId: deleteTarget.user_id },
+                    { onSuccess: () => setDeleteTarget(null) }
+                  );
+                }
+              }}
+              disabled={deleteVendedor.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

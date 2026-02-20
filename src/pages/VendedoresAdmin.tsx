@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { Shield, User, Users } from 'lucide-react';
+import { Shield, User, Users, UserX } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVendedores } from '@/hooks/useVendedores';
 import { VendedoresTable } from '@/components/vendedores/VendedoresTable';
@@ -20,7 +20,8 @@ export default function VendedoresAdmin() {
     total: vendedores.length,
     admins: vendedores.filter(v => v.role === 'admin').length,
     corretores: vendedores.filter(v => v.role === 'corretor').length,
-  } : { total: 0, admins: 0, corretores: 0 };
+    inativos: vendedores.filter(v => !v.is_active).length,
+  } : { total: 0, admins: 0, corretores: 0, inativos: 0 };
 
   return (
     <div className="space-y-6">
@@ -33,7 +34,7 @@ export default function VendedoresAdmin() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -71,6 +72,20 @@ export default function VendedoresAdmin() {
               <div>
                 <p className="text-sm text-muted-foreground">Corretores</p>
                 <p className="text-2xl font-bold">{isLoading ? '—' : stats.corretores}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10">
+                <UserX className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Inativos</p>
+                <p className="text-2xl font-bold">{isLoading ? '—' : stats.inativos}</p>
               </div>
             </div>
           </CardContent>
