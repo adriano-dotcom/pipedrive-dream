@@ -10,28 +10,26 @@ export interface Vendedor {
   avatar_url: string | null;
   created_at: string;
   role: 'admin' | 'corretor';
+  is_active: boolean;
 }
 
 export function useVendedores() {
   return useQuery({
     queryKey: ['vendedores'],
     queryFn: async () => {
-      // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, full_name, phone, avatar_url, created_at')
+        .select('id, user_id, full_name, phone, avatar_url, created_at, is_active')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
 
-      // Fetch roles
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
       if (rolesError) throw rolesError;
 
-      // Combine data
       return (profiles || []).map(profile => ({
         ...profile,
         role: (roles?.find(r => r.user_id === profile.user_id)?.role || 'corretor') as 'admin' | 'corretor'
@@ -82,6 +80,53 @@ export function useUpdateVendedorProfile() {
     onError: (error) => {
       console.error('Error updating profile:', error);
       toast.error('Erro ao atualizar perfil.');
+    }
+  });
+}
+
+export function useToggleVendedorActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: isActive })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { isActive }) => {
+      queryClient.invalidateQueries({ queryKey: ['vendedores'] });
+      toast.success(isActive ? 'Vendedor reativado!' : 'Vendedor inativado!');
+    },
+    onError: (error) => {
+      console.error('Error toggling active:', error);
+      toast.error('Erro ao alterar status do vendedor.');
+    }
+  });
+}
+
+export function useDeleteVendedor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userIdToDelete: userId },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendedores'] });
+      toast.success('Usuário excluído do sistema!');
+    },
+    onError: (error) => {
+      console.error('Error deleting user:', error);
+      toast.error(error.message || 'Erro ao excluir usuário.');
     }
   });
 }
