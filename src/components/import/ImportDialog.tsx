@@ -654,7 +654,7 @@ export function ImportDialog({ open, onOpenChange, defaultType }: ImportDialogPr
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Importar Contatos e Empresas</DialogTitle>
         </DialogHeader>

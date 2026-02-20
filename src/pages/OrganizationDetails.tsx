@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { DealFormSheet } from '@/components/deals/DealFormSheet';
 import { OrganizationFormSheet } from '@/components/organizations/OrganizationFormSheet';
 import { useOrganizationDetails } from '@/hooks/useOrganizationDetails';
@@ -42,6 +43,7 @@ import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { supabase } from '@/integrations/supabase/client';
 import { isPast, isToday } from 'date-fns';
 import { formatCnpj } from '@/lib/utils';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 
 const getLabelColor = (label: string | null) => {
@@ -62,6 +64,7 @@ export default function OrganizationDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [activitySheetOpen, setActivitySheetOpen] = useState(false);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
@@ -171,7 +174,7 @@ export default function OrganizationDetails() {
       toast({
         variant: 'destructive',
         title: 'Erro ao excluir',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -319,14 +322,18 @@ export default function OrganizationDetails() {
                 <GitMerge className="h-4 w-4 mr-2" />
                 Mesclar com outra organização...
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => setDeleteDialogOpen(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
+              {isAdmin && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

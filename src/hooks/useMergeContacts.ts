@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -246,7 +247,7 @@ export function useMergeContacts() {
     },
     onError: (error) => {
       console.error('Erro ao mesclar contatos:', error);
-      toast.error('Erro ao mesclar contatos: ' + error.message);
+      toast.error('Erro ao mesclar contatos: ' + getErrorMessage(error));
     },
   });
 

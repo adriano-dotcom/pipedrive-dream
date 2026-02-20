@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Trash2, Trophy, XCircle } from 'lucide-react';
@@ -123,7 +124,7 @@ export function DealFormSheet({
   defaultOrganizationId,
   defaultPersonId,
 }: DealFormSheetProps) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!deal?.id;
@@ -375,7 +376,7 @@ export function DealFormSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao salvar negócio',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -406,7 +407,7 @@ export function DealFormSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao atualizar status',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -426,7 +427,7 @@ export function DealFormSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao excluir negócio',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -898,16 +899,18 @@ export function DealFormSheet({
                       Perdido
                     </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => deleteMutation.mutate()}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir Negócio
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir Negócio
+                    </Button>
+                  )}
                 </>
               )}
             </div>

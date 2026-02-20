@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
@@ -239,7 +240,7 @@ export function useMergeOrganizations() {
     },
     onError: (error) => {
       console.error('Erro ao mesclar organizações:', error);
-      toast.error('Erro ao mesclar organizações: ' + error.message);
+      toast.error('Erro ao mesclar organizações: ' + getErrorMessage(error));
     },
   });
 

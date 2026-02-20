@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { MergeBackup, TransferredRelations } from './useMergeBackups';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -160,7 +161,7 @@ export function useUndoMergeContact() {
     },
     onError: (error) => {
       console.error('Erro ao desfazer mesclagem:', error);
-      toast.error('Erro ao desfazer mesclagem: ' + error.message);
+      toast.error('Erro ao desfazer mesclagem: ' + getErrorMessage(error));
     },
   });
 

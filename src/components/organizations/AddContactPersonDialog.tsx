@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { Search, Loader2, UserPlus, Link2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -175,7 +176,7 @@ export function AddContactPersonDialog({
       }
     },
     onError: (error) => {
-      toast.error('Erro ao vincular pessoa: ' + error.message);
+      toast.error('Erro ao vincular pessoa: ' + getErrorMessage(error));
     },
   });
 
@@ -241,7 +242,7 @@ export function AddContactPersonDialog({
         });
       } else {
         toast.error('Erro ao criar pessoa', {
-          description: error.message,
+          description: getErrorMessage(error),
           icon: '❌',
         });
       }
@@ -273,7 +274,7 @@ export function AddContactPersonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-[95vw] md:max-w-md">
         <DialogHeader>
           <DialogTitle>Adicionar Pessoa de Contato</DialogTitle>
         </DialogHeader>

@@ -76,7 +76,7 @@ export function ConvertPartnerToPersonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-[95vw] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Converter Sócio para Pessoa</DialogTitle>
           <DialogDescription>

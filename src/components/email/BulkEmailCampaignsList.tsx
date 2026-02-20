@@ -45,7 +45,7 @@ export function BulkEmailCampaignsList({ open, onOpenChange }: BulkEmailCampaign
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
+        <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-primary" />

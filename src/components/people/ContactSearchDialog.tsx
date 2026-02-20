@@ -72,7 +72,7 @@ export function ContactSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-[95vw] md:max-w-lg">
         <DialogHeader>
           <DialogTitle>Selecionar Contato para Mesclar</DialogTitle>
           <DialogDescription>

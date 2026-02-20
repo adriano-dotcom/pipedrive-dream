@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 interface SentEmail {
   id: string;
@@ -80,7 +81,7 @@ export function useSentEmails(entityType: 'deal' | 'person' | 'organization', en
     },
     onError: (error: Error) => {
       console.error('Error sending email:', error);
-      toast.error(error.message || 'Erro ao enviar email');
+      toast.error(getErrorMessage(error));
     },
   });
 

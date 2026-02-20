@@ -135,7 +135,7 @@ export function SentEmailsList({
 
       {/* Email Preview Dialog */}
       <Dialog open={!!previewEmail} onOpenChange={() => setPreviewEmail(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
+        <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="h-5 w-5 text-primary" />

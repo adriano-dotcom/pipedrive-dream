@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 interface EnrichResult {
   success: boolean;
@@ -47,7 +48,7 @@ export function useEnrichOrganizationList() {
     onError: (error: Error) => {
       console.error('[useEnrichOrganizationList] Error:', error);
       toast.error('Erro ao atualizar dados', {
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
     onSettled: () => {

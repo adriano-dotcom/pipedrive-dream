@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 type Phase = 'idle' | 'researching' | 'generating' | 'done' | 'error';
 
@@ -41,7 +42,7 @@ export function useResearchAndGenerateEmail() {
 
       if (error) {
         console.error('Research error:', error);
-        toast.error('Erro na pesquisa: ' + (error.message || 'Tente novamente'));
+        toast.error('Erro na pesquisa: ' + getErrorMessage(error));
         setPhase('error');
         return null;
       }

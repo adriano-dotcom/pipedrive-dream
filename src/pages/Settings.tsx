@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 const profileSchema = z.object({
   fullName: z.string().trim().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100, 'Nome muito longo'),
@@ -46,7 +47,7 @@ export default function Settings() {
       toast.success('Perfil atualizado com sucesso!');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar perfil: ' + error.message);
+      toast.error('Erro ao atualizar perfil: ' + getErrorMessage(error));
     },
   });
 

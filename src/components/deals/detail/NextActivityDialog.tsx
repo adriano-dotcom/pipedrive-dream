@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -79,7 +80,7 @@ export function NextActivityDialog({ open, onOpenChange, dealId, isNewMode = fal
       handleClose();
     },
     onError: (error) => {
-      toast.error('Erro ao criar atividade: ' + error.message);
+      toast.error('Erro ao criar atividade: ' + getErrorMessage(error));
     },
   });
 
@@ -105,7 +106,7 @@ export function NextActivityDialog({ open, onOpenChange, dealId, isNewMode = fal
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">

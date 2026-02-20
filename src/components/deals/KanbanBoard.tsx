@@ -8,6 +8,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { DealFormSheet } from './DealFormSheet';
 import { KanbanFilters, KanbanFiltersState } from './KanbanFilters';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NextActivityDialog } from './detail/NextActivityDialog';
 
@@ -121,7 +122,8 @@ export function KanbanBoard({ selectedPipeline, stages = [], stagesLoading }: Ka
         .from('activities')
         .select('id, title, activity_type, due_date, is_completed, deal_id')
         .in('deal_id', dealIds)
-        .order('due_date', { ascending: true });
+        .order('due_date', { ascending: true })
+        .limit(200);
       if (error) throw error;
       return data as Activity[];
     },
@@ -162,7 +164,7 @@ export function KanbanBoard({ selectedPipeline, stages = [], stagesLoading }: Ka
       toast({
         variant: 'destructive',
         title: 'Erro ao atualizar atividade',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -196,7 +198,7 @@ export function KanbanBoard({ selectedPipeline, stages = [], stagesLoading }: Ka
       toast({
         variant: 'destructive',
         title: 'Erro ao mover negócio',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });

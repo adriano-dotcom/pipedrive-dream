@@ -79,7 +79,7 @@ export function BulkEnrichDialog({
 
   return (
     <Dialog open={open} onOpenChange={isRunning ? undefined : onOpenChange}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => isRunning && e.preventDefault()}>
+      <DialogContent className="max-w-[95vw] sm:max-w-md" onPointerDownOutside={(e) => isRunning && e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isRunning && <Loader2 className="h-5 w-5 animate-spin text-primary" />}

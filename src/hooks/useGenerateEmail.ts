@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 interface GenerateEmailParams {
   entityType: 'deal' | 'person' | 'organization';
@@ -57,7 +58,7 @@ export function useGenerateEmail() {
       };
     } catch (error) {
       console.error('Error generating email:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao gerar email');
+      toast.error(getErrorMessage(error));
       return null;
     } finally {
       setIsGenerating(false);

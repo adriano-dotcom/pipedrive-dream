@@ -2,30 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { fetchNotes, createNote, updateNote, deleteNote, toggleNotePin, type Note } from '@/services/noteService';
+import { fetchHistory, type HistoryEntry } from '@/services/historyService';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
-export interface OrganizationHistory {
-  id: string;
-  organization_id: string;
-  event_type: string;
-  description: string;
-  old_value: string | null;
-  new_value: string | null;
-  metadata: Record<string, unknown> | null;
-  created_by: string | null;
-  created_at: string;
-  profile?: { full_name: string } | null;
-}
-
-export interface OrganizationNote {
-  id: string;
-  organization_id: string;
-  content: string;
-  is_pinned: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  profile?: { full_name: string } | null;
-}
+export type OrganizationHistory = HistoryEntry & { organization_id: string };
+export type OrganizationNote = Note & { organization_id: string };
 
 export interface OrganizationActivity {
   id: string;
@@ -63,7 +45,6 @@ export function useOrganizationDetails(organizationId: string) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Fetch organization with related data
   const { data: organization, isLoading, isError: isOrgError, error: orgError } = useQuery({
     queryKey: ['organization', organizationId],
     queryFn: async () => {
@@ -84,7 +65,6 @@ export function useOrganizationDetails(organizationId: string) {
     enabled: !!organizationId,
   });
 
-  // Fetch people linked to this organization
   const { data: people = [], isError: isPeopleError } = useQuery({
     queryKey: ['organization-people', organizationId],
     queryFn: async () => {
@@ -92,10 +72,11 @@ export function useOrganizationDetails(organizationId: string) {
         .from('people')
         .select('id, name, email, phone, whatsapp, job_title')
         .eq('organization_id', organizationId)
-        .order('name');
+        .order('name')
+        .limit(50);
 
       if (error) throw error;
-      
+
       return data.map(p => ({
         ...p,
         is_primary: p.id === organization?.primary_contact_id,
@@ -104,73 +85,18 @@ export function useOrganizationDetails(organizationId: string) {
     enabled: !!organizationId && !!organization,
   });
 
-  // Fetch organization history
   const { data: history = [], isError: isHistoryError } = useQuery({
     queryKey: ['organization-history', organizationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('organization_history')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles for history entries
-      const creatorIds = [...new Set(data.map(h => h.created_by).filter(Boolean))];
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', creatorIds as string[]);
-
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-        return data.map(h => ({
-          ...h,
-          profile: h.created_by ? profileMap.get(h.created_by) : null,
-        })) as OrganizationHistory[];
-      }
-
-      return data as OrganizationHistory[];
-    },
+    queryFn: () => fetchHistory('organization', organizationId, 100),
     enabled: !!organizationId,
   });
 
-  // Fetch organization notes
   const { data: notes = [], isError: isNotesError } = useQuery({
     queryKey: ['organization-notes', organizationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('organization_notes')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles
-      const creatorIds = [...new Set(data.map(n => n.created_by).filter(Boolean))];
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', creatorIds as string[]);
-
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-        return data.map(n => ({
-          ...n,
-          is_pinned: n.is_pinned ?? false,
-          profile: n.created_by ? profileMap.get(n.created_by) : null,
-        })) as OrganizationNote[];
-      }
-
-      return data.map(n => ({ ...n, is_pinned: n.is_pinned ?? false })) as OrganizationNote[];
-    },
+    queryFn: () => fetchNotes('organization', organizationId),
     enabled: !!organizationId,
   });
 
-  // Fetch activities linked to this organization
   const { data: activities = [], isError: isActivitiesError } = useQuery({
     queryKey: ['organization-activities', organizationId],
     queryFn: async () => {
@@ -178,7 +104,8 @@ export function useOrganizationDetails(organizationId: string) {
         .from('activities')
         .select('id, title, activity_type, due_date, due_time, is_completed, completed_at, priority, description')
         .eq('organization_id', organizationId)
-        .order('due_date', { ascending: true });
+        .order('due_date', { ascending: true })
+        .limit(50);
 
       if (error) throw error;
       return data as OrganizationActivity[];
@@ -186,7 +113,6 @@ export function useOrganizationDetails(organizationId: string) {
     enabled: !!organizationId,
   });
 
-  // Fetch deals linked to this organization
   const { data: deals = [], isError: isDealsError } = useQuery({
     queryKey: ['organization-deals', organizationId],
     queryFn: async () => {
@@ -198,7 +124,8 @@ export function useOrganizationDetails(organizationId: string) {
           pipeline:pipelines(name)
         `)
         .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       return data as OrganizationDeal[];
@@ -206,26 +133,10 @@ export function useOrganizationDetails(organizationId: string) {
     enabled: !!organizationId,
   });
 
-  // Add note mutation
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
-
-      const { error } = await supabase.from('organization_notes').insert({
-        organization_id: organizationId,
-        content,
-        created_by: user.id,
-      });
-
-      if (error) throw error;
-
-      // Log to history
-      await supabase.from('organization_history').insert({
-        organization_id: organizationId,
-        event_type: 'note_added',
-        description: 'Nova nota adicionada',
-        created_by: user.id,
-      });
+      await createNote('organization', organizationId, content, user.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-notes', organizationId] });
@@ -233,63 +144,45 @@ export function useOrganizationDetails(organizationId: string) {
       toast.success('Nota adicionada!');
     },
     onError: (error) => {
-      toast.error('Erro ao adicionar nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Toggle pin mutation
   const togglePinMutation = useMutation({
     mutationFn: async ({ noteId, isPinned }: { noteId: string; isPinned: boolean }) => {
-      const { error } = await supabase
-        .from('organization_notes')
-        .update({ is_pinned: !isPinned })
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await toggleNotePin('organization', noteId, isPinned);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-notes', organizationId] });
     },
     onError: (error) => {
-      toast.error('Erro ao fixar nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Delete note mutation
   const deleteNoteMutation = useMutation({
     mutationFn: async (noteId: string) => {
-      const { error } = await supabase
-        .from('organization_notes')
-        .delete()
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await deleteNote('organization', noteId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-notes', organizationId] });
       toast.success('Nota excluída');
     },
     onError: (error) => {
-      toast.error('Erro ao excluir nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Update note mutation
   const updateNoteMutation = useMutation({
     mutationFn: async ({ noteId, content }: { noteId: string; content: string }) => {
-      const { error } = await supabase
-        .from('organization_notes')
-        .update({ content, updated_at: new Date().toISOString() })
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await updateNote('organization', noteId, content);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organization-notes', organizationId] });
       toast.success('Nota atualizada!');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 

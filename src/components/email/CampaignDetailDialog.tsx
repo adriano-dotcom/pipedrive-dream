@@ -44,7 +44,7 @@ export function CampaignDetailDialog({ open, onOpenChange, campaignId }: Campaig
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Destinatários da Campanha</DialogTitle>
         </DialogHeader>

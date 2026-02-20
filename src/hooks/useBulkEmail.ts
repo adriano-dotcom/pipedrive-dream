@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 interface CreateCampaignParams {
   subject: string;
@@ -113,7 +114,7 @@ export function useBulkEmail() {
       queryClient.invalidateQueries({ queryKey: ['bulk-email-campaigns'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar campanha');
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -162,7 +163,7 @@ export function useBulkEmail() {
       queryClient.invalidateQueries({ queryKey: ['bulk-email-campaigns'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao salvar campanha');
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -208,7 +209,7 @@ export function useBulkEmail() {
       queryClient.invalidateQueries({ queryKey: ['bulk-email-campaigns'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar campanha');
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -226,7 +227,7 @@ export function useBulkEmail() {
       queryClient.invalidateQueries({ queryKey: ['bulk-email-campaigns'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao excluir campanha');
+      toast.error(getErrorMessage(error));
     },
   });
 

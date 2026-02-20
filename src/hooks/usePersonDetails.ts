@@ -2,30 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { fetchNotes, createNote, updateNote, deleteNote, toggleNotePin, type Note } from '@/services/noteService';
+import { fetchHistory, type HistoryEntry } from '@/services/historyService';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
-export interface PersonHistory {
-  id: string;
-  person_id: string;
-  event_type: string;
-  description: string;
-  old_value: string | null;
-  new_value: string | null;
-  metadata: Record<string, unknown> | null;
-  created_by: string | null;
-  created_at: string;
-  profile?: { full_name: string } | null;
-}
-
-export interface PersonNote {
-  id: string;
-  person_id: string;
-  content: string;
-  is_pinned: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  profile?: { full_name: string } | null;
-}
+export type PersonHistory = HistoryEntry & { person_id: string };
+export type PersonNote = Note & { person_id: string };
 
 export interface PersonActivity {
   id: string;
@@ -59,16 +41,14 @@ export interface UsePersonDetailsOptions {
 export function usePersonDetails(personId: string, options?: UsePersonDetailsOptions) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  
-  // Default all options to true for backwards compatibility
-  const { 
-    loadHistory = true, 
-    loadNotes = true, 
-    loadActivities = true, 
-    loadDeals = true 
+
+  const {
+    loadHistory = true,
+    loadNotes = true,
+    loadActivities = true,
+    loadDeals = true
   } = options || {};
 
-  // Fetch person with related data - always loads immediately
   const { data: person, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['person', personId],
     queryFn: async () => {
@@ -89,78 +69,23 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
     enabled: !!personId,
     retry: 2,
     retryDelay: 1000,
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 30000,
   });
 
-  // Fetch person history - lazy loaded based on active tab
   const { data: history = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ['person-history', personId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('people_history')
-        .select('*')
-        .eq('person_id', personId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles for history entries
-      const creatorIds = [...new Set(data.map(h => h.created_by).filter(Boolean))];
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', creatorIds as string[]);
-
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-        return data.map(h => ({
-          ...h,
-          profile: h.created_by ? profileMap.get(h.created_by) : null,
-        })) as PersonHistory[];
-      }
-
-      return data as PersonHistory[];
-    },
+    queryFn: () => fetchHistory('person', personId, 100),
     enabled: !!personId && loadHistory,
     staleTime: 30000,
   });
 
-  // Fetch person notes - lazy loaded based on active tab
   const { data: notes = [], isLoading: isLoadingNotes } = useQuery({
     queryKey: ['person-notes', personId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('people_notes')
-        .select('*')
-        .eq('person_id', personId)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles
-      const creatorIds = [...new Set(data.map(n => n.created_by).filter(Boolean))];
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', creatorIds as string[]);
-
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-        return data.map(n => ({
-          ...n,
-          is_pinned: n.is_pinned ?? false,
-          profile: n.created_by ? profileMap.get(n.created_by) : null,
-        })) as PersonNote[];
-      }
-
-      return data.map(n => ({ ...n, is_pinned: n.is_pinned ?? false })) as PersonNote[];
-    },
+    queryFn: () => fetchNotes('person', personId),
     enabled: !!personId && loadNotes,
     staleTime: 30000,
   });
 
-  // Fetch activities linked to this person - lazy loaded based on active tab
   const { data: activities = [], isLoading: isLoadingActivities } = useQuery({
     queryKey: ['person-activities', personId],
     queryFn: async () => {
@@ -168,7 +93,8 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
         .from('activities')
         .select('id, title, activity_type, due_date, due_time, is_completed, completed_at, priority, description')
         .eq('person_id', personId)
-        .order('due_date', { ascending: true });
+        .order('due_date', { ascending: true })
+        .limit(50);
 
       if (error) throw error;
       return data as PersonActivity[];
@@ -177,7 +103,6 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
     staleTime: 30000,
   });
 
-  // Fetch deals linked to this person - lazy loaded based on active tab
   const { data: deals = [], isLoading: isLoadingDeals } = useQuery({
     queryKey: ['person-deals', personId],
     queryFn: async () => {
@@ -189,7 +114,8 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
           pipeline:pipelines(name)
         `)
         .eq('person_id', personId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       return data as PersonDeal[];
@@ -198,26 +124,10 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
     staleTime: 30000,
   });
 
-  // Add note mutation
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
-
-      const { error } = await supabase.from('people_notes').insert({
-        person_id: personId,
-        content,
-        created_by: user.id,
-      });
-
-      if (error) throw error;
-
-      // Log to history
-      await supabase.from('people_history').insert({
-        person_id: personId,
-        event_type: 'note_added',
-        description: 'Nova nota adicionada',
-        created_by: user.id,
-      });
+      await createNote('person', personId, content, user.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-notes', personId] });
@@ -225,63 +135,45 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
       toast.success('Nota adicionada!');
     },
     onError: (error) => {
-      toast.error('Erro ao adicionar nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Toggle pin mutation
   const togglePinMutation = useMutation({
     mutationFn: async ({ noteId, isPinned }: { noteId: string; isPinned: boolean }) => {
-      const { error } = await supabase
-        .from('people_notes')
-        .update({ is_pinned: !isPinned })
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await toggleNotePin('person', noteId, isPinned);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-notes', personId] });
     },
     onError: (error) => {
-      toast.error('Erro ao fixar nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Delete note mutation
   const deleteNoteMutation = useMutation({
     mutationFn: async (noteId: string) => {
-      const { error } = await supabase
-        .from('people_notes')
-        .delete()
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await deleteNote('person', noteId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-notes', personId] });
       toast.success('Nota excluída');
     },
     onError: (error) => {
-      toast.error('Erro ao excluir nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Update note mutation
   const updateNoteMutation = useMutation({
     mutationFn: async ({ noteId, content }: { noteId: string; content: string }) => {
-      const { error } = await supabase
-        .from('people_notes')
-        .update({ content, updated_at: new Date().toISOString() })
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await updateNote('person', noteId, content);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['person-notes', personId] });
       toast.success('Nota atualizada!');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar nota: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 

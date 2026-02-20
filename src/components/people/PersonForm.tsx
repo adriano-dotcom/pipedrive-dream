@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import { Loader2, AlertCircle } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { PersonTagsSelector } from './PersonTagsSelector';
@@ -268,7 +269,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         });
       } else {
         toast.error('Erro ao criar pessoa', {
-          description: error.message,
+          description: getErrorMessage(error),
           icon: '❌',
         });
       }
@@ -348,7 +349,7 @@ export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
         });
       } else {
         toast.error('Erro ao atualizar pessoa', {
-          description: error.message,
+          description: getErrorMessage(error),
           icon: '❌',
         });
       }

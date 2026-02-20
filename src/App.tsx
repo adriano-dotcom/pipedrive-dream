@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,22 +7,28 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { ThemeProvider } from "next-themes";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Organizations from "./pages/Organizations";
-import OrganizationDetails from "./pages/OrganizationDetails";
-import People from "./pages/People";
-import PersonDetails from "./pages/PersonDetails";
-import Deals from "./pages/Deals";
-import DealDetails from "./pages/DealDetails";
-import Activities from "./pages/Activities";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import TimelinesAdmin from "./pages/TimelinesAdmin";
-import VendedoresAdmin from "./pages/VendedoresAdmin";
-import NotFound from "./pages/NotFound";
+// Validação de env vars no startup
+import "@/config/env";
+
+// Lazy loading de todas as páginas
+const Auth = lazy(() => import("./pages/Auth"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Organizations = lazy(() => import("./pages/Organizations"));
+const OrganizationDetails = lazy(() => import("./pages/OrganizationDetails"));
+const People = lazy(() => import("./pages/People"));
+const PersonDetails = lazy(() => import("./pages/PersonDetails"));
+const Deals = lazy(() => import("./pages/Deals"));
+const DealDetails = lazy(() => import("./pages/DealDetails"));
+const Activities = lazy(() => import("./pages/Activities"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Settings = lazy(() => import("./pages/Settings"));
+const TimelinesAdmin = lazy(() => import("./pages/TimelinesAdmin"));
+const VendedoresAdmin = lazy(() => import("./pages/VendedoresAdmin"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +39,25 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function PageLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh]">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground mt-4">Carregando...</p>
+    </div>
+  );
+}
+
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <ErrorBoundary>
+        {children}
+      </ErrorBoundary>
+    </ProtectedRoute>
+  );
+}
 
 function App() {
   useEffect(() => {
@@ -54,106 +79,24 @@ function App() {
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/organizations"
-                  element={
-                    <ProtectedRoute>
-                      <Organizations />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/organizations/:id"
-                  element={
-                    <ProtectedRoute>
-                      <OrganizationDetails />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/people"
-                  element={
-                    <ProtectedRoute>
-                      <People />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/people/:id"
-                  element={
-                    <ProtectedRoute>
-                      <PersonDetails />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/deals"
-                  element={
-                    <ProtectedRoute>
-                      <Deals />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/deals/:id"
-                  element={
-                    <ProtectedRoute>
-                      <DealDetails />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/activities"
-                  element={
-                    <ProtectedRoute>
-                      <Activities />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/reports"
-                  element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/settings"
-                  element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/timelinesai"
-                  element={
-                    <ProtectedRoute>
-                      <TimelinesAdmin />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/vendedores"
-                  element={
-                    <ProtectedRoute>
-                      <VendedoresAdmin />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/" element={<ProtectedPage><Dashboard /></ProtectedPage>} />
+                  <Route path="/organizations" element={<ProtectedPage><Organizations /></ProtectedPage>} />
+                  <Route path="/organizations/:id" element={<ProtectedPage><OrganizationDetails /></ProtectedPage>} />
+                  <Route path="/people" element={<ProtectedPage><People /></ProtectedPage>} />
+                  <Route path="/people/:id" element={<ProtectedPage><PersonDetails /></ProtectedPage>} />
+                  <Route path="/deals" element={<ProtectedPage><Deals /></ProtectedPage>} />
+                  <Route path="/deals/:id" element={<ProtectedPage><DealDetails /></ProtectedPage>} />
+                  <Route path="/activities" element={<ProtectedPage><Activities /></ProtectedPage>} />
+                  <Route path="/reports" element={<ProtectedPage><Reports /></ProtectedPage>} />
+                  <Route path="/settings" element={<ProtectedPage><Settings /></ProtectedPage>} />
+                  <Route path="/timelinesai" element={<ProtectedPage><TimelinesAdmin /></ProtectedPage>} />
+                  <Route path="/admin/vendedores" element={<ProtectedPage><VendedoresAdmin /></ProtectedPage>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>

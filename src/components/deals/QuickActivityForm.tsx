@@ -24,6 +24,7 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarIcon, Plus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 interface QuickActivityFormProps {
   dealId: string;
@@ -82,7 +83,7 @@ export function QuickActivityForm({ dealId, onSuccess }: QuickActivityFormProps)
       toast({
         variant: 'destructive',
         title: 'Erro ao criar atividade',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });

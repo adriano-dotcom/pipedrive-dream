@@ -28,6 +28,7 @@ import { PersonFormSheet } from '@/components/people/PersonFormSheet';
 import { MergeContactsDialog } from '@/components/people/MergeContactsDialog';
 import { ContactSearchDialog } from '@/components/people/ContactSearchDialog';
 import { MergeUndoBanner } from '@/components/shared/MergeUndoBanner';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePersonDetails } from '@/hooks/usePersonDetails';
 import { usePersonFiles } from '@/hooks/usePersonFiles';
 import { useMergeBackups } from '@/hooks/useMergeBackups';

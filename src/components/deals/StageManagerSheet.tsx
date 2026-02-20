@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, DropResult } from '@hello-pangea/dnd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import {
   Sheet,
   SheetContent,
@@ -109,7 +110,7 @@ export function StageManagerSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao criar etapa',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -131,7 +132,7 @@ export function StageManagerSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao atualizar etapa',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -153,7 +154,7 @@ export function StageManagerSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao excluir etapa',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -186,7 +187,7 @@ export function StageManagerSheet({
       toast({
         variant: 'destructive',
         title: 'Erro ao reordenar etapas',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });

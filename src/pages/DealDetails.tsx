@@ -31,7 +31,9 @@ import { useDealDetails } from '@/hooks/useDealDetails';
 import { useDealFiles } from '@/hooks/useDealFiles';
 import { PageBreadcrumbs } from '@/components/layout/PageBreadcrumbs';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import { Tables } from '@/integrations/supabase/types';
 
 type Activity = Tables<'activities'>;
@@ -53,6 +55,7 @@ export default function DealDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   
   const [showLostDialog, setShowLostDialog] = useState(false);
@@ -111,7 +114,7 @@ export default function DealDetails() {
       toast({
         variant: 'destructive',
         title: 'Erro ao excluir',
-        description: error.message,
+        description: getErrorMessage(error),
       });
     },
   });
@@ -271,14 +274,18 @@ export default function DealDetails() {
                 <Handshake className="h-4 w-4 mr-2" />
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => setDeleteDialogOpen(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
+              {isAdmin && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

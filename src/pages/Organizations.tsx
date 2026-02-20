@@ -23,6 +23,7 @@ import { OrganizationsFilters, OrganizationsFiltersState, defaultOrganizationsFi
 import { MergeOrganizationsDialog } from '@/components/organizations/MergeOrganizationsDialog';
 import { BulkEnrichDialog } from '@/components/organizations/BulkEnrichDialog';
 import { usePaginatedQuery, type SortingState as PaginatedSortingState } from '@/hooks/usePaginatedQuery';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 import type { SortingState } from '@tanstack/react-table';
 
@@ -334,7 +335,7 @@ export default function Organizations() {
       setDeleteTarget(null);
     },
     onError: (error) => {
-      toast.error('Erro ao excluir organização: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -351,7 +352,7 @@ export default function Organizations() {
       toast.success('Contato principal definido com sucesso!');
     },
     onError: (error) => {
-      toast.error('Erro ao definir contato principal: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -376,7 +377,7 @@ export default function Organizations() {
       setBulkDeleteOpen(false);
     },
     onError: (error) => {
-      toast.error('Erro ao excluir organizações: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -496,7 +497,7 @@ export default function Organizations() {
                   Nova Organização
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
+            <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
               <DialogHeader>
                 <DialogTitle>
                   {editingOrg ? 'Editar Organização' : 'Nova Organização'}

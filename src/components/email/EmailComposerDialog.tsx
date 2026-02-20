@@ -153,7 +153,7 @@ export function EmailComposerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-[95vw] md:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2">

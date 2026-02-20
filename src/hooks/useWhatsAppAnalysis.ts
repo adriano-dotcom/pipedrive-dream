@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 export interface WhatsAppConversationAnalysis {
   id: string;
@@ -59,7 +60,7 @@ export function useAnalyzeWhatsAppConversation() {
     onError: (error) => {
       console.error('Error analyzing conversation:', error);
       toast.error('Erro ao analisar conversa', {
-        description: error instanceof Error ? error.message : 'Tente novamente',
+        description: getErrorMessage(error),
       });
     },
   });

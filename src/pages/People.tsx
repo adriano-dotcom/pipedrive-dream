@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Search, Users, Loader2, Sparkles, GitMerge, Mail } from 'lucide-react';
+import { Plus, Search, Users, Loader2, Sparkles, Mail } from 'lucide-react';
 import { ImportButton } from '@/components/import/ImportButton';
 import { toast } from 'sonner';
 import { PersonForm } from '@/components/people/PersonForm';
@@ -25,6 +25,8 @@ import { usePaginatedQuery } from '@/hooks/usePaginatedQuery';
 import { BulkEmailComposerDialog } from '@/components/email/BulkEmailComposerDialog';
 import { BulkEmailCampaignsList } from '@/components/email/BulkEmailCampaignsList';
 import { SaveToCampaignDialog } from '@/components/email/SaveToCampaignDialog';
+import { applyPeopleFilters, type PeopleFilterParams } from '@/services/filterBuilder';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -46,11 +48,22 @@ interface PersonWithOrg extends Person {
   } | null;
 }
 
+interface EmailRecipient {
+  id?: string;
+  person_id?: string;
+  name: string;
+  email: string | null;
+  email_status?: string | null;
+  organization_name: string | null;
+  organization_city: string | null;
+  job_title: string | null;
+}
+
 const STORAGE_KEY = 'people-advanced-filters';
 const PAGE_SIZE_KEY = 'people-table-page-size';
 
 export default function People() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -61,17 +74,16 @@ export default function People() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
-  const [bulkEmailRecipients, setBulkEmailRecipients] = useState<any[]>([]);
+  const [bulkEmailRecipients, setBulkEmailRecipients] = useState<EmailRecipient[]>([]);
   const [isLoadingFilteredRecipients, setIsLoadingFilteredRecipients] = useState(false);
   const [saveToCampaignOpen, setSaveToCampaignOpen] = useState(false);
-  const [saveToCampaignRecipients, setSaveToCampaignRecipients] = useState<any[]>([]);
+  const [saveToCampaignRecipients, setSaveToCampaignRecipients] = useState<EmailRecipient[]>([]);
   const [campaignsOpen, setCampaignsOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('people-tag-filter');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Advanced filters state with localStorage persistence
   const [advancedFilters, setAdvancedFilters] = useState<PeopleFiltersState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -92,28 +104,21 @@ export default function People() {
     return defaultPeopleFilters;
   });
 
-  // Debounce search input
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Persist advanced filters to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(advancedFilters));
   }, [advancedFilters]);
 
-  // Persist tag filter to localStorage
   useEffect(() => {
     localStorage.setItem('people-tag-filter', JSON.stringify(selectedTagIds));
   }, [selectedTagIds]);
 
-  // Fetch all person tags
   const { data: personTags = [], isLoading: tagsLoading } = usePersonTags();
 
-  // Fetch tag assignments for filtering (when tags are selected)
   const { data: taggedPersonIds = [], isFetched: tagQueryFetched } = useQuery({
     queryKey: ['person-tag-filter-assignments', selectedTagIds],
     queryFn: async () => {
@@ -128,9 +133,24 @@ export default function People() {
     enabled: selectedTagIds.length > 0,
   });
 
-  // Build query function for server-side pagination
-  const fetchPeople = async ({ from, to }: { from: number; to: number }) => {
-    let query = supabase
+  /** Parâmetros de filtro compartilhados entre todas as queries */
+  const filterParams: PeopleFilterParams = useMemo(() => ({
+    search: debouncedSearch,
+    labels: advancedFilters.labels,
+    leadSources: advancedFilters.leadSources,
+    jobTitles: advancedFilters.jobTitles,
+    organizationId: advancedFilters.organizationId,
+    cities: advancedFilters.cities,
+    ownerId: advancedFilters.ownerId,
+    dateRange: advancedFilters.dateRange,
+    hasEmail: advancedFilters.hasEmail,
+    hasPhone: advancedFilters.hasPhone,
+    selectedTagIds,
+    taggedPersonIds,
+  }), [debouncedSearch, advancedFilters, selectedTagIds, taggedPersonIds]);
+
+  const fetchPeople = useCallback(async ({ from, to }: { from: number; to: number }) => {
+    const baseQuery = supabase
       .from('people')
       .select(`
         *,
@@ -138,96 +158,17 @@ export default function People() {
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
-    // Search filter (server-side)
-    if (debouncedSearch) {
-      query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
-    }
+    const { query, empty } = await applyPeopleFilters(baseQuery, filterParams);
+    if (empty) return { data: [], count: 0 };
 
-    // Label filter (server-side)
-    if (advancedFilters.labels.length > 0) {
-      query = query.in('label', advancedFilters.labels);
-    }
-
-    // Lead source filter (server-side)
-    if (advancedFilters.leadSources.length > 0) {
-      query = query.in('lead_source', advancedFilters.leadSources);
-    }
-
-    // Job title filter (server-side)
-    if (advancedFilters.jobTitles.length > 0) {
-      query = query.in('job_title', advancedFilters.jobTitles);
-    }
-
-    // Organization filter (server-side)
-    if (advancedFilters.organizationId) {
-      query = query.eq('organization_id', advancedFilters.organizationId);
-    }
-
-    // City filter (server-side) - fetch org IDs for selected cities
-    if (advancedFilters.cities.length > 0) {
-      const { data: cityOrgs } = await supabase
-        .from('organizations')
-        .select('id')
-        .in('address_city', advancedFilters.cities);
-      if (cityOrgs && cityOrgs.length > 0) {
-        query = query.in('organization_id', cityOrgs.map(o => o.id));
-      } else {
-        return { data: [], count: 0 };
-      }
-    }
-
-    // Owner filter (server-side)
-    if (advancedFilters.ownerId) {
-      query = query.eq('owner_id', advancedFilters.ownerId);
-    }
-
-    // Date range filter (server-side)
-    if (advancedFilters.dateRange.from) {
-      query = query.gte('created_at', advancedFilters.dateRange.from.toISOString());
-    }
-    if (advancedFilters.dateRange.to) {
-      const endOfDay = new Date(advancedFilters.dateRange.to);
-      endOfDay.setHours(23, 59, 59, 999);
-      query = query.lte('created_at', endOfDay.toISOString());
-    }
-
-    // Has email filter (server-side)
-    if (advancedFilters.hasEmail === true) {
-      query = query.not('email', 'is', null);
-    } else if (advancedFilters.hasEmail === false) {
-      query = query.is('email', null);
-    }
-
-    // Has phone filter (server-side)
-    if (advancedFilters.hasPhone === true) {
-      query = query.not('phone', 'is', null);
-    } else if (advancedFilters.hasPhone === false) {
-      query = query.is('phone', null);
-    }
-
-    // Tag filter - filter by IDs if tags selected
-    if (selectedTagIds.length > 0 && taggedPersonIds.length > 0) {
-      query = query.in('id', taggedPersonIds);
-    } else if (selectedTagIds.length > 0 && taggedPersonIds.length === 0) {
-      // No people match the selected tags, return empty
-      return { data: [], count: 0 };
-    }
-
-    // Apply pagination
-    query = query.range(from, to);
-
-    const { data, error, count } = await query;
+    const { data, error, count } = await (query as any).range(from, to);
     if (error) throw error;
-    
-    // Return data immediately - owner profiles will be loaded separately in PeopleTable
-    // This removes the blocking secondary query and improves initial load time
-    return { data: data as PersonWithOrg[], count };
-  };
 
-  // Check if tag query is ready before running main query
+    return { data: data as PersonWithOrg[], count };
+  }, [filterParams]);
+
   const isTagQueryReady = selectedTagIds.length === 0 || tagQueryFetched;
 
-  // Use paginated query hook
   const {
     data: people,
     totalCount,
@@ -237,13 +178,7 @@ export default function People() {
     isLoading,
     isFetching,
     goToPage,
-    nextPage,
-    previousPage,
-    canNextPage,
-    canPreviousPage,
     setPageSize,
-    pagination,
-    setPagination,
   } = usePaginatedQuery<PersonWithOrg>({
     queryKey: ['people', debouncedSearch, JSON.stringify(advancedFilters), JSON.stringify(selectedTagIds)],
     queryFn: fetchPeople,
@@ -264,7 +199,7 @@ export default function People() {
       setDeleteTarget(null);
     },
     onError: (error) => {
-      toast.error('Erro ao excluir pessoa: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -281,7 +216,7 @@ export default function People() {
       setBulkDeleteOpen(false);
     },
     onError: (error) => {
-      toast.error('Erro ao excluir pessoas: ' + error.message);
+      toast.error(getErrorMessage(error));
     },
   });
 
@@ -295,9 +230,7 @@ export default function People() {
   };
 
   const confirmDelete = () => {
-    if (deleteTarget) {
-      deleteMutation.mutate(deleteTarget.id);
-    }
+    if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
   };
 
   const handleCloseDialog = () => {
@@ -305,7 +238,6 @@ export default function People() {
     setEditingPerson(null);
   };
 
-  // Check if filters are active
   const hasActiveFilters = useMemo(() => {
     return (
       debouncedSearch.length > 0 ||
@@ -323,74 +255,24 @@ export default function People() {
     );
   }, [debouncedSearch, selectedTagIds, advancedFilters]);
 
-  // Fetch all filtered recipients for bulk email (no pagination)
+  /** Busca todos os recipients filtrados (sem paginação) — reutiliza filterBuilder */
   const fetchAllFilteredRecipients = async () => {
     setIsLoadingFilteredRecipients(true);
     try {
-      let query = supabase
+      const baseQuery = supabase
         .from('people')
         .select('id, name, email, email_status, job_title, organization_id, organizations:organizations!people_organization_id_fkey(name, address_city)')
         .order('name');
 
-      if (debouncedSearch) {
-        query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
-      }
-      if (advancedFilters.labels.length > 0) {
-        query = query.in('label', advancedFilters.labels);
-      }
-      if (advancedFilters.leadSources.length > 0) {
-        query = query.in('lead_source', advancedFilters.leadSources);
-      }
-      if (advancedFilters.jobTitles.length > 0) {
-        query = query.in('job_title', advancedFilters.jobTitles);
-      }
-      if (advancedFilters.organizationId) {
-        query = query.eq('organization_id', advancedFilters.organizationId);
-      }
-      if (advancedFilters.cities.length > 0) {
-        const { data: cityOrgs } = await supabase
-          .from('organizations')
-          .select('id')
-          .in('address_city', advancedFilters.cities);
-        if (cityOrgs && cityOrgs.length > 0) {
-          query = query.in('organization_id', cityOrgs.map(o => o.id));
-        } else {
-          setBulkEmailRecipients([]);
-          setBulkEmailOpen(true);
-          return;
-        }
-      }
-      if (advancedFilters.ownerId) {
-        query = query.eq('owner_id', advancedFilters.ownerId);
-      }
-      if (advancedFilters.dateRange.from) {
-        query = query.gte('created_at', advancedFilters.dateRange.from.toISOString());
-      }
-      if (advancedFilters.dateRange.to) {
-        const endOfDay = new Date(advancedFilters.dateRange.to);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endOfDay.toISOString());
-      }
-      if (advancedFilters.hasEmail === true) {
-        query = query.not('email', 'is', null);
-      } else if (advancedFilters.hasEmail === false) {
-        query = query.is('email', null);
-      }
-      if (advancedFilters.hasPhone === true) {
-        query = query.not('phone', 'is', null);
-      } else if (advancedFilters.hasPhone === false) {
-        query = query.is('phone', null);
-      }
-      if (selectedTagIds.length > 0 && taggedPersonIds.length > 0) {
-        query = query.in('id', taggedPersonIds);
-      } else if (selectedTagIds.length > 0 && taggedPersonIds.length === 0) {
+      const { query, empty } = await applyPeopleFilters(baseQuery, filterParams);
+      if (empty) {
         setBulkEmailRecipients([]);
         setBulkEmailOpen(true);
         return;
       }
 
-      const { data } = await query;
-      const recipients = (data || []).map((p: any) => ({
+      const { data } = await (query as any);
+      const recipients: EmailRecipient[] = (data || []).map((p: any) => ({
         id: p.id,
         name: p.name,
         email: p.email,
@@ -409,7 +291,7 @@ export default function People() {
   };
 
   const handleBulkEmailSelected = () => {
-    const recipients = people.filter(p => selectedIds.includes(p.id)).map(p => ({
+    const recipients: EmailRecipient[] = people.filter(p => selectedIds.includes(p.id)).map(p => ({
       id: p.id,
       name: p.name,
       email: p.email,
@@ -423,7 +305,7 @@ export default function People() {
   };
 
   const handleSaveToCampaignSelected = () => {
-    const recipients = people.filter(p => selectedIds.includes(p.id))
+    const recipients: EmailRecipient[] = people.filter(p => selectedIds.includes(p.id))
       .filter(p => p.email)
       .map(p => ({
         person_id: p.id,
@@ -440,46 +322,21 @@ export default function People() {
   const handleSaveToCampaignAll = async () => {
     setIsLoadingFilteredRecipients(true);
     try {
-      let query = supabase
+      const baseQuery = supabase
         .from('people')
         .select('id, name, email, email_status, job_title, organization_id, organizations:organizations!people_organization_id_fkey(name, address_city)')
         .not('email', 'is', null)
         .order('name');
 
-      if (debouncedSearch) {
-        query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
-      }
-      if (advancedFilters.labels.length > 0) query = query.in('label', advancedFilters.labels);
-      if (advancedFilters.leadSources.length > 0) query = query.in('lead_source', advancedFilters.leadSources);
-      if (advancedFilters.jobTitles.length > 0) query = query.in('job_title', advancedFilters.jobTitles);
-      if (advancedFilters.organizationId) query = query.eq('organization_id', advancedFilters.organizationId);
-      if (advancedFilters.cities.length > 0) {
-        const { data: cityOrgs } = await supabase.from('organizations').select('id').in('address_city', advancedFilters.cities);
-        if (cityOrgs && cityOrgs.length > 0) {
-          query = query.in('organization_id', cityOrgs.map(o => o.id));
-        } else {
-          setSaveToCampaignRecipients([]);
-          setSaveToCampaignOpen(true);
-          return;
-        }
-      }
-      if (advancedFilters.ownerId) query = query.eq('owner_id', advancedFilters.ownerId);
-      if (advancedFilters.dateRange.from) query = query.gte('created_at', advancedFilters.dateRange.from.toISOString());
-      if (advancedFilters.dateRange.to) {
-        const endOfDay = new Date(advancedFilters.dateRange.to);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endOfDay.toISOString());
-      }
-      if (selectedTagIds.length > 0 && taggedPersonIds.length > 0) {
-        query = query.in('id', taggedPersonIds);
-      } else if (selectedTagIds.length > 0) {
+      const { query, empty } = await applyPeopleFilters(baseQuery, filterParams);
+      if (empty) {
         setSaveToCampaignRecipients([]);
         setSaveToCampaignOpen(true);
         return;
       }
 
-      const { data } = await query;
-      const recipients = (data || []).map((p: any) => ({
+      const { data } = await (query as any);
+      const recipients: EmailRecipient[] = (data || []).map((p: any) => ({
         person_id: p.id,
         email: p.email!,
         name: p.name,
@@ -531,7 +388,7 @@ export default function People() {
                 Nova Pessoa
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
+          <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto glass border-border/50">
             <DialogHeader>
               <DialogTitle>
                 {editingPerson ? 'Editar Pessoa' : 'Nova Pessoa'}
@@ -619,7 +476,6 @@ export default function People() {
           onSaveToCampaignAll={handleSaveToCampaignAll}
           hasActiveFilters={hasActiveFilters}
           isLoadingFilteredRecipients={isLoadingFilteredRecipients}
-          // Server-side pagination props
           totalCount={totalCount}
           pageCount={pageCount}
           currentPage={currentPage}

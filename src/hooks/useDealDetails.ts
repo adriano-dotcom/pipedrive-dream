@@ -3,36 +3,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { fireConfetti } from '@/lib/confetti';
+import { fetchNotes, createNote, updateNote, deleteNote, toggleNotePin, type Note } from '@/services/noteService';
+import { fetchHistory, addHistoryEntry, type HistoryEntry } from '@/services/historyService';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
-export interface DealHistory {
-  id: string;
-  deal_id: string;
-  event_type: string;
-  description: string;
-  old_value: string | null;
-  new_value: string | null;
-  metadata: Record<string, unknown>;
-  created_by: string | null;
-  created_at: string;
-  profile?: { full_name: string } | null;
-}
-
-export interface DealNote {
-  id: string;
-  deal_id: string;
-  content: string;
-  is_pinned: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  profile?: { full_name: string } | null;
-}
+export type DealHistory = HistoryEntry & { deal_id: string };
+export type DealNote = Note & { deal_id: string };
 
 export function useDealDetails(dealId: string) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Fetch deal with all relations
   const { data: deal, isLoading: isLoadingDeal, isError: isDealError, error: dealError } = useQuery({
     queryKey: ['deal', dealId],
     queryFn: async () => {
@@ -54,7 +35,6 @@ export function useDealDetails(dealId: string) {
     enabled: !!dealId,
   });
 
-  // Fetch all stages for the pipeline
   const { data: stages = [] } = useQuery({
     queryKey: ['pipeline-stages', deal?.pipeline_id],
     queryFn: async () => {
@@ -71,72 +51,18 @@ export function useDealDetails(dealId: string) {
     enabled: !!deal?.pipeline_id,
   });
 
-  // Fetch deal history
   const { data: history = [], isLoading: isLoadingHistory, isError: isHistoryError } = useQuery({
     queryKey: ['deal-history', dealId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('deal_history')
-        .select('*')
-        .eq('deal_id', dealId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles for history entries
-      const creatorIds = [...new Set(data.map(h => h.created_by).filter(Boolean))];
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', creatorIds as string[]);
-
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-        return data.map(h => ({
-          ...h,
-          profile: h.created_by ? profileMap.get(h.created_by) : null,
-        })) as DealHistory[];
-      }
-
-      return data as DealHistory[];
-    },
+    queryFn: () => fetchHistory('deal', dealId, 100),
     enabled: !!dealId,
   });
 
-  // Fetch deal notes
   const { data: notes = [], isLoading: isLoadingNotes, isError: isNotesError } = useQuery({
     queryKey: ['deal-notes', dealId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('deal_notes')
-        .select('*')
-        .eq('deal_id', dealId)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles for notes
-      const creatorIds = [...new Set(data.map(n => n.created_by).filter(Boolean))];
-      if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name')
-          .in('user_id', creatorIds as string[]);
-
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
-        return data.map(n => ({
-          ...n,
-          profile: n.created_by ? profileMap.get(n.created_by) : null,
-        })) as DealNote[];
-      }
-
-      return data as DealNote[];
-    },
+    queryFn: () => fetchNotes('deal', dealId),
     enabled: !!dealId,
   });
 
-  // Fetch deal activities
   const { data: activities = [], isLoading: isLoadingActivities, isError: isActivitiesError } = useQuery({
     queryKey: ['deal-activities', dealId],
     queryFn: async () => {
@@ -144,7 +70,8 @@ export function useDealDetails(dealId: string) {
         .from('activities')
         .select('*')
         .eq('deal_id', dealId)
-        .order('due_date', { ascending: true });
+        .order('due_date', { ascending: true })
+        .limit(50);
 
       if (error) throw error;
       return data;
@@ -152,7 +79,6 @@ export function useDealDetails(dealId: string) {
     enabled: !!dealId,
   });
 
-  // Toggle activity completion mutation
   const toggleActivityMutation = useMutation({
     mutationFn: async ({ activityId, completed }: { activityId: string; completed: boolean }) => {
       const { error } = await supabase
@@ -172,66 +98,38 @@ export function useDealDetails(dealId: string) {
       queryClient.invalidateQueries({ queryKey: ['kanban-activities'] });
       queryClient.invalidateQueries({ queryKey: ['activities'] });
     },
-    onError: () => {
-      toast.error('Erro ao atualizar atividade');
+    onError: (error) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Add note mutation
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
-      const { error } = await supabase
-        .from('deal_notes')
-        .insert({
-          deal_id: dealId,
-          content,
-          created_by: user?.id,
-        });
-
-      if (error) throw error;
-
-      // Also add to history
-      await supabase.from('deal_history').insert({
-        deal_id: dealId,
-        event_type: 'note_added',
-        description: 'Nota adicionada',
-        created_by: user?.id,
-      });
+      if (!user?.id) throw new Error('Usuário não autenticado');
+      await createNote('deal', dealId, content, user.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deal-notes', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deal-history', dealId] });
       toast.success('Nota adicionada');
     },
-    onError: () => {
-      toast.error('Erro ao adicionar nota');
+    onError: (error) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Toggle note pin mutation
   const togglePinMutation = useMutation({
     mutationFn: async ({ noteId, isPinned }: { noteId: string; isPinned: boolean }) => {
-      const { error } = await supabase
-        .from('deal_notes')
-        .update({ is_pinned: !isPinned })
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await toggleNotePin('deal', noteId, isPinned);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deal-notes', dealId] });
     },
   });
 
-  // Delete note mutation
   const deleteNoteMutation = useMutation({
     mutationFn: async (noteId: string) => {
-      const { error } = await supabase
-        .from('deal_notes')
-        .delete()
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await deleteNote('deal', noteId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deal-notes', dealId] });
@@ -239,26 +137,19 @@ export function useDealDetails(dealId: string) {
     },
   });
 
-  // Update note mutation
   const updateNoteMutation = useMutation({
     mutationFn: async ({ noteId, content }: { noteId: string; content: string }) => {
-      const { error } = await supabase
-        .from('deal_notes')
-        .update({ content, updated_at: new Date().toISOString() })
-        .eq('id', noteId);
-
-      if (error) throw error;
+      await updateNote('deal', noteId, content);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deal-notes', dealId] });
       toast.success('Nota atualizada');
     },
-    onError: () => {
-      toast.error('Erro ao atualizar nota');
+    onError: (error) => {
+      toast.error(getErrorMessage(error));
     },
   });
 
-  // Update deal stage mutation
   const updateStageMutation = useMutation({
     mutationFn: async (stageId: string) => {
       const { error } = await supabase
@@ -275,7 +166,6 @@ export function useDealDetails(dealId: string) {
     },
   });
 
-  // Mark deal as won/lost
   const updateDealStatusMutation = useMutation({
     mutationFn: async ({ status, lostReason }: { status: 'won' | 'lost'; lostReason?: string }) => {
       const updates: Record<string, unknown> = {
@@ -294,24 +184,22 @@ export function useDealDetails(dealId: string) {
 
       if (error) throw error;
 
-      // Add to history
-      await supabase.from('deal_history').insert({
-        deal_id: dealId,
+      await addHistoryEntry('deal', dealId, {
         event_type: status === 'won' ? 'deal_won' : 'deal_lost',
-        description: status === 'won' ? 'Negócio ganho! 🎉' : 'Negócio perdido',
-        new_value: status === 'lost' ? lostReason : null,
+        description: status === 'won' ? 'Negócio ganho!' : 'Negócio perdido',
+        new_value: status === 'lost' ? lostReason ?? null : null,
         metadata: status === 'lost' && lostReason ? { reason: lostReason } : {},
-        created_by: user?.id,
+        created_by: user?.id ?? null,
       });
     },
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['deal', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deal-history', dealId] });
       queryClient.invalidateQueries({ queryKey: ['deals'] });
-      
+
       if (status === 'won') {
         fireConfetti();
-        toast.success('🎉 Parabéns! Negócio ganho!');
+        toast.success('Parabéns! Negócio ganho!');
       } else {
         toast.success('Negócio marcado como perdido');
       }

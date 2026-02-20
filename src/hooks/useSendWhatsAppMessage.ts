@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 
 interface SendMessageParams {
   conversationId: string;
@@ -28,7 +29,7 @@ export function useSendWhatsAppMessage() {
     onError: (error) => {
       console.error('Error sending WhatsApp message:', error);
       toast.error('Erro ao enviar mensagem', {
-        description: error instanceof Error ? error.message : 'Tente novamente',
+        description: getErrorMessage(error),
       });
     },
   });

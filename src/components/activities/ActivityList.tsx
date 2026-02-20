@@ -42,8 +42,9 @@ export function ActivityList() {
           organization:organizations(id, name)
         `)
         .order('due_date', { ascending: true })
-        .order('due_time', { ascending: true, nullsFirst: false });
-      
+        .order('due_time', { ascending: true, nullsFirst: false })
+        .limit(200);
+
       if (error) throw error;
       
       // Fetch creator names separately

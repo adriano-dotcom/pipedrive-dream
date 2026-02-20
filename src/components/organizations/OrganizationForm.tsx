@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InsuranceFieldsSection } from './InsuranceFieldsSection';
@@ -308,10 +309,10 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     onError: (error) => {
       if (error.message.includes('CNPJ')) {
         toast.error('CNPJ duplicado', {
-          description: error.message,
+          description: getErrorMessage(error),
         });
       } else {
-        toast.error('Erro ao criar organização: ' + error.message);
+        toast.error('Erro ao criar organização: ' + getErrorMessage(error));
       }
     },
   });
@@ -346,10 +347,10 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     onError: (error) => {
       if (error.message.includes('CNPJ')) {
         toast.error('CNPJ duplicado', {
-          description: error.message,
+          description: getErrorMessage(error),
         });
       } else {
-        toast.error('Erro ao atualizar organização: ' + error.message);
+        toast.error('Erro ao atualizar organização: ' + getErrorMessage(error));
       }
     },
   });

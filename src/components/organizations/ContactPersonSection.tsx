@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { ContactPersonItem } from './ContactPersonItem';
 import { AddContactPersonDialog } from './AddContactPersonDialog';
 import { DeleteConfirmDialog } from '@/components/shared/DeleteConfirmDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { getErrorMessage } from '@/services/supabaseErrors';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Person = Tables<'people'>;
@@ -27,6 +29,7 @@ export function ContactPersonSection({
   pendingContacts = [],
   onPendingContactsChange,
 }: ContactPersonSectionProps) {
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deletingPerson, setDeletingPerson] = useState<Person | null>(null);
@@ -73,7 +76,7 @@ export function ContactPersonSection({
       toast.success('Pessoa desvinculada da organização');
     },
     onError: (error) => {
-      toast.error('Erro ao desvincular: ' + error.message);
+      toast.error('Erro ao desvincular: ' + getErrorMessage(error));
     },
   });
 
@@ -101,7 +104,7 @@ export function ContactPersonSection({
       setDeletingPerson(null);
     },
     onError: (error) => {
-      toast.error('Erro ao excluir pessoa: ' + error.message);
+      toast.error('Erro ao excluir pessoa: ' + getErrorMessage(error));
     },
   });
 
@@ -223,7 +226,7 @@ export function ContactPersonSection({
               isPrimary={person.id === primaryContactId}
               onSetPrimary={handleSetPrimary}
               onUnlink={handleUnlink}
-              onDelete={organizationId ? handleDelete : undefined}
+              onDelete={organizationId && isAdmin ? handleDelete : undefined}
             />
           ))}
         </div>
