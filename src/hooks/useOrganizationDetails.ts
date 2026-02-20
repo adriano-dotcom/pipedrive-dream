@@ -87,13 +87,19 @@ export function useOrganizationDetails(organizationId: string) {
 
   const { data: history = [], isError: isHistoryError } = useQuery({
     queryKey: ['organization-history', organizationId],
-    queryFn: () => fetchHistory('organization', organizationId, 100),
+    queryFn: async () => {
+      const data = await fetchHistory('organization', organizationId, 100);
+      return data as OrganizationHistory[];
+    },
     enabled: !!organizationId,
   });
 
   const { data: notes = [], isError: isNotesError } = useQuery({
     queryKey: ['organization-notes', organizationId],
-    queryFn: () => fetchNotes('organization', organizationId),
+    queryFn: async () => {
+      const data = await fetchNotes('organization', organizationId);
+      return data as OrganizationNote[];
+    },
     enabled: !!organizationId,
   });
 

@@ -37,7 +37,7 @@ export async function fetchHistory(
 
   if (error) throw error;
 
-  return enrichWithProfiles(data || []) as Promise<HistoryEntry[]>;
+  return enrichWithProfiles((data || []) as any[]) as Promise<HistoryEntry[]>;
 }
 
 export async function addHistoryEntry(

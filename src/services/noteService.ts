@@ -34,10 +34,10 @@ export async function fetchNotes(entityType: EntityType, entityId: string): Prom
 
   if (error) throw error;
 
-  const enriched = await enrichWithProfiles(data || []);
+  const enriched = await enrichWithProfiles((data || []) as any[]);
   return enriched.map(n => ({
     ...n,
-    is_pinned: n.is_pinned ?? false,
+    is_pinned: (n as any).is_pinned ?? false,
   })) as Note[];
 }
 

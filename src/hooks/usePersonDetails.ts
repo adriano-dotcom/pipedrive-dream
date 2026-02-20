@@ -74,14 +74,20 @@ export function usePersonDetails(personId: string, options?: UsePersonDetailsOpt
 
   const { data: history = [], isLoading: isLoadingHistory } = useQuery({
     queryKey: ['person-history', personId],
-    queryFn: () => fetchHistory('person', personId, 100),
+    queryFn: async () => {
+      const data = await fetchHistory('person', personId, 100);
+      return data as PersonHistory[];
+    },
     enabled: !!personId && loadHistory,
     staleTime: 30000,
   });
 
   const { data: notes = [], isLoading: isLoadingNotes } = useQuery({
     queryKey: ['person-notes', personId],
-    queryFn: () => fetchNotes('person', personId),
+    queryFn: async () => {
+      const data = await fetchNotes('person', personId);
+      return data as PersonNote[];
+    },
     enabled: !!personId && loadNotes,
     staleTime: 30000,
   });
