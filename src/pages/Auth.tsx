@@ -37,7 +37,9 @@ export default function Auth() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [isResetting, setIsResetting] = useState(false);
+const [isResetting, setIsResetting] = useState(false);
+  const [showEmailSent, setShowEmailSent] = useState(false);
+  const [sentEmail, setSentEmail] = useState('');
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -116,7 +118,8 @@ export default function Auth() {
         toast.error(error.message);
       }
     } else {
-      toast.success('Conta criada! Verifique seu email para confirmar o cadastro.');
+      setSentEmail(signupData.email);
+      setShowEmailSent(true);
     }
   };
 
@@ -148,6 +151,44 @@ export default function Auth() {
           <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
           <Loader2 className="h-8 w-8 animate-spin text-primary relative" />
         </div>
+      </div>
+    );
+  }
+
+  if (showEmailSent) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+        <div className="absolute inset-0 bg-background" />
+        <div className="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-primary/10 rounded-full blur-3xl animate-float" />
+        <div className="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-blue-600/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }} />
+        <Card className="relative w-full max-w-md glass border-border/50 animate-scale-in">
+          <CardContent className="pt-8 pb-8 text-center space-y-6">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <Mail className="h-8 w-8 text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold">Verifique seu email</h2>
+              <p className="text-muted-foreground text-sm">
+                Enviamos um link de confirmação para
+              </p>
+              <p className="font-medium text-foreground">{sentEmail}</p>
+              <p className="text-muted-foreground text-sm">
+                Clique no link do email para ativar sua conta e fazer seu primeiro login.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEmailSent(false);
+                setSentEmail('');
+              }}
+              className="w-full"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar ao login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
