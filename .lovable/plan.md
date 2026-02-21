@@ -1,45 +1,48 @@
 
-# Corrigir Erro no Dashboard da Versao Publicada
+# Editar, Excluir e Reordenar Funis de Vendas
 
-## Diagnostico
+## O que sera feito
 
-O erro "Algo deu errado" aparece apenas na versao **publicada** (pipedrive-dream.lovable.app). A versao de preview funciona perfeitamente. Isso indica que a versao publicada esta rodando codigo antigo que nao foi atualizado.
+### 1. Adicionar botao de Excluir funil no PipelineSelector
+- Adicionar icone de lixeira (Trash2) ao lado do botao de editar no dropdown do seletor de funil
+- Ao clicar, abre um dialogo de confirmacao antes de excluir
+- Se o funil tiver negocios vinculados, exibir aviso informando quantos negocios serao afetados e impedir a exclusao
+- Nao permitir excluir o ultimo funil restante
 
-Alem disso, existe um warning no console sobre refs no componente `StatCard` que pode causar problemas em ambientes de producao mais restritos:
-- O `TooltipTrigger` com `asChild` tenta passar um ref para o componente `Tooltip`, mas o `Tooltip` do Radix UI e um function component sem `forwardRef`
-- Embora seja apenas um warning, em builds de producao otimizados isso pode causar erros fatais em alguns casos
+### 2. Adicionar opcao de Excluir no formulario de edicao (PipelineFormSheet)
+- Adicionar botao "Excluir Funil" no rodape do formulario quando estiver editando um funil existente
+- Reutilizar a mesma logica de confirmacao e validacao
 
-## Solucao
+### 3. Drag-and-drop para reordenar funis
+- Adicionar coluna `position` na tabela `pipelines` via migracao SQL (integer, default 0)
+- Atualizar a query de pipelines para ordenar por `position` ao inves de `name`
+- Adicionar suporte a drag-and-drop no dropdown do PipelineSelector usando @hello-pangea/dnd (ja instalado no projeto)
+- Ao soltar, atualizar as posicoes no banco de dados
 
-### 1. Republicar o projeto
-- A principal acao e republicar para que a versao publicada receba o codigo mais recente que ja funciona no preview
+## Detalhes tecnicos
 
-### 2. Corrigir warning de refs no StatCard (`src/pages/Dashboard.tsx`)
-- O `TooltipTrigger asChild` precisa de um filho que aceite refs
-- O `Badge` ja tem `forwardRef`, mas o `Tooltip` wrapper pode causar conflito em certas versoes
-- Envolver o `Badge` dentro do `TooltipTrigger` com um `<span>` para garantir compatibilidade de refs em todos os ambientes
+### Migracao SQL
+- Adicionar coluna `position` (integer, default 0) na tabela `pipelines`
+- Atualizar posicoes iniciais dos pipelines existentes baseado na ordem atual
 
-### Detalhes tecnicos
+### PipelineSelector.tsx
+- Importar `Trash2` do lucide-react e `@hello-pangea/dnd` para drag-and-drop
+- Adicionar botao de excluir com tooltip ao lado do botao de editar
+- Adicionar `onDelete` callback nas props
+- Envolver lista de pipelines com `DragDropContext` e `Droppable`/`Draggable`
+- Adicionar icone de grip (GripVertical) para indicar que e arrastavel
+- Adicionar `onReorder` callback nas props
 
-No arquivo `src/pages/Dashboard.tsx`, nas linhas 62-97, onde o `TooltipTrigger asChild` envolve o `Badge`, adicionar um wrapper `<span>` para garantir que o ref seja passado corretamente:
+### PipelineFormSheet.tsx
+- Adicionar botao "Excluir Funil" quando `pipeline` prop existir
+- Incluir `DeleteConfirmDialog` para confirmacao
 
-```tsx
-// Antes (pode causar warning/erro de ref):
-<TooltipTrigger asChild>
-  <Badge ...>...</Badge>
-</TooltipTrigger>
+### Deals.tsx
+- Adicionar handler `handleDeletePipeline` com mutation para excluir pipeline e seus stages
+- Adicionar handler `handleReorderPipelines` com mutation para atualizar posicoes
+- Verificar se pipeline tem negocios antes de permitir exclusao
+- Apos excluir, selecionar o primeiro pipeline restante
+- Passar novos callbacks para DealsHeader e PipelineSelector
 
-// Depois (ref passado corretamente):
-<TooltipTrigger asChild>
-  <span>
-    <Badge ...>...</Badge>
-  </span>
-</TooltipTrigger>
-```
-
-Essa mudanca sera aplicada em 2 pontos do StatCard (linhas 63-83 e 87-96).
-
-## Resultado esperado
-- O warning de refs desaparece completamente
-- O Dashboard funciona sem erros tanto no preview quanto na versao publicada
-- Apos republicar, a versao publicada tera o codigo atualizado e funcional
+### DealsHeader.tsx
+- Adicionar props `onDeletePipeline` e `onReorderPipelines` e passa-los ao PipelineSelector
