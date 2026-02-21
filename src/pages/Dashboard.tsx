@@ -61,21 +61,23 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, href, variant = '
               {trend && trend.direction !== 'neutral' && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge 
-                      variant="secondary" 
-                      className={cn(
-                        "text-xs border-0 cursor-help",
-                        trend.direction === 'up' && "bg-success/10 text-success",
-                        trend.direction === 'down' && "bg-destructive/10 text-destructive"
-                      )}
-                    >
-                      {trend.direction === 'up' ? (
-                        <TrendingUp className="h-3 w-3 mr-0.5" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3 mr-0.5" />
-                      )}
-                      {trend.percentage > 0 ? '+' : ''}{trend.percentage.toFixed(0)}%
-                    </Badge>
+                    <span>
+                      <Badge 
+                        variant="secondary" 
+                        className={cn(
+                          "text-xs border-0 cursor-help",
+                          trend.direction === 'up' && "bg-success/10 text-success",
+                          trend.direction === 'down' && "bg-destructive/10 text-destructive"
+                        )}
+                      >
+                        {trend.direction === 'up' ? (
+                          <TrendingUp className="h-3 w-3 mr-0.5" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 mr-0.5" />
+                        )}
+                        {trend.percentage > 0 ? '+' : ''}{trend.percentage.toFixed(0)}%
+                      </Badge>
+                    </span>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Comparado ao mês anterior</p>
@@ -85,10 +87,12 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, href, variant = '
               {trend && trend.direction === 'neutral' && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge variant="secondary" className="text-xs border-0 bg-muted text-muted-foreground cursor-help">
-                      <Minus className="h-3 w-3 mr-0.5" />
-                      0%
-                    </Badge>
+                    <span>
+                      <Badge variant="secondary" className="text-xs border-0 bg-muted text-muted-foreground cursor-help">
+                        <Minus className="h-3 w-3 mr-0.5" />
+                        0%
+                      </Badge>
+                    </span>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Comparado ao mês anterior</p>
