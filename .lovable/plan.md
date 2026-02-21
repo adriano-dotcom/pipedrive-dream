@@ -1,38 +1,29 @@
 
-# Confirmacao de Email no Cadastro
+
+# Corrigir Envio de Email de Confirmacao no Cadastro
+
+## Problema Identificado
+
+O sistema de autenticacao esta configurado com **auto-confirm ativado**, o que faz com que os usuarios sejam confirmados automaticamente no momento do cadastro, **sem receber nenhum email de verificacao**. Por isso o jarvis nao recebeu o email.
+
+O usuario jarvis ja esta com status confirmado no sistema (email_confirmed_at preenchido), entao ele ja consegue fazer login normalmente.
 
 ## O que sera feito
 
-Garantir que tanto o cadastro manual quanto o cadastro via Google exijam confirmacao de email antes de permitir o primeiro login. Apos o cadastro, o vendedor vera uma tela clara pedindo para verificar o email. Ao clicar no link do email, ele sera redirecionado ao sistema e podera fazer login.
+1. **Desabilitar auto-confirm** nas configuracoes de autenticacao usando a ferramenta de configuracao do backend. Isso fara com que novos cadastros recebam um email de confirmacao automaticamente.
 
-## Como vai funcionar
+2. **Sobre o jarvis**: Como ele ja foi auto-confirmado, ele ja pode fazer login sem problemas. Nao precisa de nenhuma acao adicional para ele.
 
-1. **Cadastro manual**: Ao criar conta, o sistema envia email de confirmacao automaticamente (comportamento padrao do sistema de autenticacao). O usuario ve uma tela bonita de "Verifique seu email" em vez de apenas um toast.
-2. **Cadastro via Google**: Restringir ao dominio `@jacometo` usando o parametro `hd` do Google OAuth. Como o Google ja verifica o email, nao precisa de confirmacao adicional - o login e imediato.
-3. **Protecao**: Usuarios com email nao confirmado (cadastro manual) sao bloqueados de acessar o sistema ate confirmar.
+## Detalhes tecnicos
 
-## Etapas tecnicas
+- Usar a ferramenta `configure-auth` para desabilitar `autoconfirm` no Supabase Auth
+- Apos essa mudanca, novos cadastros manuais (email/senha) vao receber o email de confirmacao automaticamente do sistema de autenticacao
+- A tela "Verifique seu email" que ja foi implementada na pagina de Auth vai funcionar corretamente
+- Cadastros via Google OAuth continuam funcionando normalmente (Google ja verifica o email)
 
-### 1. Pagina Auth (`src/pages/Auth.tsx`)
-- Adicionar estado `showEmailSent` que exibe uma tela de confirmacao apos signup bem-sucedido
-- A tela mostra icone de email, mensagem "Verifique seu email", o endereco usado, e botao para voltar ao login
-- Restringir Google OAuth ao dominio `@jacometo` adicionando `extraParams: { hd: "jacometo.com.br" }`
+## Resultado esperado
 
-### 2. ProtectedRoute (`src/components/layout/ProtectedRoute.tsx`)
-- Adicionar verificacao de `user.email_confirmed_at`
-- Se o usuario existe mas email nao esta confirmado, redirecionar para `/auth` com mensagem
-- Isso impede acesso ao sistema antes da confirmacao
+- Novos vendedores que se cadastrarem via email/senha vao receber o email de confirmacao
+- Somente apos clicar no link do email, eles poderao fazer o primeiro login
+- O jarvis ja esta confirmado e pode acessar o sistema normalmente
 
-### 3. AuthContext (`src/contexts/AuthContext.tsx`)
-- Verificar `email_confirmed_at` no usuario antes de considerar como autenticado
-- Usuarios via Google OAuth ja vem com email confirmado, entao passam direto
-
-### Arquivos modificados
-- `src/pages/Auth.tsx` - tela pos-cadastro + restricao Google domain
-- `src/components/layout/ProtectedRoute.tsx` - bloquear emails nao confirmados
-- `src/contexts/AuthContext.tsx` - verificar confirmacao de email
-
-### Seguranca
-- Emails nao confirmados nao conseguem acessar nenhuma rota protegida
-- Google OAuth restrito ao dominio @jacometo via parametro `hd`
-- Cadastro manual ja restrito a @jacometo pela validacao Zod existente
