@@ -23,5 +23,9 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/auth" replace />;
   }
 
+  if (!user.email_confirmed_at) {
+    return <Navigate to="/auth" replace />;
+  }
+
   return <AppLayout>{children}</AppLayout>;
 }
