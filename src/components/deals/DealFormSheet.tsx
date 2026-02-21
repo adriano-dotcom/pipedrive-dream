@@ -16,12 +16,12 @@ import { DealTagsSelector } from './DealTagsSelector';
 import { useDealTagAssignments, useAssignDealTags } from '@/hooks/useDealTags';
 
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -437,14 +437,15 @@ export function DealFormSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{isEditing ? 'Editar Negócio' : 'Novo Negócio'}</SheetTitle>
-          <SheetDescription>
+    <>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? 'Editar Negócio' : 'Novo Negócio'}</DialogTitle>
+          <DialogDescription>
             {isEditing ? 'Atualize os dados do negócio' : 'Preencha os dados do novo negócio'}
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6">
@@ -916,23 +917,24 @@ export function DealFormSheet({
             </div>
           </form>
         </Form>
-      </SheetContent>
+      </DialogContent>
+    </Dialog>
 
-      {/* Confirmation dialog for pipeline change */}
-      <AlertDialog open={isConfirmingPipelineChange} onOpenChange={setIsConfirmingPipelineChange}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Troca de Funil?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Ao trocar de funil, a etapa atual será perdida e você precisará selecionar uma nova etapa. Deseja continuar?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelPipelineChange}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmPipelineChange}>Continuar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Sheet>
+    {/* Confirmation dialog for pipeline change */}
+    <AlertDialog open={isConfirmingPipelineChange} onOpenChange={setIsConfirmingPipelineChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirmar Troca de Funil?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Ao trocar de funil, a etapa atual será perdida e você precisará selecionar uma nova etapa. Deseja continuar?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={cancelPipelineChange}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmPipelineChange}>Continuar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
