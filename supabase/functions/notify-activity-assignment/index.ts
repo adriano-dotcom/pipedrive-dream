@@ -158,7 +158,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "CRM Jacometo <onboarding@resend.dev>",
+          from: "CRM Jacometo <crm@jacometo.com.br>",
           to: [assignedUserEmail],
           subject: `${assignerName} atribuiu uma atividade: ${activityTitle}`,
           html: emailHtml,

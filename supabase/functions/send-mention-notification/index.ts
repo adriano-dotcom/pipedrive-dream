@@ -136,7 +136,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "CRM Jacometo <onboarding@resend.dev>",
+          from: "CRM Jacometo <crm@jacometo.com.br>",
           to: [email],
           subject: `${authorName} mencionou você em uma nota`,
           html: `
