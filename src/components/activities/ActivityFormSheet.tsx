@@ -4,11 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarIcon, CheckSquare, Phone, Calendar, Mail, Clock, MessageCircle } from 'lucide-react';
+import { CalendarIcon, CheckSquare, Phone, Calendar, Mail, Clock, MessageCircle, User } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useTeamMembers } from '@/hooks/useTeamMembers';
 
 import {
   Dialog,
@@ -54,6 +55,7 @@ const activitySchema = z.object({
   due_time: z.string().optional(),
   duration_minutes: z.number().min(0).max(480).optional(),
   priority: z.enum(['low', 'normal', 'high']),
+  assigned_to: z.string().uuid(),
   deal_id: z.string().uuid().optional().nullable(),
   person_id: z.string().uuid().optional().nullable(),
   organization_id: z.string().uuid().optional().nullable(),
@@ -97,6 +99,7 @@ export function ActivityFormSheet({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isEditing = !!activity;
+  const { data: teamMembers } = useTeamMembers();
 
   const form = useForm<ActivityFormData>({
     resolver: zodResolver(activitySchema),
@@ -108,6 +111,7 @@ export function ActivityFormSheet({
       due_date: new Date(),
       due_time: '',
       duration_minutes: undefined,
+      assigned_to: user?.id || '',
       deal_id: defaultDealId || null,
       person_id: defaultPersonId || null,
       organization_id: defaultOrganizationId || null,
@@ -126,6 +130,7 @@ export function ActivityFormSheet({
         due_date: new Date(activity.due_date),
         due_time: activity.due_time || '',
         duration_minutes: activity.duration_minutes || undefined,
+        assigned_to: activity.assigned_to || user?.id || '',
         deal_id: activity.deal_id,
         person_id: activity.person_id,
         organization_id: activity.organization_id,
@@ -140,6 +145,7 @@ export function ActivityFormSheet({
         due_date: new Date(),
         due_time: '',
         duration_minutes: undefined,
+        assigned_to: user?.id || '',
         deal_id: defaultDealId || null,
         person_id: defaultPersonId || null,
         organization_id: defaultOrganizationId || null,
@@ -201,6 +207,7 @@ export function ActivityFormSheet({
         due_date: format(data.due_date, 'yyyy-MM-dd'),
         due_time: data.due_time || null,
         duration_minutes: data.duration_minutes || null,
+        assigned_to: data.assigned_to,
         deal_id: data.deal_id || null,
         person_id: data.person_id || null,
         organization_id: data.organization_id || null,
@@ -220,7 +227,6 @@ export function ActivityFormSheet({
             ...payload,
             owner_id: user?.id,
             created_by: user?.id,
-            assigned_to: user?.id,
           });
         if (error) throw error;
 
@@ -237,6 +243,31 @@ export function ActivityFormSheet({
             created_by: user?.id,
           });
         }
+      }
+
+      // Send notification if assigned to another user
+      if (data.assigned_to && data.assigned_to !== user?.id) {
+        const currentProfile = teamMembers?.find(m => m.user_id === user?.id);
+        const assignerName = currentProfile?.full_name || 'Alguém';
+        
+        // Get linked entity names
+        const dealName = deals?.find(d => d.id === data.deal_id)?.title;
+        const personName = people?.find(p => p.id === data.person_id)?.name;
+        const orgName = organizations?.find(o => o.id === data.organization_id)?.name;
+
+        supabase.functions.invoke('notify-activity-assignment', {
+          body: {
+            activityTitle: data.title,
+            activityType: data.activity_type,
+            dueDate: format(data.due_date, 'dd/MM/yyyy'),
+            dueTime: data.due_time || undefined,
+            assignedToUserId: data.assigned_to,
+            assignerName,
+            dealName,
+            personName,
+            organizationName: orgName,
+          },
+        }).catch(err => console.error('Error sending assignment notification:', err));
       }
     },
     onSuccess: () => {
@@ -421,6 +452,36 @@ export function ActivityFormSheet({
                       onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Responsável */}
+            <FormField
+              control={form.control}
+              name="assigned_to"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Responsável *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o responsável" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {teamMembers?.map((member) => (
+                        <SelectItem key={member.user_id} value={member.user_id}>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            {member.full_name}
+                            {member.user_id === user?.id ? ' (você)' : ''}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
