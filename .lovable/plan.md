@@ -1,35 +1,27 @@
 
-# Configurar Dominio jacometo.com.br no Resend
 
-## Passo 1: Configurar o dominio no Resend (voce faz manualmente)
+# Atualizar Template de E-mail de Menção
 
-1. Acesse [resend.com/domains](https://resend.com/domains)
-2. Clique em **"Add Domain"**
-3. Digite: `jacometo.com.br`
-4. O Resend vai mostrar registros DNS que voce precisa adicionar no seu provedor de dominio:
-   - **MX record** - para receber emails (opcional)
-   - **TXT record (SPF)** - para autorizacao de envio
-   - **CNAME records (DKIM)** - para assinatura dos emails
-5. Adicione esses registros no painel do seu provedor de dominio (Registro.br, GoDaddy, Cloudflare, etc.)
-6. Volte ao Resend e clique em **"Verify"** - pode levar ate 72 horas, mas geralmente e rapido
+## O que será feito
 
-## Passo 2: Atualizar as Edge Functions (eu farei apos sua aprovacao)
+Atualizar o e-mail enviado quando um usuário é mencionado (@) em uma nota para usar o mesmo modelo visual profissional já utilizado nas notificações de atribuição de atividades.
 
-Trocar o remetente `onboarding@resend.dev` por um endereco do dominio verificado em **4 arquivos**:
+## Mudança
 
-| Arquivo | Remetente atual | Novo remetente |
-|---------|----------------|----------------|
-| `notify-activity-assignment/index.ts` | `CRM Jacometo <onboarding@resend.dev>` | `CRM Jacometo <crm@jacometo.com.br>` |
-| `send-email/index.ts` | `${fromName} <onboarding@resend.dev>` | `${fromName} <crm@jacometo.com.br>` |
-| `send-mention-notification/index.ts` | `CRM Jacometo <onboarding@resend.dev>` | `CRM Jacometo <crm@jacometo.com.br>` |
-| `process-bulk-email/index.ts` | `${fromName} <onboarding@resend.dev>` | `${fromName} <crm@jacometo.com.br>` |
+**Arquivo:** `supabase/functions/send-mention-notification/index.ts`
 
-Todas as functions serao reimplantadas automaticamente apos a alteracao.
+O template HTML atual do e-mail de menção é simples e básico. Será substituído pelo layout profissional com:
 
----
+- Header com título e subtítulo estilizados
+- Card com fundo cinza, borda arredondada e informações organizadas (tipo de entidade, nome, conteúdo da nota)
+- Botão azul "Ver no CRM" com link direto para a entidade
+- Footer com texto de notificação automática
+- Mesma paleta de cores e tipografia do template de atividades
 
-**Importante:** O endereco `crm@jacometo.com.br` nao precisa existir como caixa de entrada real - o Resend so precisa que o dominio esteja verificado. Se preferir outro endereco (ex: `noreply@jacometo.com.br`), me avise.
+## Detalhes Técnicos
 
-**Sequencia recomendada:**
-1. Primeiro configure e verifique o dominio no Resend
-2. Depois aprove este plano para eu atualizar o codigo
+- Substituir o bloco HTML inline (linhas 142-155) pelo novo template estilizado baseado no modelo de `notify-activity-assignment`
+- Gerar link direto para a entidade: `https://pipedrive-dream.lovable.app/deals/{id}`, `/people/{id}` ou `/organizations/{id}` conforme o `entityType`
+- Manter o envio non-blocking com `try-catch` e `Promise.allSettled` já existente
+- Reimplantar a Edge Function automaticamente
+
