@@ -1,53 +1,35 @@
 
-# Vincular Atividade a Vendedor e Notificar por Email
+# Configurar Dominio jacometo.com.br no Resend
 
-## O que sera feito
+## Passo 1: Configurar o dominio no Resend (voce faz manualmente)
 
-### 1. Adicionar campo "Responsavel" no formulario de atividades
-- Novo campo Select no `ActivityFormSheet` com a lista de membros da equipe (usando o hook `useTeamMembers` ja existente)
-- O usuario logado vem pre-selecionado como padrao
-- Ao editar, mostra o responsavel atual da atividade
+1. Acesse [resend.com/domains](https://resend.com/domains)
+2. Clique em **"Add Domain"**
+3. Digite: `jacometo.com.br`
+4. O Resend vai mostrar registros DNS que voce precisa adicionar no seu provedor de dominio:
+   - **MX record** - para receber emails (opcional)
+   - **TXT record (SPF)** - para autorizacao de envio
+   - **CNAME records (DKIM)** - para assinatura dos emails
+5. Adicione esses registros no painel do seu provedor de dominio (Registro.br, GoDaddy, Cloudflare, etc.)
+6. Volte ao Resend e clique em **"Verify"** - pode levar ate 72 horas, mas geralmente e rapido
 
-### 2. Salvar o responsavel no campo `assigned_to`
-- O campo `assigned_to` ja existe na tabela `activities` no banco de dados
-- Atualizar a mutation para usar o valor selecionado no formulario ao inves de sempre atribuir ao usuario logado
+## Passo 2: Atualizar as Edge Functions (eu farei apos sua aprovacao)
 
-### 3. Enviar email ao responsavel quando for outro usuario
-- Criar uma nova Edge Function `notify-activity-assignment` que:
-  - Recebe os dados da atividade e o ID do usuario atribuido
-  - Busca o email e nome do usuario no banco
-  - Busca nomes da pessoa/organizacao/negocio vinculados
-  - Envia email via Resend com template HTML contendo os detalhes da atividade e um link direto para o sistema
-- O email e enviado apenas quando o responsavel for diferente do usuario que esta criando/editando
+Trocar o remetente `onboarding@resend.dev` por um endereco do dominio verificado em **4 arquivos**:
 
-### 4. Link direto para a atividade
-- O email contera um link para a pagina de atividades do CRM (URL publicada do projeto)
-- Como nao existe uma pagina de detalhe individual de atividade, o link levara para `/activities` com o contexto necessario
+| Arquivo | Remetente atual | Novo remetente |
+|---------|----------------|----------------|
+| `notify-activity-assignment/index.ts` | `CRM Jacometo <onboarding@resend.dev>` | `CRM Jacometo <crm@jacometo.com.br>` |
+| `send-email/index.ts` | `${fromName} <onboarding@resend.dev>` | `${fromName} <crm@jacometo.com.br>` |
+| `send-mention-notification/index.ts` | `CRM Jacometo <onboarding@resend.dev>` | `CRM Jacometo <crm@jacometo.com.br>` |
+| `process-bulk-email/index.ts` | `${fromName} <onboarding@resend.dev>` | `${fromName} <crm@jacometo.com.br>` |
 
-## Detalhes tecnicos
+Todas as functions serao reimplantadas automaticamente apos a alteracao.
 
-### ActivityFormSheet.tsx
-- Adicionar `assigned_to` ao schema zod: `z.string().uuid()`
-- Importar e usar `useTeamMembers` para popular o Select
-- Adicionar campo "Responsavel" no formulario, antes da secao "Vincular a"
-- No defaultValues, usar `user?.id` como valor padrao
-- No reset do form para edicao, usar `activity.assigned_to || user?.id`
-- Na mutation, usar `data.assigned_to` no payload
-- Apos criar/editar com sucesso, se `assigned_to !== user?.id`, chamar a edge function de notificacao
+---
 
-### Nova Edge Function: `supabase/functions/notify-activity-assignment/index.ts`
-- Recebe: `activityTitle`, `activityType`, `dueDate`, `dueTime`, `assignedToUserId`, `assignerName`, `dealName`, `personName`, `organizationName`
-- Busca email do usuario atribuido via `supabase.auth.admin.getUserById`
-- Busca nome do usuario via tabela `profiles`
-- Envia email via Resend com template HTML estilizado contendo:
-  - Nome do remetente (quem atribuiu)
-  - Tipo e titulo da atividade
-  - Data e horario
-  - Negocio, pessoa e organizacao vinculados (se houver)
-  - Botao "Ver Atividade" com link para a aplicacao
-- Usa RESEND_API_KEY (ja configurada)
+**Importante:** O endereco `crm@jacometo.com.br` nao precisa existir como caixa de entrada real - o Resend so precisa que o dominio esteja verificado. Se preferir outro endereco (ex: `noreply@jacometo.com.br`), me avise.
 
-### Template do email
-- Design limpo similar ao email de mencoes ja existente
-- Informacoes da atividade em card destacado
-- Botao de acao com link para `/activities`
+**Sequencia recomendada:**
+1. Primeiro configure e verifique o dominio no Resend
+2. Depois aprove este plano para eu atualizar o codigo
