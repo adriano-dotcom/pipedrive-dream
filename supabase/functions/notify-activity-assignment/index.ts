@@ -148,30 +148,36 @@ serve(async (req) => {
       </div>
     `;
 
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: "CRM Jacometo <onboarding@resend.dev>",
-        to: [assignedUserEmail],
-        subject: `${assignerName} atribuiu uma atividade: ${activityTitle}`,
-        html: emailHtml,
-      }),
-    });
+    // Try to send email (non-blocking - don't fail if email fails)
+    let emailSent = false;
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "CRM Jacometo <onboarding@resend.dev>",
+          to: [assignedUserEmail],
+          subject: `${assignerName} atribuiu uma atividade: ${activityTitle}`,
+          html: emailHtml,
+        }),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Resend error:", errorData);
-      throw new Error(errorData.message || "Failed to send email");
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.warn("Resend email failed (non-critical):", errorData.message || "Unknown error");
+      } else {
+        const result = await response.json();
+        console.log("Email sent successfully:", result);
+        emailSent = true;
+      }
+    } catch (emailError) {
+      console.warn("Email sending error (non-critical):", emailError);
     }
 
-    const result = await response.json();
-    console.log("Email sent successfully:", result);
-
-    // Also create in-app notification
+    // Always create in-app notification
     await supabase.from("notifications").insert({
       user_id: assignedToUserId,
       type: "activity_assignment",
@@ -182,7 +188,7 @@ serve(async (req) => {
       created_by: claimsData.user.id,
     });
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, emailSent }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
