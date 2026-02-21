@@ -1,48 +1,60 @@
 
-# Editar, Excluir e Reordenar Funis de Vendas
+# Transformar Formulario de Negocio em Dialog Centralizado
 
 ## O que sera feito
 
-### 1. Adicionar botao de Excluir funil no PipelineSelector
-- Adicionar icone de lixeira (Trash2) ao lado do botao de editar no dropdown do seletor de funil
-- Ao clicar, abre um dialogo de confirmacao antes de excluir
-- Se o funil tiver negocios vinculados, exibir aviso informando quantos negocios serao afetados e impedir a exclusao
-- Nao permitir excluir o ultimo funil restante
+Converter o formulario de criacao/edicao de negocios de um Sheet lateral (painel deslizante da direita) para um Dialog centralizado na tela, com visual mais amigavel e fluido, seguindo a estetica iOS Liquid Glass do projeto.
 
-### 2. Adicionar opcao de Excluir no formulario de edicao (PipelineFormSheet)
-- Adicionar botao "Excluir Funil" no rodape do formulario quando estiver editando um funil existente
-- Reutilizar a mesma logica de confirmacao e validacao
+## Mudancas
 
-### 3. Drag-and-drop para reordenar funis
-- Adicionar coluna `position` na tabela `pipelines` via migracao SQL (integer, default 0)
-- Atualizar a query de pipelines para ordenar por `position` ao inves de `name`
-- Adicionar suporte a drag-and-drop no dropdown do PipelineSelector usando @hello-pangea/dnd (ja instalado no projeto)
-- Ao soltar, atualizar as posicoes no banco de dados
+### 1. DealFormSheet.tsx - Converter Sheet para Dialog
+- Substituir os imports de `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle`, `SheetDescription` pelos equivalentes de `Dialog`: `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`
+- Alterar o wrapper de `Sheet` para `Dialog` e de `SheetContent` para `DialogContent`
+- Aplicar classes para o Dialog ficar mais largo (`max-w-2xl`) e com scroll interno (`max-h-[85vh] overflow-y-auto`)
+- Manter toda a logica interna do formulario exatamente igual (queries, mutations, form fields)
 
-## Detalhes tecnicos
+### Detalhes tecnicos
 
-### Migracao SQL
-- Adicionar coluna `position` (integer, default 0) na tabela `pipelines`
-- Atualizar posicoes iniciais dos pipelines existentes baseado na ordem atual
+No arquivo `src/components/deals/DealFormSheet.tsx`:
 
-### PipelineSelector.tsx
-- Importar `Trash2` do lucide-react e `@hello-pangea/dnd` para drag-and-drop
-- Adicionar botao de excluir com tooltip ao lado do botao de editar
-- Adicionar `onDelete` callback nas props
-- Envolver lista de pipelines com `DragDropContext` e `Droppable`/`Draggable`
-- Adicionar icone de grip (GripVertical) para indicar que e arrastavel
-- Adicionar `onReorder` callback nas props
+1. Substituir imports (linhas 18-24):
+```tsx
+// De:
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+// Para:
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+```
 
-### PipelineFormSheet.tsx
-- Adicionar botao "Excluir Funil" quando `pipeline` prop existir
-- Incluir `DeleteConfirmDialog` para confirmacao
+2. Substituir o wrapper JSX (linhas 440-441 e 919-936):
+```tsx
+// De:
+<Sheet open={open} onOpenChange={onOpenChange}>
+  <SheetContent className="sm:max-w-lg overflow-y-auto">
+    <SheetHeader>
+      <SheetTitle>...</SheetTitle>
+      <SheetDescription>...</SheetDescription>
+    </SheetHeader>
+    ...
+  </SheetContent>
+</Sheet>
 
-### Deals.tsx
-- Adicionar handler `handleDeletePipeline` com mutation para excluir pipeline e seus stages
-- Adicionar handler `handleReorderPipelines` com mutation para atualizar posicoes
-- Verificar se pipeline tem negocios antes de permitir exclusao
-- Apos excluir, selecionar o primeiro pipeline restante
-- Passar novos callbacks para DealsHeader e PipelineSelector
+// Para:
+<Dialog open={open} onOpenChange={onOpenChange}>
+  <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>...</DialogTitle>
+      <DialogDescription>...</DialogDescription>
+    </DialogHeader>
+    ...
+  </DialogContent>
+</Dialog>
+```
 
-### DealsHeader.tsx
-- Adicionar props `onDeletePipeline` e `onReorderPipelines` e passa-los ao PipelineSelector
+3. Mover o `AlertDialog` de confirmacao de troca de funil para fora do `Dialog`, pois dialogs aninhados podem causar problemas de z-index. Envolver ambos em um Fragment `<>`.
+
+## Resultado esperado
+- O formulario abre centralizado na tela como um modal
+- Largura maior (max-w-2xl / ~672px) permite visualizar melhor os campos em grid 2 colunas
+- Scroll interno quando o conteudo excede 85% da altura da viewport
+- Visual com glass blur consistente com o resto da aplicacao
+- Toda a funcionalidade existente (criar, editar, ganho/perdido, excluir) continua funcionando normalmente
