@@ -145,7 +145,7 @@ serve(async (req: Request) => {
 
       try {
         const { error: emailError } = await resend.emails.send({
-          from: `${fromName} <onboarding@resend.dev>`,
+          from: `${fromName} <crm@jacometo.com.br>`,
           to: [recipient.email],
           subject: personalizedSubject,
           html: bodyWithPixel,

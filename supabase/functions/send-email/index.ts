@@ -89,7 +89,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Send email via Resend
     // Note: Using onboarding@resend.dev for testing. Replace with verified domain in production.
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: `${fromName} <onboarding@resend.dev>`,
+      from: `${fromName} <crm@jacometo.com.br>`,
       to: [to],
       subject: subject,
       html: body,
