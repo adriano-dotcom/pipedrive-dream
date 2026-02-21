@@ -127,6 +127,16 @@ serve(async (req) => {
       organization: "organização",
     };
 
+    const entityUrlPaths: Record<string, string> = {
+      deal: "deals",
+      person: "people",
+      organization: "organizations",
+    };
+
+    const appUrl = "https://pipedrive-dream.lovable.app";
+    const entityLink = `${appUrl}/${entityUrlPaths[entityType]}/${entityId}`;
+    const typeLabel = entityTypeLabels[entityType] || entityType;
+
     // Send emails using Resend API directly
     const emailPromises = emails.map(async ({ email }) => {
       const response = await fetch("https://api.resend.com/emails", {
@@ -140,18 +150,32 @@ serve(async (req) => {
           to: [email],
           subject: `${authorName} mencionou você em uma nota`,
           html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #333;">Você foi mencionado em uma nota</h2>
-              <p style="color: #666;">
-                <strong>${authorName}</strong> mencionou você em uma nota no ${entityTypeLabels[entityType]} 
-                <strong>${entityName}</strong>.
-              </p>
-              <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
-                <p style="color: #333; margin: 0;">${plainTextContent}${noteContent.length > 200 ? "..." : ""}</p>
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+              <div style="padding: 32px 24px;">
+                <h2 style="color: #111827; margin: 0 0 8px 0; font-size: 20px;">Você foi mencionado em uma nota</h2>
+                <p style="color: #6b7280; margin: 0 0 24px 0; font-size: 15px;">
+                  <strong>${authorName}</strong> mencionou você em uma nota.
+                </p>
+                
+                <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 0 0 24px 0;">
+                  <p style="color: #6b7280; margin: 0 0 4px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">${typeLabel}</p>
+                  <h3 style="color: #111827; margin: 0 0 12px 0; font-size: 18px;">${entityName}</h3>
+                  <div style="color: #374151; margin: 0; font-size: 14px; line-height: 1.5;">
+                    ${plainTextContent}${noteContent.length > 200 ? "..." : ""}
+                  </div>
+                </div>
+                
+                <div style="text-align: center; margin: 24px 0;">
+                  <a href="${entityLink}" 
+                     style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 15px; font-weight: 500;">
+                    Ver no CRM
+                  </a>
+                </div>
+                
+                <p style="color: #9ca3af; font-size: 12px; margin: 24px 0 0 0; text-align: center;">
+                  Esta é uma notificação automática do CRM Jacometo.
+                </p>
               </div>
-              <p style="color: #999; font-size: 12px;">
-                Esta é uma notificação automática do CRM Jacometo.
-              </p>
             </div>
           `,
         }),
