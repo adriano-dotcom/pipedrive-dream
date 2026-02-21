@@ -1,29 +1,45 @@
 
+# Corrigir Erro no Dashboard da Versao Publicada
 
-# Corrigir Envio de Email de Confirmacao no Cadastro
+## Diagnostico
 
-## Problema Identificado
+O erro "Algo deu errado" aparece apenas na versao **publicada** (pipedrive-dream.lovable.app). A versao de preview funciona perfeitamente. Isso indica que a versao publicada esta rodando codigo antigo que nao foi atualizado.
 
-O sistema de autenticacao esta configurado com **auto-confirm ativado**, o que faz com que os usuarios sejam confirmados automaticamente no momento do cadastro, **sem receber nenhum email de verificacao**. Por isso o jarvis nao recebeu o email.
+Alem disso, existe um warning no console sobre refs no componente `StatCard` que pode causar problemas em ambientes de producao mais restritos:
+- O `TooltipTrigger` com `asChild` tenta passar um ref para o componente `Tooltip`, mas o `Tooltip` do Radix UI e um function component sem `forwardRef`
+- Embora seja apenas um warning, em builds de producao otimizados isso pode causar erros fatais em alguns casos
 
-O usuario jarvis ja esta com status confirmado no sistema (email_confirmed_at preenchido), entao ele ja consegue fazer login normalmente.
+## Solucao
 
-## O que sera feito
+### 1. Republicar o projeto
+- A principal acao e republicar para que a versao publicada receba o codigo mais recente que ja funciona no preview
 
-1. **Desabilitar auto-confirm** nas configuracoes de autenticacao usando a ferramenta de configuracao do backend. Isso fara com que novos cadastros recebam um email de confirmacao automaticamente.
+### 2. Corrigir warning de refs no StatCard (`src/pages/Dashboard.tsx`)
+- O `TooltipTrigger asChild` precisa de um filho que aceite refs
+- O `Badge` ja tem `forwardRef`, mas o `Tooltip` wrapper pode causar conflito em certas versoes
+- Envolver o `Badge` dentro do `TooltipTrigger` com um `<span>` para garantir compatibilidade de refs em todos os ambientes
 
-2. **Sobre o jarvis**: Como ele ja foi auto-confirmado, ele ja pode fazer login sem problemas. Nao precisa de nenhuma acao adicional para ele.
+### Detalhes tecnicos
 
-## Detalhes tecnicos
+No arquivo `src/pages/Dashboard.tsx`, nas linhas 62-97, onde o `TooltipTrigger asChild` envolve o `Badge`, adicionar um wrapper `<span>` para garantir que o ref seja passado corretamente:
 
-- Usar a ferramenta `configure-auth` para desabilitar `autoconfirm` no Supabase Auth
-- Apos essa mudanca, novos cadastros manuais (email/senha) vao receber o email de confirmacao automaticamente do sistema de autenticacao
-- A tela "Verifique seu email" que ja foi implementada na pagina de Auth vai funcionar corretamente
-- Cadastros via Google OAuth continuam funcionando normalmente (Google ja verifica o email)
+```tsx
+// Antes (pode causar warning/erro de ref):
+<TooltipTrigger asChild>
+  <Badge ...>...</Badge>
+</TooltipTrigger>
+
+// Depois (ref passado corretamente):
+<TooltipTrigger asChild>
+  <span>
+    <Badge ...>...</Badge>
+  </span>
+</TooltipTrigger>
+```
+
+Essa mudanca sera aplicada em 2 pontos do StatCard (linhas 63-83 e 87-96).
 
 ## Resultado esperado
-
-- Novos vendedores que se cadastrarem via email/senha vao receber o email de confirmacao
-- Somente apos clicar no link do email, eles poderao fazer o primeiro login
-- O jarvis ja esta confirmado e pode acessar o sistema normalmente
-
+- O warning de refs desaparece completamente
+- O Dashboard funciona sem erros tanto no preview quanto na versao publicada
+- Apos republicar, a versao publicada tera o codigo atualizado e funcional
